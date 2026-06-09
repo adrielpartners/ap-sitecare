@@ -406,3 +406,22 @@ Do not add a second package manager.
 - All interactive controls require visible focus, hover, disabled, and loading
   or error states where applicable.
 - Desktop and mobile visual review is required for meaningful UI changes.
+
+---
+
+# 19. Phase Three Data Rules
+
+- All schema changes must be implemented as ordered migrations.
+- Never edit the production SQLite schema manually.
+- Database access belongs in repositories.
+- Services own site lifecycle, credential lifecycle, health recording, and
+  audit behavior.
+- Use UUID strings for domain record identifiers.
+- Use ISO 8601 UTC strings for timestamps.
+- Normalize frequently queried operational fields into columns.
+- Use JSON only for limited metadata and provider payloads.
+- Never store or log plaintext site secrets.
+- Site secrets require `NUXT_CREDENTIAL_ENCRYPTION_KEY`.
+- Only one active credential may exist for a site.
+- Sites are disabled rather than deleted through the service layer.
+- New meaningful service behavior requires focused tests.

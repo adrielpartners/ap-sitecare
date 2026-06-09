@@ -5,7 +5,7 @@ Project: AP SiteCare
 Repository: `ap-sitecare`
 Last Updated: 2026-06-09
 
-Current Status: Phase 2 complete; awaiting approval to begin Phase 3.
+Current Status: Phase 3 complete; awaiting approval to begin Phase 4.
 
 ---
 
@@ -214,6 +214,20 @@ Services:
 - Migrations complete
 - CRUD verified
 - Services operational
+
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Transactional SQLite migration runner implemented.
+- Sites, credentials, check-ins, health snapshots, and audit-event schemas
+  implemented.
+- Required repositories implemented.
+- Required services implemented.
+- Site credential encryption and rotation implemented.
+- Site lifecycle, credential lifecycle, health recording, and audit behavior
+  verified with focused tests.
+- Protected data-foundation readiness endpoint implemented.
 
 ---
 

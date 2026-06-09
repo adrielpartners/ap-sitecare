@@ -22,6 +22,7 @@ export default defineNuxtConfig({
       developmentBypass: false,
       developmentEmail: 'developer@adrielpartners.com'
     },
+    credentialEncryptionKey: '',
     databasePath: './data/sitecare.sqlite'
   },
   typescript: {

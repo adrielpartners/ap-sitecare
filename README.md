@@ -23,7 +23,11 @@ Set `NUXT_AUTH_DEVELOPMENT_BYPASS=true` only for local development.
 
 ```bash
 npm run typecheck
+npm test
 npm run build
 docker compose config
 docker compose build
 ```
+
+`NUXT_CREDENTIAL_ENCRYPTION_KEY` is required before issuing site credentials.
+Store it outside source control and back it up securely.

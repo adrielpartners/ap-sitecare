@@ -4,6 +4,7 @@ services:
       context: .
     environment:
       NUXT_AUTH_DEVELOPMENT_BYPASS: "false"
+      NUXT_CREDENTIAL_ENCRYPTION_KEY: ${NUXT_CREDENTIAL_ENCRYPTION_KEY:-}
       NUXT_DATABASE_PATH: /data/sitecare.sqlite
     healthcheck:
       test:

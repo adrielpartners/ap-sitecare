@@ -453,3 +453,151 @@ The shell includes:
 
 Phase Two's overview page is a design-system approval surface. It uses sample
 content only and does not represent a Phase Three data implementation.
+
+---
+
+# 15. Phase Three Core Data Model
+
+## Migration System
+
+SQLite schema changes are applied through ordered migrations in:
+
+```text
+apps/dashboard/server/database/migrations.ts
+```
+
+Applied migrations are recorded in:
+
+```text
+schema_migrations
+```
+
+Migrations run when the database connection is initialized. Each migration is
+transactional and is applied only once.
+
+## Data Ownership
+
+AP SiteCare owns the following operational tables:
+
+### `sites`
+
+Stores the managed-site inventory.
+
+Important fields:
+
+- `id`
+- `name`
+- `url`
+- `status`
+- `created_at`
+- `updated_at`
+- `disabled_at`
+
+Sites are disabled rather than deleted through the service layer.
+
+### `site_credentials`
+
+Stores dashboard-owned credentials used for future plugin HMAC authentication.
+
+Important fields:
+
+- `id`
+- `site_id`
+- `secret_ciphertext`
+- `secret_hint`
+- `created_at`
+- `revoked_at`
+
+Only one active credential may exist per site.
+
+Secrets are encrypted at rest with AES-256-GCM using:
+
+```text
+NUXT_CREDENTIAL_ENCRYPTION_KEY
+```
+
+The raw secret is returned only when initially issued. It is never stored
+plaintext and must never be logged.
+
+### `site_check_ins`
+
+Stores received plugin check-in envelopes and limited raw metadata.
+
+Important fields:
+
+- `id`
+- `site_id`
+- `received_at`
+- `source`
+- `request_timestamp`
+- `payload_json`
+
+### `site_health_snapshots`
+
+Stores normalized operational health data associated with a check-in.
+
+Important fields:
+
+- `id`
+- `site_id`
+- `check_in_id`
+- `status`
+- `wordpress_version`
+- `php_version`
+- `plugin_update_count`
+- `theme_update_count`
+- `last_cron_run_at`
+- `created_at`
+
+### `audit_events`
+
+Stores durable operational events.
+
+Important fields:
+
+- `id`
+- `site_id`
+- `actor_type`
+- `actor_identifier`
+- `event_type`
+- `metadata_json`
+- `created_at`
+
+Audit events survive site deletion by setting `site_id` to null, although the
+current service layer does not expose site deletion.
+
+## Data Layer Placement
+
+```text
+server/database/       migrations
+server/domain/         shared domain contracts
+server/repositories/   persistence
+server/services/       business behavior
+```
+
+Required Phase Three repositories:
+
+- `SiteRepository`
+- `CheckInRepository`
+- `AuditRepository`
+
+Required Phase Three services:
+
+- `SiteService`
+- `HealthService`
+- `CredentialService`
+
+An internal protected endpoint exposes migration and table readiness:
+
+```text
+GET /api/data-foundation
+```
+
+## Retention and Recovery
+
+Version One retains check-ins, snapshots, credentials, and audit events
+indefinitely.
+
+Production backup policy must include the SQLite database and its WAL-related
+files. A specific production backup schedule remains to be defined before
+deployment.

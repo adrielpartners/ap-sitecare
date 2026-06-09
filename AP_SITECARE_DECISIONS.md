@@ -372,3 +372,68 @@ reversible.
 ## Reversibility
 
 Easy.
+
+---
+
+# Decision 013: Store recoverable site secrets encrypted at rest
+
+## Decision
+
+Site secrets used for plugin HMAC authentication are encrypted at rest with
+AES-256-GCM and an environment-provided encryption key.
+
+Only one active credential may exist for each site. Issuing a new credential
+revokes the previous credential.
+
+The raw secret is returned only during initial issuance.
+
+## Rationale
+
+Future HMAC verification requires the dashboard to recover the shared secret.
+A one-way password-style hash would not support that verification model.
+
+Encryption preserves recoverability without storing secrets plaintext.
+
+## Tradeoffs
+
+- Production must securely manage and back up the encryption key.
+- Losing the encryption key requires rotating all site credentials.
+- Rotating the encryption key itself will require an intentional migration.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Moderate.
+
+---
+
+# Decision 014: Retain Version One operational history indefinitely
+
+## Decision
+
+Version One does not automatically delete site check-ins, health snapshots,
+credential history, or audit events.
+
+Sites are disabled rather than deleted through the service layer.
+
+## Rationale
+
+Initial data volume is expected to be small, and operational history improves
+diagnosis and auditability.
+
+## Tradeoffs
+
+- Storage usage will grow over time.
+- A retention policy may be needed as the managed-site count and check-in
+  frequency grow.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.

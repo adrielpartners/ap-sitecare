@@ -8,7 +8,7 @@
   "scripts": {
     "build": "npm run build --workspace=@ap-sitecare/dashboard",
     "dev": "npm run dev --workspace=@ap-sitecare/dashboard",
+    "test": "npm run test --workspace=@ap-sitecare/dashboard",
     "typecheck": "npm run typecheck --workspace=@ap-sitecare/dashboard"
   }
 }
-
