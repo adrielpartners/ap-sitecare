@@ -387,3 +387,22 @@ Do not add a second package manager.
 - The local development bypass must never be enabled in production.
 - `/api/health` is the only unauthenticated dashboard endpoint in Phase One.
 - Public endpoints must never expose sensitive operational data.
+
+---
+
+# 18. Phase Two Visual Implementation Rules
+
+- Global visual values belong in `apps/dashboard/assets/styles/tokens.css`.
+- Global element defaults belong in `apps/dashboard/assets/styles/base.css`.
+- Small reusable composition classes belong in
+  `apps/dashboard/assets/styles/utilities.css`.
+- Reusable UI primitives belong in `apps/dashboard/components/ui`.
+- Layout components belong in `apps/dashboard/components/layout`.
+- Feature components must compose primitives and must not create a second
+  visual language.
+- Pages may orchestrate primitives and feature components but should avoid
+  owning reusable visual styling.
+- Status colors must communicate operational meaning and include text.
+- All interactive controls require visible focus, hover, disabled, and loading
+  or error states where applicable.
+- Desktop and mobile visual review is required for meaningful UI changes.

@@ -446,3 +446,52 @@ A UI task is not visually done until:
 Beauty is not polish after the fact.
 
 Beauty is part of the architecture.
+
+---
+
+# 21. Approved Phase Two Foundation
+
+The initial visual foundation was approved on 2026-06-09.
+
+## Initial Theme Direction
+
+- light theme
+- warm neutral background and surfaces
+- deep ink typography
+- muted operational blue primary
+- restrained semantic status colors
+- subtle borders and shadows
+- soft but structured radius
+- compact, readable density
+
+## Approved Patterns
+
+- sticky top header
+- desktop side navigation
+- mobile horizontal navigation
+- responsive content area
+- site status card
+- text-and-color status badge
+- operational table
+- calm empty state
+- quiet loading indicator
+- accessible form control
+
+## Responsive Baseline
+
+The foundation is optimized for laptop and desktop operations while remaining
+usable for mobile inspection.
+
+The mobile shell:
+
+- hides secondary identity detail
+- converts side navigation into a horizontal rail
+- stacks status cards
+- preserves table access through horizontal scrolling
+
+## Future Theme Work
+
+Dark mode is not part of Version One's current phase.
+
+Semantic token naming must be preserved so dark mode can be added later without
+rewriting primitives or feature components.

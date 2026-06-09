@@ -335,3 +335,40 @@ avoiding a duplicate authentication system.
 ## Reversibility
 
 Easy.
+
+---
+
+# Decision 012: Ship a restrained light theme as the initial visual foundation
+
+## Decision
+
+AP SiteCare will initially use a calm light theme built from semantic CSS
+tokens.
+
+The palette uses warm neutral surfaces, deep ink text, a muted blue primary,
+and status colors only for operational meaning.
+
+UI primitives own reusable visual styling. Pages and future feature components
+compose those primitives.
+
+## Rationale
+
+The visual identity requires a premium operations cockpit that is calm,
+trustworthy, and easy to scan.
+
+A semantic token foundation keeps future visual refinement and dark-mode work
+reversible.
+
+## Tradeoffs
+
+- Dark mode is prepared for but not implemented.
+- The initial theme intentionally favors restraint over visual novelty.
+- New UI work must compose established primitives instead of styling freely.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.

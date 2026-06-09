@@ -5,7 +5,7 @@ Project: AP SiteCare
 Repository: `ap-sitecare`
 Last Updated: 2026-06-09
 
-Current Status: Phase 1 complete; awaiting approval to begin Phase 2.
+Current Status: Phase 2 complete; awaiting approval to begin Phase 3.
 
 ---
 
@@ -166,6 +166,18 @@ Layout shell:
 - Primitives implemented
 - Layout shell complete
 - Visual review approved
+
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Semantic design tokens implemented.
+- Global base styles and reusable composition utilities implemented.
+- Required UI primitives implemented.
+- Responsive header, navigation, and content shell implemented.
+- Site card, status badge, empty state, and loading patterns verified.
+- Desktop and mobile visual review completed.
+- Keyboard-accessible semantic structure and visible focus states implemented.
 
 ---
 

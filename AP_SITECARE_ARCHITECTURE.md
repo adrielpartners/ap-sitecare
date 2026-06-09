@@ -375,3 +375,81 @@ The repository contains:
 - a Docker Compose service
 - a persistent volume mounted at `/data`
 - a container health check using `/api/health`
+
+---
+
+# 14. Phase Two Design System Foundation
+
+## Style Architecture
+
+The dashboard visual system follows:
+
+```text
+Design Tokens
+→ UI Primitives
+→ Feature Components
+→ Pages
+```
+
+Global styles live in:
+
+```text
+apps/dashboard/assets/styles/
+  tokens.css
+  base.css
+  utilities.css
+```
+
+## Design Tokens
+
+The initial light theme defines:
+
+- semantic colors and status colors
+- typography scale and weights
+- spacing scale
+- radius scale
+- borders
+- restrained shadows
+- motion timing
+- z-index layers
+- layout dimensions
+
+Tokens use semantic names so a future dark theme can be introduced without
+rewriting components.
+
+## UI Primitives
+
+Reusable visual primitives live in:
+
+```text
+apps/dashboard/components/ui/
+```
+
+Phase Two includes:
+
+- `AppButton`
+- `AppCard`
+- `AppInput`
+- `AppBadge`
+- `AppTable`
+- `AppPanel`
+- `AppEmptyState`
+
+## Layout Shell
+
+The responsive dashboard shell lives in:
+
+```text
+apps/dashboard/layouts/default.vue
+apps/dashboard/components/layout/
+```
+
+The shell includes:
+
+- a sticky top header
+- desktop side navigation
+- compact mobile navigation
+- a responsive content area
+
+Phase Two's overview page is a design-system approval surface. It uses sample
+content only and does not represent a Phase Three data implementation.
