@@ -298,3 +298,40 @@ The dashboard will be used frequently and should remain calm, elegant, and enjoy
 ## Reversibility
 
 Not recommended.
+
+---
+
+# Decision 011: Trust Cloudflare Access identity headers at the application boundary
+
+## Decision
+
+The dashboard requires Cloudflare Access's authenticated email and JWT
+assertion headers for protected requests.
+
+The application trusts those headers and does not implement a second
+authentication system or perform independent JWT verification in Version One.
+
+Direct origin access must be restricted at the infrastructure layer.
+
+An explicit authentication bypass is available only for local development.
+
+## Rationale
+
+Cloudflare Access owns dashboard authentication under Decision 005.
+
+Requiring both headers gives the application a clear identity boundary while
+avoiding a duplicate authentication system.
+
+## Tradeoffs
+
+- Production origin access must be restricted correctly.
+- Local development requires an explicit bypass.
+- The application remains dependent on Cloudflare Access for authentication.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.

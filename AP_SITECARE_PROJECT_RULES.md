@@ -357,3 +357,33 @@ A task is not complete until:
 - security implications are considered
 
 Working code alone is not considered done.
+
+---
+
+# 16. Repository Commands
+
+Use these root-level commands:
+
+```text
+npm run dev
+npm run typecheck
+npm run build
+docker compose config
+docker compose build
+```
+
+The repository uses npm workspaces.
+
+Do not add a second package manager.
+
+---
+
+# 17. Phase One Authentication Rules
+
+- Cloudflare Access owns production dashboard authentication.
+- Protected requests require the authenticated email and JWT assertion headers.
+- Direct production origin access must be restricted.
+- The local development bypass must be explicit.
+- The local development bypass must never be enabled in production.
+- `/api/health` is the only unauthenticated dashboard endpoint in Phase One.
+- Public endpoints must never expose sensitive operational data.

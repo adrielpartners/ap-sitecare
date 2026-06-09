@@ -295,3 +295,83 @@ Target feeling:
 > A well-designed aircraft cockpit, not a social media dashboard.
 
 Beauty is a functional requirement.
+
+---
+
+# 13. Phase One Dashboard Foundation
+
+## Workspace
+
+The repository uses npm workspaces.
+
+The dashboard package is:
+
+```text
+apps/dashboard
+```
+
+## Dashboard Runtime
+
+The dashboard is a Nuxt 3 application using:
+
+- Vue 3
+- TypeScript with strict mode
+- Nitro's Node server preset
+
+## SQLite Foundation
+
+The dashboard uses `better-sqlite3` through a server-only database utility.
+
+The database connection:
+
+- enables WAL mode
+- enables foreign key enforcement
+- creates the configured parent directory when needed
+
+Phase Three will add schema migrations, repositories, and domain tables.
+
+## Cloudflare Access Boundary
+
+Cloudflare Access remains the authentication provider.
+
+The dashboard requires both trusted headers:
+
+```text
+Cf-Access-Authenticated-User-Email
+Cf-Access-Jwt-Assertion
+```
+
+The application does not implement passwords, sessions, or a custom login
+system.
+
+Production traffic must reach the dashboard through Cloudflare Access. Direct
+origin access must be restricted at the infrastructure layer because the
+application trusts identity headers supplied by Cloudflare.
+
+The health endpoint is intentionally unauthenticated:
+
+```text
+GET /api/health
+```
+
+It exists for local and container health verification and returns no sensitive
+operational data.
+
+## Environment Variables
+
+```text
+NUXT_DATABASE_PATH
+NUXT_AUTH_DEVELOPMENT_BYPASS
+NUXT_AUTH_DEVELOPMENT_EMAIL
+```
+
+`NUXT_AUTH_DEVELOPMENT_BYPASS` must remain `false` outside local development.
+
+## Deployment Foundation
+
+The repository contains:
+
+- a multi-stage Dockerfile
+- a Docker Compose service
+- a persistent volume mounted at `/data`
+- a container health check using `/api/health`

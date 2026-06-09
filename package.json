@@ -1,0 +1,14 @@
+{
+  "name": "ap-sitecare",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@ap-sitecare/dashboard",
+    "dev": "npm run dev --workspace=@ap-sitecare/dashboard",
+    "typecheck": "npm run typecheck --workspace=@ap-sitecare/dashboard"
+  }
+}
+
