@@ -6,6 +6,6 @@ describe('Phase 6 health status calculation', () => {
   it('maps update pressure to normalized health statuses', () => {
     assert.equal(calculateSnapshotStatus(0, 0), 'healthy')
     assert.equal(calculateSnapshotStatus(1, 0), 'attention')
-    assert.equal(calculateSnapshotStatus(8, 2), 'critical')
+    assert.equal(calculateSnapshotStatus(8, 2), 'attention')
   })
 })

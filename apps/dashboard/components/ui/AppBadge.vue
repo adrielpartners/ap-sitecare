@@ -20,6 +20,7 @@ withDefaults(defineProps<{
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
+  border: var(--border-default);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -39,23 +40,26 @@ withDefaults(defineProps<{
 }
 
 .app-badge--success {
+  border-color: var(--color-success);
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
 .app-badge--warning {
+  border-color: var(--color-warning);
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
 
 .app-badge--danger {
+  border-color: var(--color-danger);
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
 .app-badge--info {
+  border-color: var(--color-info);
   background: var(--color-info-soft);
   color: var(--color-info);
 }
 </style>
-

@@ -2,6 +2,8 @@ export type SiteStatus = 'active' | 'disabled'
 export type HealthStatus = 'healthy' | 'attention' | 'critical' | 'unknown'
 export type RiskLevel = 'low' | 'standard' | 'high'
 export type ActionRequestStatus = 'pending' | 'approved' | 'rejected'
+export type OperationalSignalStatus = 'healthy' | 'attention' | 'critical' | 'unknown'
+export type ScheduledTaskType = 'daily-check-in' | 'weekly-security-scan' | 'monthly-report' | 'monthly-offsite-archive'
 
 export interface Site {
   id: string
@@ -69,4 +71,45 @@ export interface ActionRequest {
   reviewNote: string | null
   createdAt: string
   reviewedAt: string | null
+}
+
+export interface DashboardAggregates {
+  totalManagedSites: number
+  healthySites: number
+  attentionSites: number
+  criticalIssues: number
+  unknownSites: number
+  healthDistribution: Record<HealthStatus, number>
+}
+
+export interface ManagedSiteOverview {
+  id: string
+  name: string
+  url: string
+  status: HealthStatus
+  statusReason: string
+  uptimeStatus: OperationalSignalStatus
+  updateStatus: OperationalSignalStatus
+  pendingUpdateCount: number | null
+  securityStatus: OperationalSignalStatus
+  backupStatus: OperationalSignalStatus
+  sslStatus: OperationalSignalStatus
+  lastCheckInAt: string | null
+}
+
+export interface RecentActivity {
+  id: string
+  siteId: string | null
+  siteName: string | null
+  eventType: string
+  label: string
+  createdAt: string
+}
+
+export interface ScheduledTask {
+  id: ScheduledTaskType
+  label: string
+  description: string
+  scheduledFor: string
+  status: 'scheduled'
 }

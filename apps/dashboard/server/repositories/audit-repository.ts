@@ -45,7 +45,12 @@ export class AuditRepository {
     `).all(siteId) as AuditRow[]).map(mapAuditEvent)
   }
 
-  list(): AuditEvent[] {
+  list(limit?: number): AuditEvent[] {
+    if (limit !== undefined) {
+      return (this.database.prepare(`
+        SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?
+      `).all(limit) as AuditRow[]).map(mapAuditEvent)
+    }
     return (this.database.prepare(`
       SELECT * FROM audit_events ORDER BY created_at DESC
     `).all() as AuditRow[]).map(mapAuditEvent)

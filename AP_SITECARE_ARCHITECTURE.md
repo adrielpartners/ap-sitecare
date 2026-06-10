@@ -858,3 +858,65 @@ indefinitely.
 Production backup policy must include the SQLite database and its WAL-related
 files. A specific production backup schedule remains to be defined before
 deployment.
+
+---
+
+# 22. Premium Operations Overview
+
+## Dashboard Composition
+
+The main operations overview consumes:
+
+```text
+Dashboard Page
+→ GET /api/dashboard-overview
+→ DashboardService
+→ SiteService + HealthService + AuditService + ScheduledTaskService
+→ Repositories
+→ SQLite
+```
+
+`DashboardService` owns:
+
+- portfolio health aggregates
+- health distribution percentages
+- paginated managed-site overview rows
+- recent activity projection
+- computed scheduled-task placeholders
+
+The page does not calculate operational health.
+
+## Version One Health Signals
+
+Real Version One health uses:
+
+- latest check-in age
+- reported plugin update count
+- reported theme update count
+
+Rules:
+
+- `unknown`: no check-in exists
+- `healthy`: a check-in is no more than 24 hours old and reports no updates
+- `attention`: updates are pending or the latest check-in is 24–72 hours old
+- `critical`: the latest check-in is more than 72 hours old
+
+Uptime, security, backup freshness, and SSL status are represented as `unknown`
+until a real provider integration supplies evidence.
+
+## Scheduled Tasks
+
+`ScheduledTaskService` computes planning placeholders for:
+
+- daily check-in review
+- weekly security scan
+- monthly operations report
+- monthly offsite archive
+
+These records do not execute jobs and do not claim that work occurred.
+
+## Navigation
+
+The shell exposes safe routes for Dashboard, Clients, Sites, Reports, Security,
+Updates, Backups, Alerts, and Settings. Sections without implemented domain
+behavior render explicit coming-soon pages.

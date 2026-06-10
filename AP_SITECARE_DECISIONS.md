@@ -617,3 +617,67 @@ decision.
 ## Reversibility
 
 Easy.
+
+---
+
+# Decision 021: Derive the main dashboard through a composed overview service
+
+## Decision
+
+The main operations dashboard consumes one overview API backed by
+`DashboardService`.
+
+The service composes existing site, health, and audit services and a computed
+scheduled-task service. It owns portfolio aggregates and managed-site
+pagination.
+
+Unavailable operational signals remain explicitly unknown.
+
+## Rationale
+
+The dashboard needs one consistent operational projection without moving
+business rules into the page or inventing health data.
+
+## Tradeoffs
+
+- The overview response is purpose-built for the dashboard.
+- Additional provider signals must be added to services before they can affect
+  health.
+- Scheduled tasks are planning placeholders until a real job system exists.
+
+## Date Adopted
+
+2026-06-10
+
+## Reversibility
+
+Easy.
+
+---
+
+# Decision 022: Use a dark mission-control visual system
+
+## Decision
+
+The operations dashboard uses a premium dark design system built from semantic
+tokens, restrained gradients, elevated surfaces, and status-specific accents.
+
+## Rationale
+
+The dashboard is an internal operations cockpit used for sustained monitoring.
+The dark system supports calm scanning, clear hierarchy, and the requested
+mission-control character.
+
+## Tradeoffs
+
+- The original light theme is superseded.
+- New UI work must preserve adequate contrast and token discipline.
+- A separate light theme is not currently implemented.
+
+## Date Adopted
+
+2026-06-10
+
+## Reversibility
+
+Easy because visual values remain token-driven.

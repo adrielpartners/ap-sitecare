@@ -15,6 +15,10 @@
   gap: var(--space-3);
 }
 
+.cluster--between {
+  justify-content: space-between;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
@@ -40,7 +44,7 @@
 }
 
 .page-heading {
-  max-width: 44rem;
+  max-width: 48rem;
   margin-bottom: var(--space-8);
 }
 
@@ -51,6 +55,10 @@
 .page-heading p {
   margin-bottom: var(--space-0);
   color: var(--color-text-muted);
+}
+
+.page-heading h1 {
+  text-wrap: balance;
 }
 
 .section-heading {
@@ -66,4 +74,3 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-

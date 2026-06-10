@@ -26,9 +26,9 @@ withDefaults(defineProps<{
 .app-panel {
   overflow: hidden;
   border: var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-xl);
+  background: var(--gradient-surface);
+  box-shadow: var(--shadow-md);
 }
 
 .app-panel__header {
@@ -36,7 +36,7 @@ withDefaults(defineProps<{
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-5);
+  padding: var(--space-5) var(--space-6);
   border-bottom: var(--border-default);
 }
 
@@ -52,7 +52,6 @@ withDefaults(defineProps<{
 }
 
 .app-panel__body {
-  padding: var(--space-5);
+  padding: var(--space-6);
 }
 </style>
-

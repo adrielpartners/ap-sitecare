@@ -25,8 +25,8 @@ export class AuditService {
     })
   }
 
-  list(): AuditEvent[] {
-    return this.auditRepository.list()
+  list(limit?: number): AuditEvent[] {
+    return this.auditRepository.list(limit)
   }
 
   listForSite(siteId: string): AuditEvent[] {

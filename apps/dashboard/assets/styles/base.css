@@ -6,7 +6,7 @@
 
 html {
   min-width: 20rem;
-  background: var(--color-background);
+  background: var(--gradient-background);
   font-family: var(--font-family-sans);
   color: var(--color-text);
   text-rendering: optimizeLegibility;
@@ -15,7 +15,8 @@ html {
 body {
   min-height: 100vh;
   margin: var(--space-0);
-  background: var(--color-background);
+  background: var(--gradient-background);
+  background-attachment: fixed;
   font-size: var(--font-size-md);
   line-height: var(--line-height-body);
 }
@@ -79,3 +80,6 @@ h3 {
   background: var(--color-primary-soft);
 }
 
+button {
+  color: inherit;
+}

@@ -10,7 +10,7 @@ defineProps<{
       <span class="app-header__brand-mark" aria-hidden="true">AP</span>
       <div>
         <strong>SiteCare</strong>
-        <span>Operations</span>
+        <span>Operations Dashboard</span>
       </div>
     </div>
     <div class="app-header__context">
@@ -18,7 +18,13 @@ defineProps<{
         <span aria-hidden="true" />
         Operational
       </span>
-      <span v-if="email" class="app-header__identity">{{ email }}</span>
+      <AppIconButton label="Notifications" to="/alerts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+      </AppIconButton>
+      <span v-if="email" class="app-header__identity">
+        <span class="app-header__avatar" aria-hidden="true">{{ email.slice(0, 1).toUpperCase() }}</span>
+        {{ email }}
+      </span>
     </div>
   </header>
 </template>
@@ -35,7 +41,8 @@ defineProps<{
   gap: var(--space-4);
   padding: var(--space-3) var(--space-6);
   border-bottom: var(--border-default);
-  background: var(--color-surface);
+  background: var(--color-glass-header);
+  backdrop-filter: blur(18px);
 }
 
 .app-header__brand,
@@ -55,8 +62,10 @@ defineProps<{
   height: 2.25rem;
   place-items: center;
   border-radius: var(--radius-md);
-  background: var(--color-text);
-  color: var(--color-surface);
+  border: var(--border-glow);
+  background: var(--gradient-primary);
+  box-shadow: var(--glow-primary);
+  color: var(--color-text);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   letter-spacing: var(--letter-spacing-wide);
@@ -81,6 +90,10 @@ defineProps<{
 }
 
 .app-header__status {
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-success-soft);
   gap: var(--space-2);
   color: var(--color-success);
   font-size: var(--font-size-xs);
@@ -92,13 +105,36 @@ defineProps<{
   height: 0.4rem;
   border-radius: var(--radius-pill);
   background: var(--color-success);
+  box-shadow: var(--glow-success);
 }
 
 .app-header__identity {
-  padding-left: var(--space-4);
-  border-left: var(--border-default);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.app-header__avatar {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-selected);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.app-header svg {
+  width: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
 }
 
 @media (max-width: 42rem) {
@@ -113,4 +149,3 @@ defineProps<{
   }
 }
 </style>
-

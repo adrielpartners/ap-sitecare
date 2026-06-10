@@ -449,9 +449,10 @@ Beauty is part of the architecture.
 
 ---
 
-# 21. Approved Phase Two Foundation
+# 21. Superseded Phase Two Foundation
 
-The initial visual foundation was approved on 2026-06-09.
+The initial light visual foundation was approved on 2026-06-09 and superseded
+by the premium dark operations system on 2026-06-10.
 
 ## Initial Theme Direction
 
@@ -489,13 +490,6 @@ The mobile shell:
 - stacks status cards
 - preserves table access through horizontal scrolling
 
-## Future Theme Work
-
-Dark mode is not part of Version One's current phase.
-
-Semantic token naming must be preserved so dark mode can be added later without
-rewriting primitives or feature components.
-
 ## Approved Operational Patterns
 
 The Version One dashboard also includes:
@@ -509,3 +503,31 @@ The Version One dashboard also includes:
 
 These patterns extend the approved light-theme foundation without introducing
 a second visual language.
+
+---
+
+# 22. Approved Dark Operations System
+
+The dashboard now uses a dark mission-control visual direction.
+
+## Visual Direction
+
+- deep navy and charcoal background
+- elevated dark operational surfaces
+- high-contrast typography
+- restrained blue gradients and glow
+- green, amber, red, and neutral status accents
+- calm density optimized for operational scanning
+
+## Dashboard Structure
+
+- sticky SiteCare operations header
+- left operations sidebar with safe navigation
+- sidebar quick-actions card
+- portfolio status cards
+- health distribution card
+- paginated managed-sites table
+- recent activity and scheduled-task panels
+
+All colors, gradients, surfaces, shadows, glows, spacing, radius, and motion
+values originate in `apps/dashboard/assets/styles/tokens.css`.

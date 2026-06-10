@@ -15,17 +15,25 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <component
-    :is="to ? resolveComponent('NuxtLink') : 'button'"
+  <NuxtLink
+    v-if="to"
     class="app-button"
     :class="`app-button--${variant}`"
-    :disabled="to ? undefined : disabled || loading"
     :to="to"
-    :type="to ? undefined : type"
   >
     <span v-if="loading" class="app-button__spinner" aria-hidden="true" />
     <slot />
-  </component>
+  </NuxtLink>
+  <button
+    v-else
+    class="app-button"
+    :class="`app-button--${variant}`"
+    :disabled="disabled || loading"
+    :type="type"
+  >
+    <span v-if="loading" class="app-button__spinner" aria-hidden="true" />
+    <slot />
+  </button>
 </template>
 
 <style scoped>
@@ -61,17 +69,20 @@ withDefaults(defineProps<{
 
 .app-button--primary {
   border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-surface);
+  background: var(--gradient-primary);
+  box-shadow: var(--glow-primary);
+  color: var(--color-text);
 }
 
 .app-button--primary:hover:not(:disabled) {
   border-color: var(--color-primary-hover);
-  background: var(--color-primary-hover);
+  background: var(--gradient-primary);
+  color: var(--color-text);
+  transform: translateY(-1px);
 }
 
 .app-button--secondary {
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
   color: var(--color-text);
 }
 
@@ -94,8 +105,8 @@ withDefaults(defineProps<{
 }
 
 .app-button--danger:hover:not(:disabled) {
-  background: var(--color-text);
-  border-color: var(--color-text);
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger);
 }
 
 .app-button__spinner {

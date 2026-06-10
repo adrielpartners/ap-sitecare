@@ -22,13 +22,13 @@ withDefaults(defineProps<{
   padding: var(--space-5);
   border: var(--border-default);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  background: var(--gradient-surface);
+  box-shadow: var(--shadow-md);
 }
 
 .app-card--muted {
   background: var(--color-surface-muted);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .app-card--interactive {
@@ -39,9 +39,8 @@ withDefaults(defineProps<{
 }
 
 .app-card--interactive:hover {
-  border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-glow);
+  box-shadow: var(--shadow-lg), var(--glow-primary);
   transform: translateY(-1px);
 }
 </style>
-

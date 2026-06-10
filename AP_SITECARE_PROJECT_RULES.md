@@ -462,7 +462,8 @@ Do not add a second package manager.
 - `HealthService` owns health-status calculation.
 - Pages and components must display health summaries rather than recreate
   operational rules.
-- A check-in older than 24 hours is critical until a new report arrives.
+- A check-in older than 24 hours needs attention until a new report arrives.
+- A check-in older than 72 hours is critical until a new report arrives.
 - Audit reads must flow through `AuditService` and `AuditRepository`.
 - Important lifecycle behavior must emit an audit event.
 - Operator-maintained hosting, backup, risk, and note fields belong to the
@@ -485,3 +486,20 @@ Do not add a second package manager.
 - MCP must not expose execution, update, restore, or infrastructure-control
   tools in Version One.
 - Phase 12 requires a separate action specification and explicit approval.
+
+---
+
+# 24. Operations Overview Rules
+
+- `DashboardService` owns overview aggregation and pagination.
+- Dashboard pages consume the overview API and must not calculate portfolio
+  health independently.
+- Version One health uses real check-in age and reported update counts.
+- Uptime, security, backup freshness, and SSL remain `unknown` until a real
+  integration supplies evidence.
+- Never display simulated production health or activity.
+- Scheduled dashboard tasks are computed planning placeholders only and must
+  not imply that a background job executed.
+- Quick actions must route to implemented behavior or a safe coming-soon page.
+- The operations dashboard uses the approved dark token system. Visual values
+  belong in `apps/dashboard/assets/styles/tokens.css`.

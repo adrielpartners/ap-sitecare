@@ -28,7 +28,7 @@ withDefaults(defineProps<{
   overflow-x: auto;
   border: var(--border-default);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
 }
 
 .app-table {
@@ -53,7 +53,7 @@ withDefaults(defineProps<{
 }
 
 .app-table th {
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -71,7 +71,6 @@ withDefaults(defineProps<{
 }
 
 .app-table :deep(tbody tr:hover) {
-  background: var(--color-surface-muted);
+  background: var(--color-surface-selected);
 }
 </style>
-

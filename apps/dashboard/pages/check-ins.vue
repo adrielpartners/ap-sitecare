@@ -1,0 +1,1 @@
+<template><PlaceholderSection eyebrow="Quick action" title="Run Check-In" description="Manual remote check-in orchestration is not implemented. Use the reporter plugin on the WordPress site." /></template>

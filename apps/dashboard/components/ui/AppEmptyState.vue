@@ -26,6 +26,9 @@ defineProps<{
   justify-items: center;
   padding: var(--space-10) var(--space-6);
   text-align: center;
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
 }
 
 .app-empty-state__mark {
@@ -38,6 +41,7 @@ defineProps<{
   border: var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface-muted);
+  box-shadow: var(--glow-primary);
 }
 
 .app-empty-state__mark span {
@@ -62,4 +66,3 @@ defineProps<{
   margin-top: var(--space-5);
 }
 </style>
-

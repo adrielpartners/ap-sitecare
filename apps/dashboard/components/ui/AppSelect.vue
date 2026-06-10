@@ -37,7 +37,7 @@ const inputId = useId()
   padding: var(--space-2) var(--space-3);
   border: var(--border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
   color: var(--color-text);
 }
 </style>

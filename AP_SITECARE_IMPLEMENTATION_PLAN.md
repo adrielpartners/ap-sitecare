@@ -589,6 +589,21 @@ decision until a separate action specification and explicit approval exist.
 
 ---
 
+# Post-Version-One Dashboard Upgrade
+
+Completed on 2026-06-10.
+
+- Added a composed operations-overview service and API.
+- Added real health aggregates and deterministic check-in/update status rules.
+- Added paginated managed-site overview rows.
+- Added recent activity projection from real audit events.
+- Added computed scheduled-task planning placeholders.
+- Added safe navigation routes and quick-action placeholders.
+- Rebuilt the dashboard with the approved dark operations design system.
+- Preserved the observation-only boundary with no remote execution behavior.
+
+---
+
 # Out of Scope for Version One
 
 Do not build:

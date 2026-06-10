@@ -31,9 +31,7 @@ export interface SiteHealthSummary {
 }
 
 export function calculateSnapshotStatus(pluginUpdateCount: number, themeUpdateCount: number): HealthStatus {
-  const totalUpdates = pluginUpdateCount + themeUpdateCount
-  if (totalUpdates >= 10) return 'critical'
-  if (totalUpdates > 0) return 'attention'
+  if (pluginUpdateCount + themeUpdateCount > 0) return 'attention'
   return 'healthy'
 }
 
@@ -87,14 +85,14 @@ export class HealthService {
     if (!latest) return { siteId, status: 'unknown', reason: 'No check-in received', latest: null }
 
     const ageMs = now.getTime() - new Date(latest.createdAt).getTime()
+    if (ageMs > 72 * 60 * 60 * 1000) {
+      return { siteId, status: 'critical', reason: 'Check-in is more than 72 hours old', latest }
+    }
     if (ageMs > 24 * 60 * 60 * 1000) {
-      return { siteId, status: 'critical', reason: 'Check-in is more than 24 hours old', latest }
+      return { siteId, status: 'attention', reason: 'Check-in is more than 24 hours old', latest }
     }
 
     const totalUpdates = latest.pluginUpdateCount + latest.themeUpdateCount
-    if (latest.status === 'critical') {
-      return { siteId, status: 'critical', reason: `${totalUpdates} updates need review`, latest }
-    }
     if (latest.status === 'attention') {
       return { siteId, status: 'attention', reason: `${totalUpdates} updates available`, latest }
     }

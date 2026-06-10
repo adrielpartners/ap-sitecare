@@ -1,29 +1,39 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --color-background: #f3f5f7;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f7f8fa;
-  --color-surface-selected: #eef4fa;
-  --color-surface-alert: #fff8e8;
-  --color-border: #dfe4e9;
-  --color-border-strong: #c9d1d9;
-  --color-text: #17212b;
-  --color-text-muted: #66727f;
-  --color-text-subtle: #89939d;
-  --color-primary: #315f82;
-  --color-primary-hover: #254d6b;
-  --color-primary-soft: #e7f0f7;
-  --color-success: #287354;
-  --color-success-soft: #e7f4ed;
-  --color-warning: #9a6410;
-  --color-warning-soft: #fff3d6;
-  --color-danger: #a33b3b;
-  --color-danger-soft: #faeaea;
-  --color-info: #3d6788;
-  --color-info-soft: #e8f1f7;
-  --color-focus: #5592bd;
-  --color-overlay: rgb(23 33 43 / 52%);
+  --color-background: #070b12;
+  --color-background-elevated: #0a101b;
+  --color-surface: #0e1624;
+  --color-surface-elevated: #121d2d;
+  --color-surface-muted: #0b1320;
+  --color-surface-selected: #142744;
+  --color-surface-alert: #241d10;
+  --color-border: #1d2b3d;
+  --color-border-strong: #2b4058;
+  --color-border-glow: #315f8f;
+  --color-text: #f1f6fb;
+  --color-text-muted: #9aabba;
+  --color-text-subtle: #65788b;
+  --color-primary: #5aa7ff;
+  --color-primary-hover: #82bdff;
+  --color-primary-soft: #112b49;
+  --color-success: #43d69f;
+  --color-success-soft: #0d3028;
+  --color-warning: #f4b94f;
+  --color-warning-soft: #352710;
+  --color-danger: #ff6b72;
+  --color-danger-soft: #3a171d;
+  --color-info: #77b8ff;
+  --color-info-soft: #102a46;
+  --color-focus: #75b9ff;
+  --color-overlay: rgb(3 7 12 / 72%);
+  --color-glass-header: rgb(7 11 18 / 82%);
+  --color-glass-sidebar: rgb(9 14 23 / 82%);
+
+  --gradient-background: radial-gradient(circle at 70% -20%, rgb(35 91 151 / 28%), transparent 38%), linear-gradient(145deg, var(--color-background), var(--color-background-elevated));
+  --gradient-surface: linear-gradient(145deg, var(--color-surface-elevated), var(--color-surface));
+  --gradient-primary: linear-gradient(135deg, #438de5, #6fb7ff);
+  --gradient-selected: linear-gradient(110deg, rgb(58 126 202 / 30%), rgb(24 47 78 / 58%));
 
   --font-family-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-family-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -33,16 +43,17 @@
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.375rem;
   --font-size-2xl: 1.75rem;
-  --font-size-3xl: 2.25rem;
+  --font-size-3xl: 2.4rem;
+  --font-size-stat: 2.65rem;
   --line-height-tight: 1.2;
-  --line-height-heading: 1.35;
+  --line-height-heading: 1.25;
   --line-height-body: 1.6;
   --font-weight-regular: 400;
   --font-weight-medium: 550;
   --font-weight-semibold: 650;
-  --font-weight-bold: 720;
-  --letter-spacing-tight: -0.025em;
-  --letter-spacing-wide: 0.08em;
+  --font-weight-bold: 740;
+  --letter-spacing-tight: -0.03em;
+  --letter-spacing-wide: 0.12em;
 
   --space-0: 0;
   --space-1: 0.25rem;
@@ -56,19 +67,25 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.125rem;
+  --radius-sm: 0.4rem;
+  --radius-md: 0.7rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.35rem;
   --radius-pill: 999px;
 
   --border-width: 1px;
   --border-default: var(--border-width) solid var(--color-border);
   --border-strong: var(--border-width) solid var(--color-border-strong);
+  --border-glow: var(--border-width) solid var(--color-border-glow);
 
-  --shadow-sm: 0 1px 2px rgb(23 33 43 / 5%);
-  --shadow-md: 0 8px 24px rgb(23 33 43 / 7%);
-  --shadow-focus: 0 0 0 3px rgb(85 146 189 / 22%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 26%);
+  --shadow-md: 0 18px 42px rgb(0 0 0 / 28%);
+  --shadow-lg: 0 24px 70px rgb(0 0 0 / 38%);
+  --shadow-focus: 0 0 0 3px rgb(90 167 255 / 22%);
+  --glow-primary: 0 0 28px rgb(70 151 238 / 18%);
+  --glow-success: 0 0 24px rgb(67 214 159 / 12%);
+  --glow-warning: 0 0 24px rgb(244 185 79 / 12%);
+  --glow-danger: 0 0 24px rgb(255 107 114 / 12%);
 
   --motion-fast: 120ms;
   --motion-base: 180ms;
@@ -79,9 +96,9 @@
   --z-navigation: 15;
   --z-dialog: 50;
 
-  --layout-header-height: 4.5rem;
-  --layout-navigation-width: 15rem;
-  --layout-content-max: 90rem;
+  --layout-header-height: 4.75rem;
+  --layout-navigation-width: 16.5rem;
+  --layout-content-max: 104rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -91,4 +108,3 @@
     --motion-slow: 0ms;
   }
 }
-

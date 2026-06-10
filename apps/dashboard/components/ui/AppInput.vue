@@ -64,7 +64,7 @@ const inputId = useId()
   padding: var(--space-2) var(--space-3);
   border: var(--border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
   color: var(--color-text);
   transition:
     border-color var(--motion-fast) var(--ease-standard),
@@ -77,6 +77,11 @@ const inputId = useId()
 
 .app-input__control:hover {
   border-color: var(--color-primary);
+}
+
+.app-input__control:focus {
+  border-color: var(--color-primary);
+  box-shadow: var(--glow-primary);
 }
 
 .app-input__control--error {
@@ -93,4 +98,3 @@ const inputId = useId()
   color: var(--color-danger);
 }
 </style>
-
