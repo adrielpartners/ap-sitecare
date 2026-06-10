@@ -32,4 +32,3 @@ RUN mkdir -p /data
 EXPOSE 3000
 
 CMD ["node", ".output/server/index.mjs"]
-
