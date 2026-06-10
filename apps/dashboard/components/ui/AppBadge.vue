@@ -40,26 +40,26 @@ withDefaults(defineProps<{
 }
 
 .app-badge--success {
-  border-color: var(--color-success);
-  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  background: var(--color-success-surface);
   color: var(--color-success);
 }
 
 .app-badge--warning {
-  border-color: var(--color-warning);
-  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-surface);
   color: var(--color-warning);
 }
 
 .app-badge--danger {
-  border-color: var(--color-danger);
-  background: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-surface);
   color: var(--color-danger);
 }
 
 .app-badge--info {
-  border-color: var(--color-info);
-  background: var(--color-info-soft);
+  border-color: var(--color-info-border);
+  background: var(--color-info-surface);
   color: var(--color-info);
 }
 </style>

@@ -28,8 +28,13 @@ const emit = defineEmits<{
     >
       <tr v-for="site in sites" :key="site.id">
         <td>
-          <strong>{{ site.name }}</strong>
-          <span class="managed-sites-table__url">{{ site.url }}</span>
+          <div class="managed-sites-table__identity">
+            <span class="managed-sites-table__signal" :class="`managed-sites-table__signal--${site.status}`" aria-hidden="true" />
+            <div>
+              <strong>{{ site.name }}</strong>
+              <span class="managed-sites-table__url">{{ site.url }}</span>
+            </div>
+          </div>
         </td>
         <td><StatusBadge :status="site.status" /></td>
         <td><StatusBadge :status="site.uptimeStatus" /></td>
@@ -41,7 +46,7 @@ const emit = defineEmits<{
         </td>
         <td><StatusBadge :status="site.securityStatus" /></td>
         <td>{{ site.lastCheckInAt ? new Date(site.lastCheckInAt).toLocaleString() : 'Never' }}</td>
-        <td><AppButton :to="`/sites/${site.id}`" variant="quiet">View</AppButton></td>
+        <td><AppButton :to="`/sites/${site.id}`" variant="quiet">View →</AppButton></td>
       </tr>
     </AppTable>
     <footer v-if="totalPages > 1" class="managed-sites-table__pagination">
@@ -59,6 +64,36 @@ const emit = defineEmits<{
   margin-top: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+}
+
+.managed-sites-table__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 13rem;
+}
+
+.managed-sites-table__signal {
+  flex: 0 0 auto;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-text-subtle);
+}
+
+.managed-sites-table__signal--healthy {
+  background: var(--color-success);
+  box-shadow: var(--glow-success);
+}
+
+.managed-sites-table__signal--attention {
+  background: var(--color-warning);
+  box-shadow: var(--glow-warning);
+}
+
+.managed-sites-table__signal--critical {
+  background: var(--color-danger);
+  box-shadow: var(--glow-danger);
 }
 
 .managed-sites-table__pagination {

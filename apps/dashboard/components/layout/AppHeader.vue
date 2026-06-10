@@ -91,9 +91,10 @@ defineProps<{
 
 .app-header__status {
   padding: var(--space-1) var(--space-3);
-  border: var(--border-default);
+  border: var(--border-width) solid var(--color-success-border);
   border-radius: var(--radius-pill);
-  background: var(--color-success-soft);
+  background: var(--color-success-surface);
+  box-shadow: var(--glow-success), inset 0 1px 0 var(--color-card-highlight);
   gap: var(--space-2);
   color: var(--color-success);
   font-size: var(--font-size-xs);
@@ -105,7 +106,7 @@ defineProps<{
   height: 0.4rem;
   border-radius: var(--radius-pill);
   background: var(--color-success);
-  box-shadow: var(--glow-success);
+  box-shadow: 0 0 12px currentColor;
 }
 
 .app-header__identity {

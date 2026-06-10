@@ -32,19 +32,22 @@ function applySearch() {
         <AppStatCard
           label="Healthy Sites"
           :value="overview.aggregates.healthySites"
-          description="Required checks are passing"
+          :percentage="overview.aggregates.healthDistribution.healthy"
+          description="of total"
           tone="success"
         />
         <AppStatCard
           label="Needs Attention"
           :value="overview.aggregates.attentionSites"
-          description="Updates or stale check-ins need review"
+          :percentage="overview.aggregates.healthDistribution.attention"
+          description="of total"
           tone="warning"
         />
         <AppStatCard
           label="Critical Issues"
           :value="overview.aggregates.criticalIssues"
-          description="Immediate operational review required"
+          :percentage="overview.aggregates.healthDistribution.critical"
+          description="of total"
           tone="danger"
         />
         <HealthDistributionCard
@@ -118,6 +121,7 @@ function applySearch() {
 .dashboard-page__heading h1 {
   margin-bottom: var(--space-3);
   font-size: var(--font-size-3xl);
+  text-shadow: var(--shadow-sm);
 }
 
 .dashboard-overview-grid {

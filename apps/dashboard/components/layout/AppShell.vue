@@ -18,8 +18,35 @@ defineProps<{
 
 <style scoped>
 .app-shell {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   background: var(--gradient-background);
+}
+
+.app-shell::before,
+.app-shell::after {
+  position: fixed;
+  z-index: -1;
+  border-radius: var(--radius-pill);
+  content: "";
+  pointer-events: none;
+}
+
+.app-shell::before {
+  top: calc(var(--layout-header-height) * -1);
+  right: 4%;
+  width: 58rem;
+  height: 34rem;
+  background: var(--gradient-atmosphere-primary);
+}
+
+.app-shell::after {
+  top: 18rem;
+  left: 26%;
+  width: 42rem;
+  height: 32rem;
+  background: var(--gradient-atmosphere-cyan);
 }
 
 .app-shell__body {

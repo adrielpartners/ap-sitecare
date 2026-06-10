@@ -70,13 +70,14 @@ withDefaults(defineProps<{
 .app-button--primary {
   border-color: var(--color-primary);
   background: var(--gradient-primary);
-  box-shadow: var(--glow-primary);
+  box-shadow: var(--shadow-button-primary);
   color: var(--color-text);
 }
 
 .app-button--primary:hover:not(:disabled) {
   border-color: var(--color-primary-hover);
-  background: var(--gradient-primary);
+  background: var(--gradient-primary-hover);
+  box-shadow: var(--shadow-button-primary), var(--glow-primary);
   color: var(--color-text);
   transform: translateY(-1px);
 }

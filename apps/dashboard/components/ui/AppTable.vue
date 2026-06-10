@@ -26,9 +26,9 @@ withDefaults(defineProps<{
 <style scoped>
 .app-table-wrap {
   overflow-x: auto;
-  border: var(--border-default);
+  border: var(--border-card);
   border-radius: var(--radius-lg);
-  background: var(--color-surface-muted);
+  background: var(--gradient-card-muted);
 }
 
 .app-table {
@@ -48,12 +48,12 @@ withDefaults(defineProps<{
 
 .app-table th,
 .app-table :deep(td) {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--border-default);
+  padding: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-table-separator);
 }
 
 .app-table th {
-  background: var(--color-surface);
+  background: var(--color-table-header);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -62,8 +62,10 @@ withDefaults(defineProps<{
 }
 
 .app-table :deep(td) {
+  background: var(--color-table-row);
   color: var(--color-text);
   font-size: var(--font-size-sm);
+  transition: background-color var(--motion-fast) var(--ease-standard);
 }
 
 .app-table :deep(tbody tr:last-child td) {
@@ -71,6 +73,10 @@ withDefaults(defineProps<{
 }
 
 .app-table :deep(tbody tr:hover) {
-  background: var(--color-surface-selected);
+  background: transparent;
+}
+
+.app-table :deep(tbody tr:hover td) {
+  background: var(--color-table-row-hover);
 }
 </style>

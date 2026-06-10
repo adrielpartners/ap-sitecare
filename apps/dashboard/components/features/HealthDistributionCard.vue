@@ -11,7 +11,7 @@ defineProps<{
 </script>
 
 <template>
-  <AppCard class="health-distribution">
+  <AppCard class="health-distribution" tone="info">
     <div>
       <p class="eyebrow">Portfolio health</p>
       <h2>Site health distribution</h2>

@@ -96,8 +96,17 @@ function isActive(to: string): boolean {
 .app-sidebar__item--active {
   border-color: var(--color-border-glow);
   background: var(--gradient-selected);
-  box-shadow: var(--glow-primary);
+  box-shadow: var(--shadow-nav-selected);
   color: var(--color-primary-hover);
+}
+
+.app-sidebar__item--active::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--gradient-selected-highlight);
+  content: "";
+  pointer-events: none;
 }
 
 .app-sidebar__indicator {
@@ -118,8 +127,8 @@ function isActive(to: string): boolean {
   padding: var(--space-4);
   border: var(--border-default);
   border-radius: var(--radius-lg);
-  background: var(--gradient-surface);
-  box-shadow: var(--shadow-md);
+  background: var(--gradient-card-muted);
+  box-shadow: var(--shadow-card);
 }
 
 .app-sidebar__quick-actions .app-sidebar__label {

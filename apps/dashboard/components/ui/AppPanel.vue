@@ -27,8 +27,9 @@ withDefaults(defineProps<{
   overflow: hidden;
   border: var(--border-default);
   border-radius: var(--radius-xl);
-  background: var(--gradient-surface);
-  box-shadow: var(--shadow-md);
+  border-color: var(--color-card-border);
+  background: var(--gradient-card);
+  box-shadow: var(--shadow-card);
 }
 
 .app-panel__header {
