@@ -128,6 +128,8 @@
   --layout-header-height: 4.75rem;
   --layout-navigation-width: 16.5rem;
   --layout-content-max: 104rem;
+  --brand-operations-logo-width: 10.5rem;
+  --brand-operations-logo-width-compact: 8.75rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

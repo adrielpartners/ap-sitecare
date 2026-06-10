@@ -8,7 +8,11 @@ final class CronController
 {
     public const HOOK = 'apsc_scheduled_check_in';
 
-    public function __construct(private SettingsRepository $settings, private ReporterService $reporter)
+    public function __construct(
+        private SettingsRepository $settings,
+        private ReporterService $reporter,
+        private ClientCareService $client_care
+    )
     {
     }
 
@@ -24,6 +28,13 @@ final class CronController
             $this->reporter->check_in();
         } catch (\Throwable $error) {
             do_action('apsc_check_in_failed', $error);
+            return;
+        }
+
+        try {
+            $this->client_care->refresh_remote_summary();
+        } catch (\Throwable $error) {
+            do_action('apsc_client_summary_refresh_failed', $error);
         }
     }
 

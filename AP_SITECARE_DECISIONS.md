@@ -681,3 +681,38 @@ mission-control character.
 ## Reversibility
 
 Easy because visual values remain token-driven.
+
+---
+
+# Decision 023: Add a limited client visibility layer to the WordPress plugin
+
+## Decision
+
+The AP SiteCare WordPress plugin provides a polished, read-only care summary
+inside WordPress Admin and a compact WordPress Dashboard widget.
+
+The dashboard remains the source of truth for aggregated care activity. The
+plugin combines immediate local WordPress update data with a locally cached,
+signed dashboard summary.
+
+## Rationale
+
+Clients benefit from clear reassurance that their website is being monitored
+and maintained without receiving access to the internal operations dashboard.
+
+Caching keeps wp-admin fast and usable when the dashboard is temporarily
+unavailable.
+
+## Tradeoffs
+
+- The plugin gains a small presentation and cache responsibility.
+- Dashboard summary changes require maintaining a client-safe API contract.
+- Provider metrics remain unknown until real integrations supply evidence.
+
+## Date Adopted
+
+2026-06-10
+
+## Reversibility
+
+Easy.

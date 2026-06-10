@@ -15,7 +15,9 @@ The system provides a centralized view of site health, update status, uptime, ba
 
 The dashboard is the primary product.
 
-The WordPress plugin exists only as a lightweight reporting agent that collects site-specific information and securely reports it to the dashboard.
+The WordPress plugin is a lightweight reporting agent that collects
+site-specific information, securely reports it to the dashboard, and presents
+a limited client-facing care summary inside WordPress Admin.
 
 The dashboard owns operational awareness.
 
@@ -79,11 +81,17 @@ Responsibilities:
 - collect WordPress health data
 - report data securely
 - perform lightweight diagnostics
+- provide a limited client-facing care summary inside WordPress Admin
+- cache signed, read-only care summaries from the dashboard
 - provide future action endpoints
 
 The plugin is not the product.
 
 The dashboard is the product.
+
+The plugin's client-facing view is a reassurance and visibility layer. It does
+not own operational history, calculate portfolio health, or duplicate the
+internal operations dashboard.
 
 ---
 
@@ -202,6 +210,15 @@ Plugin Reporting:
 
 WordPress Cron / Manual Trigger → Reporter Service → Signed API Request → Dashboard API → Check-In Service → Repository Layer → Database
 
+Plugin Client Visibility:
+
+WordPress Admin Hook → Client Admin Controller → Client Care Service → Local
+WordPress Collection + Client Summary Repository → Scoped Admin View
+
+The client summary repository stores the latest signed, read-only dashboard
+projection in WordPress options. Admin page rendering never makes a live
+dashboard request.
+
 Future Actions:
 
 Dashboard User / AI Agent → Action Request → Approval Layer → Execution Service → External API → Audit Log
@@ -260,7 +277,12 @@ GET    /api/sites/:id/checkins
 POST   /api/sites
 POST   /api/site-checkin
 POST   /api/test-connection
+POST   /api/plugin/client-summary
 ```
+
+`/api/plugin/client-summary` uses the existing plugin HMAC boundary and returns
+only client-safe, read-only care data. Unavailable backup, security, uptime,
+and service-time metrics remain explicitly unknown.
 
 ---
 

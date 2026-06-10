@@ -6,13 +6,16 @@ defined('ABSPATH') || exit;
 
 final class AdminController
 {
-    public function __construct(private SettingsRepository $settings, private ReporterService $reporter)
-    {
+    public function __construct(
+        private SettingsRepository $settings,
+        private ReporterService $reporter,
+        private ClientCareService $client_care
+    ) {
     }
 
     public function register_hooks(): void
     {
-        add_action('admin_menu', array($this, 'register_menu'));
+        add_action('admin_menu', array($this, 'register_menu'), 20);
         add_action('admin_post_apsc_save_settings', array($this, 'save_settings'));
         add_action('admin_post_apsc_test_connection', array($this, 'test_connection'));
         add_action('admin_post_apsc_manual_check_in', array($this, 'manual_check_in'));
@@ -20,11 +23,12 @@ final class AdminController
 
     public function register_menu(): void
     {
-        add_options_page(
-            'AP SiteCare',
-            'AP SiteCare',
-            'manage_options',
+        add_submenu_page(
             'ap-sitecare',
+            'AP SiteCare Settings',
+            'Settings',
+            'manage_options',
+            'ap-sitecare-settings',
             array($this, 'render_page')
         );
     }
@@ -55,7 +59,19 @@ final class AdminController
 
     public function manual_check_in(): void
     {
-        $this->run_action('apsc_manual_check_in', fn () => $this->reporter->check_in(), 'Check-in recorded.');
+        $this->authorize('apsc_manual_check_in');
+        try {
+            $this->reporter->check_in();
+        } catch (\Throwable $error) {
+            $this->redirect('', $error->getMessage());
+        }
+
+        try {
+            $this->client_care->refresh_remote_summary();
+            $this->redirect('Check-in recorded and client summary refreshed.', '');
+        } catch (\Throwable $error) {
+            $this->redirect('Check-in recorded. The client summary will refresh during a future scheduled check-in.', '');
+        }
     }
 
     private function run_action(string $nonce_action, callable $action, string $success): void
@@ -80,10 +96,10 @@ final class AdminController
     private function redirect(string $notice, string $error): void
     {
         wp_safe_redirect(add_query_arg(array(
-            'page' => 'ap-sitecare',
+            'page' => 'ap-sitecare-settings',
             'apsc_notice' => $notice,
             'apsc_error' => $error,
-        ), admin_url('options-general.php')));
+        ), admin_url('admin.php')));
         exit;
     }
 }

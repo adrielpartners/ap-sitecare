@@ -12,6 +12,7 @@ import { AuditService } from './audit-service'
 import { CredentialService } from './credential-service'
 import { HealthService } from './health-service'
 import { createPluginSignature, PluginAuthenticationService } from './plugin-authentication-service'
+import { PluginClientSummaryService } from './plugin-client-summary-service'
 import { PluginReportingService } from './plugin-reporting-service'
 import { SiteService } from './site-service'
 
@@ -31,7 +32,8 @@ function createServices() {
       new CredentialService('test-encryption-key', sites, audits),
       siteService
     ),
-    reporting: new PluginReportingService(health)
+    reporting: new PluginReportingService(health),
+    clientSummary: new PluginClientSummaryService(siteService, health, audits)
   }
 }
 
@@ -101,6 +103,36 @@ describe('Phase 5 plugin reporting', () => {
       themeUpdateCount: 0,
       lastCronRunAt: null
     }), /pluginUpdateCount/)
+    services.database.close()
+  })
+
+  it('returns a client-safe summary without inventing unavailable metrics', () => {
+    const services = createServices()
+    const site = services.siteService.create({
+      name: 'Example',
+      url: 'https://example.com',
+      backupStrategy: 'Daily backups retained by the hosting provider.'
+    })
+
+    const summary = services.clientSummary.get(site.id)
+
+    assert.equal(summary.overall.status, 'unknown')
+    assert.equal(summary.backups.status, 'unknown')
+    assert.equal(summary.backups.lastDailyBackupAt, null)
+    assert.equal(summary.backups.retentionNote, 'Daily backups retained by the hosting provider.')
+    assert.equal(summary.security.threatsBlockedThisMonth, null)
+    assert.equal(summary.uptime.thirtyDayPercentage, null)
+
+    services.reporting.recordCheckIn(site.id, '2026-06-10T12:00:00.000Z', {
+      wordpressVersion: '6.8.1',
+      phpVersion: '8.3.7',
+      pluginUpdateCount: 0,
+      themeUpdateCount: 0,
+      lastCronRunAt: null
+    })
+    const protectedSummary = services.clientSummary.get(site.id)
+    assert.equal(protectedSummary.overall.status, 'protected')
+    assert.equal(protectedSummary.recentActivity[0]?.label, 'Site health check completed')
     services.database.close()
   })
 })

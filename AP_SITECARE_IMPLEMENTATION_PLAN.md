@@ -604,11 +604,28 @@ Completed on 2026-06-10.
 
 ---
 
+# Post-Version-One Plugin Client Visibility
+
+Approved and implemented on 2026-06-10.
+
+- Added a top-level AP SiteCare client care screen in WordPress Admin.
+- Added a compact WordPress Dashboard reassurance widget.
+- Added an administrator-only AP SiteCare settings screen.
+- Added masked-secret settings behavior and display controls.
+- Added a signed, read-only dashboard client-summary endpoint.
+- Added a local WordPress option cache for the latest client-safe summary.
+- Combined cached dashboard data with immediate local WordPress update data.
+- Kept unavailable backup, security, uptime, and service-time metrics unknown.
+- Added scoped, token-driven plugin admin styles.
+- Preserved the observation-only boundary with no destructive actions.
+
+---
+
 # Out of Scope for Version One
 
 Do not build:
 
-- client-facing portals
+- standalone client-facing portals outside WordPress Admin
 - billing
 - subscriptions
 - SaaS onboarding

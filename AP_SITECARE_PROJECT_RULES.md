@@ -23,7 +23,7 @@ This file tells agents how to work inside this repo without creating drift, dupl
 This repository contains:
 
 - Dashboard application
-- WordPress reporter plugin
+- WordPress reporter plugin with a limited client visibility layer
 - Shared types and contracts
 - Documentation
 
@@ -107,12 +107,15 @@ Plugin responsibilities:
 - collect site information
 - validate local state
 - report health information
+- render a limited client-facing care summary from local and cached data
+- cache a signed, read-only dashboard summary
 
 Plugin must not:
 
 - own operational history
 - own site inventory
 - become a second dashboard
+- make live dashboard API requests while rendering wp-admin pages
 
 ---
 
@@ -445,15 +448,23 @@ Do not add a second package manager.
 
 - `/api/plugin/*` endpoints bypass Cloudflare Access only because they enforce
   the plugin HMAC boundary.
+- `/api/plugin/client-summary` is read-only and may return only client-safe
+  care data.
 - Plugin signatures bind the ISO 8601 timestamp and exact request body.
 - Plugin requests outside the five-minute clock-skew window must be rejected.
 - The plugin must use WordPress HTTP, option, cron, capability, nonce,
   sanitization, and escaping APIs.
 - Hooks and controllers remain thin; collection and reporting behavior belong
   in services.
-- The plugin stores connection settings and local cron state only.
+- The plugin stores connection settings, local cron state, and the latest
+  client-safe dashboard summary cache only.
 - The dashboard owns check-in, health, and audit history.
 - The plugin must never log or return the Site Secret.
+- Plugin admin styles must remain scoped to AP SiteCare screens and its
+  WordPress Dashboard widget.
+- Unavailable client-facing metrics must display as unknown or unavailable.
+- The client-facing view must never imply that unavailable provider activity
+  occurred.
 
 ---
 

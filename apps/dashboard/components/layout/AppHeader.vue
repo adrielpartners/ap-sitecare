@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import operationsLogo from '~/assets/images/Logo-SiteCare-Operations-Light-320x90.png'
+
 defineProps<{
   email?: string
 }>()
@@ -6,13 +8,9 @@ defineProps<{
 
 <template>
   <header class="app-header">
-    <div class="app-header__brand">
-      <span class="app-header__brand-mark" aria-hidden="true">AP</span>
-      <div>
-        <strong>SiteCare</strong>
-        <span>Operations Dashboard</span>
-      </div>
-    </div>
+    <NuxtLink class="app-header__brand" to="/" aria-label="SiteCare Operations Dashboard home">
+      <img :src="operationsLogo" alt="SiteCare Operations Dashboard">
+    </NuxtLink>
     <div class="app-header__context">
       <span class="app-header__status" aria-label="System operational">
         <span aria-hidden="true" />
@@ -53,36 +51,19 @@ defineProps<{
 }
 
 .app-header__brand {
-  gap: var(--space-3);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
 }
 
-.app-header__brand-mark {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  place-items: center;
-  border-radius: var(--radius-md);
-  border: var(--border-glow);
-  background: var(--gradient-primary);
-  box-shadow: var(--glow-primary);
-  color: var(--color-text);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-wide);
+.app-header__brand:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-focus);
 }
 
-.app-header__brand div {
-  display: grid;
-  line-height: var(--line-height-tight);
-}
-
-.app-header__brand strong {
-  font-weight: var(--font-weight-semibold);
-}
-
-.app-header__brand div span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+.app-header__brand img {
+  display: block;
+  width: var(--brand-operations-logo-width);
+  height: auto;
 }
 
 .app-header__context {
@@ -143,6 +124,10 @@ defineProps<{
     height: auto;
     min-height: var(--layout-header-height);
     padding-inline: var(--space-4);
+  }
+
+  .app-header__brand img {
+    width: var(--brand-operations-logo-width-compact);
   }
 
   .app-header__identity {
