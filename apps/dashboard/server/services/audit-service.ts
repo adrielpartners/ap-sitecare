@@ -24,4 +24,12 @@ export class AuditService {
       createdAt: new Date().toISOString()
     })
   }
+
+  list(): AuditEvent[] {
+    return this.auditRepository.list()
+  }
+
+  listForSite(siteId: string): AuditEvent[] {
+    return this.auditRepository.listForSite(siteId)
+  }
 }

@@ -7,6 +7,7 @@ import { createDatabase } from '../utils/database'
 import { AuditService } from './audit-service'
 import { CredentialService } from './credential-service'
 import { HealthService } from './health-service'
+import { SiteRegistrationService } from './site-registration-service'
 import { SiteService } from './site-service'
 
 function createServices() {
@@ -20,6 +21,11 @@ function createServices() {
     auditRepository,
     credentialService: new CredentialService('phase-3-test-key', siteRepository, auditService),
     healthService: new HealthService(checkInRepository, siteRepository, auditService),
+    registrationService: new SiteRegistrationService(
+      new SiteService(siteRepository, auditService),
+      new HealthService(checkInRepository, siteRepository, auditService),
+      new CredentialService('phase-3-test-key', siteRepository, auditService)
+    ),
     siteService: new SiteService(siteRepository, auditService)
   }
 }
@@ -74,5 +80,16 @@ describe('Phase 3 data foundation', () => {
       auditRepository.listForSite(site.id).some(event => event.eventType === 'check-in.received'),
       true
     )
+  })
+
+  it('reports registration connection readiness without bypassing service state', () => {
+    const { credentialService, healthService, registrationService, siteService } = createServices()
+    const site = siteService.create({ name: 'Connection Site', url: 'https://connection.example.com' })
+
+    assert.equal(registrationService.testConnection(site.id).status, 'credentials-required')
+    credentialService.issue(site.id)
+    assert.equal(registrationService.testConnection(site.id).status, 'awaiting-check-in')
+    healthService.recordCheckIn({ siteId: site.id, status: 'healthy' })
+    assert.equal(registrationService.testConnection(site.id).status, 'connected')
   })
 })

@@ -5,7 +5,8 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
-    "test": "tsx --test server/**/*.test.ts",
+    "mcp": "node --import tsx mcp/server.ts",
+    "test": "node --import tsx --test server/**/*.test.ts",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {

@@ -425,3 +425,63 @@ Do not add a second package manager.
 - Only one active credential may exist for a site.
 - Sites are disabled rather than deleted through the service layer.
 - New meaningful service behavior requires focused tests.
+
+---
+
+# 20. Phase Four Registration Rules
+
+- Site registration pages must use the protected site APIs.
+- Site lifecycle behavior belongs in `SiteService`.
+- Credential lifecycle behavior belongs in `CredentialService`.
+- Site reads must never expose encrypted credential material or raw secrets.
+- Raw site secrets may be displayed only in the immediate credential-issuance
+  response.
+- Connection readiness must be derived from credential and check-in state.
+- Disabled sites remain in the inventory and retain their history.
+
+---
+
+# 21. Phase Five Plugin Reporting Rules
+
+- `/api/plugin/*` endpoints bypass Cloudflare Access only because they enforce
+  the plugin HMAC boundary.
+- Plugin signatures bind the ISO 8601 timestamp and exact request body.
+- Plugin requests outside the five-minute clock-skew window must be rejected.
+- The plugin must use WordPress HTTP, option, cron, capability, nonce,
+  sanitization, and escaping APIs.
+- Hooks and controllers remain thin; collection and reporting behavior belong
+  in services.
+- The plugin stores connection settings and local cron state only.
+- The dashboard owns check-in, health, and audit history.
+- The plugin must never log or return the Site Secret.
+
+---
+
+# 22. Operational Dashboard Rules
+
+- `HealthService` owns health-status calculation.
+- Pages and components must display health summaries rather than recreate
+  operational rules.
+- A check-in older than 24 hours is critical until a new report arrives.
+- Audit reads must flow through `AuditService` and `AuditRepository`.
+- Important lifecycle behavior must emit an audit event.
+- Operator-maintained hosting, backup, risk, and note fields belong to the
+  managed-site inventory.
+- Filters, search, and sorting are presentation concerns and must not mutate
+  durable site data.
+
+---
+
+# 23. Integration and Agent Rules
+
+- External integration clients are read-only in Version One.
+- Provider credentials belong only in runtime environment variables.
+- Provider clients must return explicit not-configured states when settings
+  are absent.
+- Action Requests represent proposals and reviews only.
+- Approving an Action Request must never execute an external action.
+- Agent APIs and MCP tools must call existing services.
+- MCP tools must not access repositories or the database directly.
+- MCP must not expose execution, update, restore, or infrastructure-control
+  tools in Version One.
+- Phase 12 requires a separate action specification and explicit approval.

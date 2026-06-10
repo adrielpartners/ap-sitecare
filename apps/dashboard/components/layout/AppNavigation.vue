@@ -1,9 +1,15 @@
 <script setup lang="ts">
+const route = useRoute()
 const items = [
-  { label: 'Overview', to: '/', active: true },
-  { label: 'Sites', to: '/', active: false },
-  { label: 'Audit log', to: '/', active: false }
+  { label: 'Overview', to: '/' },
+  { label: 'Sites', to: '/sites' },
+  { label: 'Audit log', to: '/audit' },
+  { label: 'Actions', to: '/actions' }
 ]
+
+function isActive(to: string): boolean {
+  return to === '/' ? route.path === '/' : route.path.startsWith(to)
+}
 </script>
 
 <template>
@@ -13,16 +19,16 @@ const items = [
       v-for="item in items"
       :key="item.label"
       class="app-navigation__item"
-      :class="{ 'app-navigation__item--active': item.active }"
+      :class="{ 'app-navigation__item--active': isActive(item.to) }"
       :to="item.to"
-      :aria-current="item.active ? 'page' : undefined"
+      :aria-current="isActive(item.to) ? 'page' : undefined"
     >
       <span class="app-navigation__indicator" aria-hidden="true" />
       {{ item.label }}
     </NuxtLink>
     <div class="app-navigation__footer">
-      <p>Phase 2</p>
-      <span>Design system foundation</span>
+      <p>Observation first</p>
+      <span>Proposals require review</span>
     </div>
   </nav>
 </template>
@@ -130,4 +136,3 @@ const items = [
   }
 }
 </style>
-

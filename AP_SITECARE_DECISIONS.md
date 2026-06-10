@@ -437,3 +437,183 @@ diagnosis and auditability.
 ## Reversibility
 
 Easy.
+
+---
+
+# Decision 015: Sign plugin requests over timestamp and exact body
+
+## Decision
+
+WordPress reporter requests use HMAC-SHA256 with the active site secret.
+
+The signed message is the ISO 8601 request timestamp, a period separator, and
+the exact JSON request body. The signature is sent as lowercase hexadecimal.
+Requests outside a five-minute clock-skew window are rejected.
+
+## Rationale
+
+Binding both timestamp and body prevents payload tampering and limits replay
+exposure while keeping the protocol small enough for native WordPress APIs.
+
+## Tradeoffs
+
+- Dashboard and WordPress clocks must remain reasonably synchronized.
+- Credential rotation immediately invalidates the prior plugin secret.
+- The exact body must be signed before transmission.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Moderate.
+
+---
+
+# Decision 016: Derive operational health centrally
+
+## Decision
+
+`HealthService` is the single owner of AP SiteCare health status.
+
+A site is unknown before its first check-in, healthy with a recent
+update-free report, attention-needed with one to nine updates, and critical
+with ten or more updates or a check-in older than 24 hours.
+
+## Rationale
+
+Central calculation keeps the dashboard, APIs, and future agents aligned and
+prevents UI-specific interpretations of health.
+
+## Tradeoffs
+
+- The initial thresholds are intentionally simple.
+- Provider-specific security and backup signals may refine status later.
+- Stale status is calculated at read time rather than requiring background
+  mutation.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.
+
+---
+
+# Decision 017: External integrations are read-only provider clients
+
+## Decision
+
+Version One external integrations use small provider clients coordinated by
+`IntegrationService`. They inspect provider state but never modify it.
+
+## Rationale
+
+This adds useful operational visibility while preserving provider ownership
+and the observation-before-action doctrine.
+
+## Tradeoffs
+
+- Provider credentials and account-specific configuration are required for
+  live checks.
+- Results are checked on demand rather than synchronized by background jobs.
+- Provider APIs may require future adapter maintenance.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.
+
+---
+
+# Decision 018: Approval records intent but never executes in Version One
+
+## Decision
+
+Action Requests may be created, approved, or rejected. Approval changes the
+proposal record and emits an audit event, but it does not trigger execution.
+
+## Rationale
+
+Agents need a structured way to propose work without gaining operational
+control.
+
+## Tradeoffs
+
+- Approved proposals still require a human to act outside AP SiteCare.
+- A future execution layer will require a separate architecture and approval.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Moderate.
+
+---
+
+# Decision 019: MCP is inspection-and-proposal only
+
+## Decision
+
+The MCP server exposes site inspection, backup context, notes, and Action
+Request creation through existing services.
+
+It exposes no approval or execution tools.
+
+## Rationale
+
+This makes AP SiteCare useful to agents while preserving application rules,
+auditability, and human control.
+
+## Tradeoffs
+
+- MCP clients cannot complete maintenance work.
+- The server must run with access to the same configured SQLite database.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.
+
+---
+
+# Decision 020: Include the inspection-only MCP layer in Version One
+
+## Decision
+
+Phase 11's inspection-and-proposal MCP layer is included in Version One.
+
+This supersedes the original Version One MCP non-goal only for tools that
+inspect AP SiteCare state or create Action Requests. Execution tools remain
+out of scope.
+
+## Rationale
+
+The user explicitly approved continuing through all defined phases, and the
+implemented MCP boundary preserves the agent-ready, not agent-controlled
+decision.
+
+## Tradeoffs
+
+- Version One has one additional deployable process.
+- MCP protocol compatibility must be maintained.
+- The action boundary remains intentionally incomplete.
+
+## Date Adopted
+
+2026-06-09
+
+## Reversibility
+
+Easy.

@@ -1,11 +1,17 @@
 export type SiteStatus = 'active' | 'disabled'
 export type HealthStatus = 'healthy' | 'attention' | 'critical' | 'unknown'
+export type RiskLevel = 'low' | 'standard' | 'high'
+export type ActionRequestStatus = 'pending' | 'approved' | 'rejected'
 
 export interface Site {
   id: string
   name: string
   url: string
   status: SiteStatus
+  hostingProvider: string | null
+  backupStrategy: string | null
+  riskLevel: RiskLevel
+  notes: string | null
   createdAt: string
   updatedAt: string
   disabledAt: string | null
@@ -50,4 +56,17 @@ export interface AuditEvent {
   eventType: string
   metadata: Record<string, unknown>
   createdAt: string
+}
+
+export interface ActionRequest {
+  id: string
+  siteId: string
+  actionType: string
+  rationale: string
+  status: ActionRequestStatus
+  requestedBy: string
+  reviewedBy: string | null
+  reviewNote: string | null
+  createdAt: string
+  reviewedAt: string | null
 }

@@ -44,4 +44,10 @@ export class AuditRepository {
       SELECT * FROM audit_events WHERE site_id = ? ORDER BY created_at DESC
     `).all(siteId) as AuditRow[]).map(mapAuditEvent)
   }
+
+  list(): AuditEvent[] {
+    return (this.database.prepare(`
+      SELECT * FROM audit_events ORDER BY created_at DESC
+    `).all() as AuditRow[]).map(mapAuditEvent)
+  }
 }

@@ -1,7 +1,7 @@
 import { requireAccessIdentity } from '../utils/auth'
 
 const PUBLIC_PATHS = new Set(['/api/health'])
-const PUBLIC_PREFIXES = ['/_nuxt/', '/__nuxt_error']
+const PUBLIC_PREFIXES = ['/_nuxt/', '/__nuxt_error', '/api/plugin/']
 
 export default defineEventHandler((event) => {
   const path = getRequestURL(event).pathname
@@ -12,4 +12,3 @@ export default defineEventHandler((event) => {
 
   requireAccessIdentity(event)
 })
-

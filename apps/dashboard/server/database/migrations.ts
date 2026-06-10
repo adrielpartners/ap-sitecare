@@ -83,6 +83,43 @@ const migrations: Migration[] = [
       CREATE INDEX audit_events_type_created
         ON audit_events(event_type, created_at DESC);
     `
+  },
+  {
+    id: 2,
+    name: 'add_operational_site_fields',
+    sql: `
+      ALTER TABLE sites ADD COLUMN hosting_provider TEXT;
+      ALTER TABLE sites ADD COLUMN backup_strategy TEXT;
+      ALTER TABLE sites ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'standard'
+        CHECK (risk_level IN ('low', 'standard', 'high'));
+      ALTER TABLE sites ADD COLUMN notes TEXT;
+    `
+  },
+  {
+    id: 3,
+    name: 'add_action_requests',
+    sql: `
+      CREATE TABLE action_requests (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        rationale TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'approved', 'rejected')),
+        requested_by TEXT NOT NULL,
+        reviewed_by TEXT,
+        review_note TEXT,
+        created_at TEXT NOT NULL,
+        reviewed_at TEXT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX action_requests_status_created
+        ON action_requests(status, created_at DESC);
+
+      CREATE INDEX action_requests_site_created
+        ON action_requests(site_id, created_at DESC);
+    `
   }
 ]
 

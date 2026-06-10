@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { getRuntimeSettings } from './config'
 
 export interface AccessIdentity {
   email: string
@@ -6,7 +7,7 @@ export interface AccessIdentity {
 }
 
 export function requireAccessIdentity(event: H3Event): AccessIdentity {
-  const config = useRuntimeConfig(event)
+  const config = getRuntimeSettings(event)
 
   if (config.auth.developmentBypass) {
     return {
@@ -30,4 +31,3 @@ export function requireAccessIdentity(event: H3Event): AccessIdentity {
     source: 'cloudflare-access'
   }
 }
-

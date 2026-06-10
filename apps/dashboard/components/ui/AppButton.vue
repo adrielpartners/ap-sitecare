@@ -2,26 +2,30 @@
 withDefaults(defineProps<{
   disabled?: boolean
   loading?: boolean
+  to?: string
   type?: 'button' | 'submit' | 'reset'
   variant?: 'primary' | 'secondary' | 'quiet' | 'danger'
 }>(), {
   disabled: false,
   loading: false,
+  to: undefined,
   type: 'button',
   variant: 'primary'
 })
 </script>
 
 <template>
-  <button
+  <component
+    :is="to ? resolveComponent('NuxtLink') : 'button'"
     class="app-button"
     :class="`app-button--${variant}`"
-    :disabled="disabled || loading"
-    :type="type"
+    :disabled="to ? undefined : disabled || loading"
+    :to="to"
+    :type="to ? undefined : type"
   >
     <span v-if="loading" class="app-button__spinner" aria-hidden="true" />
     <slot />
-  </button>
+  </component>
 </template>
 
 <style scoped>
@@ -38,6 +42,7 @@ withDefaults(defineProps<{
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
+  text-decoration: none;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard),
@@ -108,4 +113,3 @@ withDefaults(defineProps<{
   }
 }
 </style>
-

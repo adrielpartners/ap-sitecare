@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { runMigrations } from '../database/migrations'
+import { getRuntimeSettings } from './config'
 
 let database: Database.Database | undefined
 
@@ -25,7 +26,7 @@ export function useDatabase(): Database.Database {
     return database
   }
 
-  const config = useRuntimeConfig()
+  const config = getRuntimeSettings()
   database = createDatabase(config.databasePath)
 
   return database

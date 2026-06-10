@@ -9,6 +9,8 @@ export interface IssuedCredential {
   secret: string
 }
 
+export type SafeSiteCredential = Omit<SiteCredential, 'secretCiphertext'>
+
 export class CredentialService {
   constructor(
     private readonly encryptionKey: string,
@@ -20,6 +22,7 @@ export class CredentialService {
     if (!this.siteRepository.findById(siteId)) throw new Error('Site not found.')
 
     const now = new Date().toISOString()
+    const existingCredential = this.siteRepository.findActiveCredential(siteId)
     this.siteRepository.revokeActiveCredential(siteId, now)
     const secret = randomBytes(32).toString('base64url')
     const credential = this.siteRepository.createCredential({
@@ -34,7 +37,7 @@ export class CredentialService {
     this.auditService.record({
       siteId,
       actorType: 'system',
-      eventType: 'credential.issued',
+      eventType: existingCredential ? 'credential.rotated' : 'credential.issued',
       metadata: { credentialId: credential.id, secretHint: credential.secretHint }
     })
 
@@ -46,5 +49,19 @@ export class CredentialService {
     const credential = this.siteRepository.findActiveCredential(siteId)
     if (!credential) throw new Error('Active site credential not found.')
     return decryptSecret(credential.secretCiphertext, this.encryptionKey)
+  }
+
+  getActiveSummary(siteId: string): SafeSiteCredential | null {
+    const credential = this.siteRepository.findActiveCredential(siteId)
+    if (!credential) return null
+    const { secretCiphertext: _secretCiphertext, ...safeCredential } = credential
+    return safeCredential
+  }
+
+  list(siteId: string): SafeSiteCredential[] {
+    return this.siteRepository.listCredentials(siteId).map((credential) => {
+      const { secretCiphertext: _secretCiphertext, ...safeCredential } = credential
+      return safeCredential
+    })
   }
 }

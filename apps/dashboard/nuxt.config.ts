@@ -22,6 +22,13 @@ export default defineNuxtConfig({
       developmentBypass: false,
       developmentEmail: 'developer@adrielpartners.com'
     },
+    integrations: {
+      cloudflareApiToken: '',
+      dropboxAccessToken: '',
+      dropboxBackupRoot: '',
+      hostingerApiBaseUrl: '',
+      hostingerApiToken: ''
+    },
     credentialEncryptionKey: '',
     databasePath: './data/sitecare.sqlite'
   },

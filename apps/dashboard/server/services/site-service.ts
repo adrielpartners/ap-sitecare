@@ -1,17 +1,29 @@
 import { randomUUID } from 'node:crypto'
-import type { Site } from '../domain/types'
+import type { RiskLevel, Site } from '../domain/types'
 import { SiteRepository } from '../repositories/site-repository'
 import { AuditService } from './audit-service'
 
 export interface CreateSiteInput {
   name: string
   url: string
+  hostingProvider?: string | null
+  backupStrategy?: string | null
+  riskLevel?: RiskLevel
+  notes?: string | null
   actorIdentifier?: string
 }
 
 export interface UpdateSiteInput {
   name?: string
   url?: string
+  hostingProvider?: string | null
+  backupStrategy?: string | null
+  riskLevel?: RiskLevel
+  notes?: string | null
+}
+
+function normalizeOptional(value: string | null | undefined): string | null {
+  return value?.trim() || null
 }
 
 function normalizeSiteUrl(value: string): string {
@@ -38,6 +50,10 @@ export class SiteService {
       name,
       url: normalizeSiteUrl(input.url),
       status: 'active',
+      hostingProvider: normalizeOptional(input.hostingProvider),
+      backupStrategy: normalizeOptional(input.backupStrategy),
+      riskLevel: input.riskLevel ?? 'standard',
+      notes: normalizeOptional(input.notes),
       createdAt: now,
       updatedAt: now,
       disabledAt: null
@@ -63,19 +79,28 @@ export class SiteService {
     return this.siteRepository.list()
   }
 
-  update(id: string, input: UpdateSiteInput): Site {
+  update(id: string, input: UpdateSiteInput, actorIdentifier?: string): Site {
     const site = this.get(id)
     const updated = this.siteRepository.update({
       ...site,
       name: input.name?.trim() || site.name,
       url: input.url ? normalizeSiteUrl(input.url) : site.url,
+      hostingProvider: input.hostingProvider === undefined ? site.hostingProvider : normalizeOptional(input.hostingProvider),
+      backupStrategy: input.backupStrategy === undefined ? site.backupStrategy : normalizeOptional(input.backupStrategy),
+      riskLevel: input.riskLevel ?? site.riskLevel,
+      notes: input.notes === undefined ? site.notes : normalizeOptional(input.notes),
       updatedAt: new Date().toISOString()
     })
-    this.auditService.record({ siteId: site.id, actorType: 'system', eventType: 'site.updated' })
+    this.auditService.record({
+      siteId: site.id,
+      actorType: 'dashboard-user',
+      actorIdentifier,
+      eventType: 'site.updated'
+    })
     return updated
   }
 
-  disable(id: string): Site {
+  disable(id: string, actorIdentifier?: string): Site {
     const site = this.get(id)
     const now = new Date().toISOString()
     const disabled = this.siteRepository.update({
@@ -84,7 +109,12 @@ export class SiteService {
       disabledAt: now,
       updatedAt: now
     })
-    this.auditService.record({ siteId: site.id, actorType: 'system', eventType: 'site.disabled' })
+    this.auditService.record({
+      siteId: site.id,
+      actorType: 'dashboard-user',
+      actorIdentifier,
+      eventType: 'site.disabled'
+    })
     return disabled
   }
 }

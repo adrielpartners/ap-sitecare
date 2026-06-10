@@ -113,7 +113,7 @@ Version One will NOT:
 - manage Cloudflare settings
 - manage Hostinger settings
 - execute AI-driven maintenance
-- implement MCP
+- expose MCP execution tools
 
 ---
 
@@ -363,6 +363,7 @@ operational data.
 NUXT_DATABASE_PATH
 NUXT_AUTH_DEVELOPMENT_BYPASS
 NUXT_AUTH_DEVELOPMENT_EMAIL
+NUXT_CREDENTIAL_ENCRYPTION_KEY
 ```
 
 `NUXT_AUTH_DEVELOPMENT_BYPASS` must remain `false` outside local development.
@@ -518,6 +519,262 @@ NUXT_CREDENTIAL_ENCRYPTION_KEY
 
 The raw secret is returned only when initially issued. It is never stored
 plaintext and must never be logged.
+
+---
+
+# 16. Phase Four Site Registration
+
+## Registration Flow
+
+Managed sites are registered through the dashboard:
+
+```text
+Site Registration Page
+→ Sites API Route
+→ Site Service
+→ Site Repository
+→ SQLite
+```
+
+The site list and detail pages consume the same API used by future agents.
+
+## Site Lifecycle API
+
+Protected dashboard endpoints:
+
+```text
+GET    /api/sites
+POST   /api/sites
+GET    /api/sites/:id
+PATCH  /api/sites/:id
+POST   /api/sites/:id/disable
+POST   /api/sites/:id/credentials
+GET    /api/sites/:id/connection
+```
+
+Site reads never return encrypted credential material or raw secrets.
+
+## Connection Readiness
+
+The dashboard reports one of three registration connection states:
+
+- `credentials-required`
+- `awaiting-check-in`
+- `connected`
+
+Connection status is derived from active credential and check-in state. It
+does not create a shortcut around the WordPress reporting workflow.
+
+---
+
+# 17. Phase Five WordPress Reporter
+
+## Plugin Structure
+
+The reporting agent lives in:
+
+```text
+plugins/ap-sitecare/
+```
+
+Its request flow is:
+
+```text
+WordPress Hook
+→ Controller
+→ Reporter Service
+→ API Client Service
+→ Dashboard Plugin API
+→ Plugin Reporting Service
+→ Health Service
+→ Repositories
+→ SQLite
+```
+
+The plugin stores only its connection settings and last cron-run timestamp in
+WordPress options. AP SiteCare owns check-in and operational history.
+
+## Signed Request Contract
+
+Public plugin endpoints:
+
+```text
+POST /api/plugin/test-connection
+POST /api/plugin/check-in
+```
+
+Each request requires:
+
+```text
+X-APSC-Site-ID
+X-APSC-Timestamp
+X-APSC-Signature
+```
+
+The signature is a lowercase hexadecimal HMAC-SHA256 of:
+
+```text
+timestamp + "." + exact_request_body
+```
+
+Requests older or newer than five minutes are rejected. Disabled sites,
+missing active credentials, and invalid signatures are rejected.
+
+## Reported WordPress Data
+
+- WordPress version
+- PHP version
+- Plugin update count
+- Theme update count
+- Last WP-Cron reporter run
+
+---
+
+# 18. Phases Six Through Eight Operational Dashboard
+
+## Health Projection
+
+`HealthService` owns normalized operational status. The UI receives health
+summaries and does not calculate operational state.
+
+Status rules:
+
+- `unknown`: no check-in has been received
+- `healthy`: recent check-in and no available updates
+- `attention`: recent check-in with one to nine available updates
+- `critical`: ten or more available updates, or the latest check-in is more
+  than 24 hours old
+
+Health APIs:
+
+```text
+GET /api/site-health
+GET /api/sites/:id/health
+GET /api/sites/:id/check-ins
+```
+
+## Audit History
+
+Audit reads flow through `AuditService` and `AuditRepository`.
+
+```text
+GET /api/audit
+GET /api/sites/:id/audit
+```
+
+## Operational Site Context
+
+The managed-site inventory also owns:
+
+- hosting provider
+- backup strategy
+- risk level
+- operational notes
+
+These fields are operator-maintained context. External providers remain the
+source of truth for their own operational data.
+
+---
+
+# 19. Phase Nine External Integrations
+
+External provider clients live in:
+
+```text
+apps/dashboard/server/integrations/
+```
+
+They are coordinated by `IntegrationService`. All current integration calls
+are read-only.
+
+Implemented visibility:
+
+- Cloudflare DNS resolution through its unauthenticated DNS-over-HTTPS API,
+  with richer zone status through the Zones API when a token is configured
+- Dropbox backup-location existence through `files/get_metadata`
+- Hostinger API connectivity through a configured Hostinger API base URL
+
+Provider credentials are supplied only through runtime environment variables.
+Provider checks return explicit `not-configured` states when required settings
+are absent.
+
+Official references:
+
+- https://developers.cloudflare.com/api/resources/zones/methods/list/
+- https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/
+- https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
+- https://developers.hostinger.com/
+
+---
+
+# 20. Phase Ten Agent Readiness
+
+## Action Requests
+
+Action Requests represent proposals only:
+
+```text
+Agent / Dashboard User
+→ Action Request API
+→ Action Request Service
+→ Action Request Repository
+→ SQLite
+→ Audit Event
+```
+
+Action Request states:
+
+- `pending`
+- `approved`
+- `rejected`
+
+Approval does not execute an action.
+
+## Agent Inspection APIs
+
+```text
+GET /api/agent/sites
+GET /api/agent/sites/:id/history
+GET /api/agent/sites/:id/updates
+```
+
+---
+
+# 21. Phase Eleven MCP Layer
+
+The MCP stdio server lives in:
+
+```text
+apps/dashboard/mcp/
+```
+
+Run it with:
+
+```text
+npm run mcp
+```
+
+MCP tools:
+
+- `list_sites`
+- `get_site_health`
+- `get_backup_status`
+- `get_site_notes`
+- `create_action_request`
+
+The MCP tool service composes existing application services with repositories
+bound to the configured SQLite database. It does not access database tables
+directly and exposes no execution capability.
+
+The stdio transport uses newline-delimited UTF-8 JSON-RPC and negotiates the
+current MCP protocol version `2025-11-25`, with compatibility for
+`2025-03-26`.
+
+Official MCP references:
+
+- https://modelcontextprotocol.io/specification/latest/basic/lifecycle
+- https://modelcontextprotocol.io/specification/latest/basic/transports
+- https://modelcontextprotocol.io/specification/latest/server/tools
 
 ### `site_check_ins`
 

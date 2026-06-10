@@ -495,3 +495,17 @@ Dark mode is not part of Version One's current phase.
 
 Semantic token naming must be preserved so dark mode can be added later without
 rewriting primitives or feature components.
+
+## Approved Operational Patterns
+
+The Version One dashboard also includes:
+
+- feature-level site health cards composed from primitives
+- centralized health-status badges
+- audit timelines
+- read-only integration status cards
+- action-request review cards
+- token-driven select and textarea controls
+
+These patterns extend the approved light-theme foundation without introducing
+a second visual language.

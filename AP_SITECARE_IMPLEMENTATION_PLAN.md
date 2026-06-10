@@ -5,7 +5,8 @@ Project: AP SiteCare
 Repository: `ap-sitecare`
 Last Updated: 2026-06-09
 
-Current Status: Phase 3 complete; awaiting approval to begin Phase 4.
+Current Status: Version One complete through Phase 11. Phase 12 remains future
+work and requires separate explicit approval.
 
 ---
 
@@ -259,6 +260,18 @@ Dashboard pages:
 - Site registration complete
 - Credential flow verified
 
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Site list, registration, and detail pages implemented.
+- Site creation, editing, and disabling implemented through protected APIs.
+- Site credential issuance and rotation implemented.
+- Raw credentials are shown only when issued and are never returned by reads.
+- Connection readiness reports missing credentials, awaiting check-in, or
+  connected state without bypassing the reporting workflow.
+- Registration lifecycle and credential flow verified with focused tests.
+
 ---
 
 # Phase 5 — WordPress Reporter Plugin
@@ -294,6 +307,21 @@ Collected data:
 - Plugin communicates successfully
 - Check-ins are recorded
 
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Lightweight WordPress reporter plugin implemented with native WordPress APIs.
+- Dashboard URL, Site ID, and Site Secret settings implemented.
+- Capability checks and nonces protect all plugin administration actions.
+- Connection testing, manual check-ins, and hourly WP-Cron check-ins implemented.
+- WordPress version, PHP version, update counts, and last cron run collected.
+- Dashboard signed-request authentication and check-in APIs implemented.
+- HMAC compatibility verified across PHP and Node.
+- Fresh, stale, and tampered signed requests verified at the authentication
+  service boundary.
+- Normalized check-in recording and audit behavior verified with focused tests.
+
 ---
 
 # Phase 6 — Health Dashboard
@@ -323,6 +351,16 @@ Statuses:
 - Site health visible
 - Status calculation working
 
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Operational health summaries implemented through the health service.
+- Healthy, Attention Needed, Critical, and Unknown states implemented.
+- Update pressure and stale check-ins are reflected in health status.
+- Overview, site cards, and site detail views display live health data.
+- Health-status calculation verified with focused tests.
+
 ---
 
 # Phase 7 — Audit and History
@@ -349,6 +387,16 @@ Audit views:
 ## Exit Criteria
 
 - Audit trail functional
+
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- System-wide and per-site audit APIs and views implemented.
+- Site creation, update, credential issue/rotation, check-in, and disable events
+  are traceable.
+- Per-site check-in history API implemented.
+- Audit ordering and credential-rotation behavior verified with focused tests.
 
 ---
 
@@ -377,6 +425,16 @@ Dashboard enhancements:
 
 - Operators can quickly identify problem sites
 
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Hosting provider, backup strategy, risk level, and notes added through an
+  ordered migration.
+- Registration and site-detail workflows support operational context.
+- Site inventory supports search, health and risk filters, and sorting.
+- Operational context persistence verified with focused tests.
+
 ---
 
 # Phase 9 — External Integrations
@@ -402,6 +460,18 @@ Examples:
 ## Exit Criteria
 
 - At least one integration operational
+
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Read-only Cloudflare DNS/zone, Dropbox backup-location, and Hostinger
+  connection clients implemented behind `IntegrationService`.
+- Provider configuration status and per-site inspection APIs implemented.
+- Site detail view exposes read-only provider checks.
+- Cloudflare's credential-free DNS visibility is operational by default, and
+  active-zone normalization is available when a token is configured.
+- Missing provider credentials produce explicit not-configured states.
 
 ---
 
@@ -433,6 +503,17 @@ No execution capabilities yet.
 
 - Agents can inspect and propose
 
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Agent-oriented site, history, and update APIs implemented.
+- Action Request repository, service, APIs, audit events, and review view
+  implemented.
+- Action requests support create, list, approve, and reject.
+- Approval records intent only and has no execution capability.
+- Proposal and review lifecycle verified with focused tests.
+
 ---
 
 # Phase 11 — MCP Layer
@@ -458,6 +539,16 @@ MCP must not bypass business rules.
 ## Exit Criteria
 
 - MCP verified with at least one agent
+
+## Completion Notes
+
+Completed on 2026-06-09.
+
+- Dependency-free MCP stdio server implemented.
+- Required inspection and proposal tools implemented through existing services.
+- MCP has no repository or database bypass and no execution tools.
+- Current-protocol initialization, tool discovery, site inspection, and
+  action-request creation verified through a stdio agent-client interaction.
 
 ---
 
@@ -488,6 +579,13 @@ All actions must:
 Not currently defined.
 
 Implementation requires explicit approval.
+
+## Current Status
+
+Not implemented.
+
+Phase 12 remains outside Version One and is prohibited by the observation-only
+decision until a separate action specification and explicit approval exist.
 
 ---
 
