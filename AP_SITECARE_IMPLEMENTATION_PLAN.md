@@ -621,6 +621,50 @@ Approved and implemented on 2026-06-10.
 
 ---
 
+# Post-Version-One Remote Backup Foundation
+
+Approved and implemented on 2026-06-10.
+
+- Added dashboard-owned backup policy, hosting connection, backup artifact,
+  backup job, and restore-plan data models.
+- Added flexible daily, weekly, and monthly retention intent.
+- Added a storage-provider interface and Dropbox provider foundation.
+- Added a hosting-connection interface, strict local VPS path foundation, and
+  explicit placeholders for future connection adapters.
+- Added calculated restore capability with unsupported states for unimplemented
+  adapters.
+- Added protected backup policy, history, verification, connection-test,
+  queued manual-job, and restore-plan APIs.
+- Added a Backups portfolio page and site-detail backup management section.
+- Added audit events for backup and restore-planning activity.
+- Added focused path-safety, capability, audit, queued-only, and restore
+  preflight tests.
+- Preserved the no-destructive-restore boundary.
+- Did not add archive creation, database dump execution, uploads, automatic
+  deletion, arbitrary commands, or a restore execution route.
+
+---
+
+# Post-Version-One Local VPS Backup Execution Worker
+
+Approved and implemented on 2026-06-12.
+
+- Added a separate atomic claim/heartbeat backup worker process.
+- Added encrypted database backup configuration and fixed mysqldump execution.
+- Added strict Local VPS path and source-tree symlink validation.
+- Added tar/gzip file archives, compressed SQL dumps, manifests, and SHA-256
+  checksum verification.
+- Added Dropbox upload sessions, metadata lookup, normalized paths, and upload
+  verification.
+- Added job detail, client-safe manifest, and explicit failed-job retry APIs.
+- Added queued/running/completed/failed evidence and failure summaries to the
+  backup UI.
+- Added a separate Docker Compose worker service and operations documentation.
+- Preserved the bans on restore execution, automatic retention deletion,
+  remote commands, MCP execution, and agent-triggered execution.
+
+---
+
 # Out of Scope for Version One
 
 Do not build:

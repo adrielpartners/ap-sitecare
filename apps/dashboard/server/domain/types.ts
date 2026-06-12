@@ -4,6 +4,13 @@ export type RiskLevel = 'low' | 'standard' | 'high'
 export type ActionRequestStatus = 'pending' | 'approved' | 'rejected'
 export type OperationalSignalStatus = 'healthy' | 'attention' | 'critical' | 'unknown'
 export type ScheduledTaskType = 'daily-check-in' | 'weekly-security-scan' | 'monthly-report' | 'monthly-offsite-archive'
+export type BackupFrequency = 'daily' | 'weekly' | 'monthly'
+export type BackupRunType = 'scheduled' | 'manual' | 'pre-restore'
+export type BackupStatus = 'planned' | 'queued' | 'running' | 'completed' | 'failed' | 'expired'
+export type StorageProviderType = 'dropbox' | 's3-compatible' | 'google-drive' | 'local-filesystem' | 'backblaze-b2'
+export type HostingConnectionType = 'local-vps' | 'ssh-sftp' | 'sftp-only' | 'database-credentials' | 'hosting-api' | 'manual-unsupported'
+export type RestoreCapability = 'full' | 'partial' | 'backup-only' | 'unsupported'
+export type RestorePlanStatus = 'draft' | 'preflight-passed' | 'preflight-failed' | 'cancelled'
 
 export interface Site {
   id: string
@@ -112,4 +119,128 @@ export interface ScheduledTask {
   description: string
   scheduledFor: string
   status: 'scheduled'
+}
+
+export interface BackupRetention {
+  keepDaily: number
+  keepWeekly: number
+  keepMonthly: number
+  autoDeleteExpired: boolean
+}
+
+export interface BackupPolicy {
+  siteId: string
+  enabled: boolean
+  frequency: BackupFrequency
+  filesEnabled: boolean
+  databaseEnabled: boolean
+  storageProvider: StorageProviderType
+  retention: BackupRetention
+  restoreEnabled: boolean
+  restoreRequiresConfirmation: boolean
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface HostingConnection {
+  siteId: string
+  connectionType: HostingConnectionType
+  localPath: string | null
+  databaseConfigured: boolean
+  databaseHost: string | null
+  databasePort: number | null
+  databaseName: string | null
+  databaseUsername: string | null
+  providerLabel: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StorageProviderConfiguration {
+  provider: StorageProviderType
+  accountLabel: string | null
+  basePath: string
+  enabled: boolean
+  tokenStrategy: 'runtime-access-token' | 'oauth' | 'not-configured'
+  configured: boolean
+}
+
+export interface BackupArtifact {
+  id: string
+  siteId: string
+  backupType: BackupRunType
+  frequency: BackupFrequency | 'manual'
+  filesIncluded: boolean
+  databaseIncluded: boolean
+  storageProvider: StorageProviderType
+  storagePath: string
+  status: BackupStatus
+  sizeBytes: number | null
+  checksum: string | null
+  startedAt: string
+  completedAt: string | null
+  expiresAt: string | null
+  retentionCategory: BackupFrequency | 'manual'
+  manifestPath: string | null
+  manifest: BackupManifest | null
+  checksumVerifiedAt: string | null
+  uploadVerifiedAt: string | null
+  errorMessage: string | null
+}
+
+export interface BackupJob {
+  id: string
+  siteId: string
+  backupId: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  runner: 'manual-placeholder' | 'background-worker'
+  requestedBy: string
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  attemptCount: number
+  claimedAt: string | null
+  heartbeatAt: string | null
+  errorMessage: string | null
+}
+
+export interface BackupManifestArtifact {
+  type: 'files' | 'database' | 'manifest' | 'checksums'
+  archiveName: string
+  sizeBytes: number
+  checksumSha256: string
+}
+
+export interface BackupManifest {
+  backupVersion: 1
+  siteId: string
+  siteDomain: string
+  backupId: string
+  backupTimestamp: string
+  wordpressPath: string
+  databaseName?: string
+  includedArtifacts: BackupManifestArtifact[]
+  includedPaths: string[]
+  excludedPaths: string[]
+  archiveNames: string[]
+  storageProvider: 'dropbox'
+  storagePath: string
+}
+
+export interface RestorePlan {
+  id: string
+  siteId: string
+  backupId: string
+  status: RestorePlanStatus
+  restoreFiles: boolean
+  restoreDatabase: boolean
+  capability: RestoreCapability
+  preflight: Record<string, unknown>
+  warnings: string[]
+  confirmationRequired: boolean
+  createdBy: string
+  createdAt: string
+  updatedAt: string
 }

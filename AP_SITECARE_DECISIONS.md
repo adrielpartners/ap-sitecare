@@ -133,8 +133,6 @@ Operational safety is more important than maximum automation.
 
 Moderate.
 
----
-
 # Decision 005: Cloudflare Access owns authentication
 
 ## Decision
@@ -244,8 +242,6 @@ Creates a safe operational boundary between observation and execution.
 ## Reversibility
 
 Moderate.
-
----
 
 # Decision 009: Hostinger, Cloudflare, and WordPress remain sources of truth
 
@@ -716,3 +712,79 @@ unavailable.
 ## Reversibility
 
 Easy.
+
+---
+
+# Decision 024: Establish remote backup management without execution
+
+## Decision
+
+AP SiteCare owns remote backup policy, connection capability, artifact
+evidence, queued-job planning, and restore preflight in the dashboard.
+
+Version One deliberately stops before archive creation, database dumping,
+artifact upload, automatic retention deletion, and destructive restore
+execution.
+
+## Rationale
+
+Backup and disaster-recovery automation require durable records, provider and
+hosting abstractions, strict path controls, auditability, background execution,
+and explicit restore safeguards before operational actions can be trusted.
+
+## Tradeoffs
+
+- Operators can configure and inspect the intended system before it can run.
+- Queued manual backup records require a future approved worker to execute.
+- Dropbox and local VPS are the first foundations; other adapters remain
+  explicitly unsupported.
+- Restore plans can expose readiness gaps without risking site data.
+
+## Date Adopted
+
+2026-06-10
+
+## Reversibility
+
+Moderate.
+
+---
+
+# Decision 025: Execute Local VPS backups in a separate claim-based worker
+
+## Decision
+
+AP SiteCare may execute backups only for Local VPS connections using the
+separate backup worker and Dropbox storage adapter. Dashboard requests queue
+jobs but never create archives, dump databases, or upload files.
+
+The worker atomically claims one job, uses fixed executable arguments, rejects
+unsafe paths and symlinks, stores database passwords encrypted at rest, creates
+and verifies manifests and SHA-256 checksums, uploads and verifies Dropbox
+objects, records audit events, and cleans isolated temporary files.
+
+Restore execution, automatic retention deletion, remote connection execution,
+MCP execution, and agent-triggered execution remain prohibited.
+
+## Rationale
+
+A dedicated process keeps heavy and failure-prone backup work outside request
+handling while making job ownership, evidence, failure recovery, and
+operational deployment inspectable.
+
+## Tradeoffs
+
+- Operators must mount Local VPS source directories read-only into the worker.
+- The worker requires tar, gzip, mysqldump, Dropbox credentials, and the
+  credential encryption key.
+- Simple Dropbox metadata verification confirms path and size, not a remote
+  SHA-256 digest.
+- Scheduled job creation and automatic retention deletion remain future work.
+
+## Date Adopted
+
+2026-06-12
+
+## Reversibility
+
+Moderate.

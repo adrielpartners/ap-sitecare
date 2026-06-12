@@ -6,6 +6,8 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "mcp": "node --import tsx mcp/server.ts",
+    "backup-worker": "node --import tsx worker/backup-worker.ts",
+    "backup-worker:continuous": "node --import tsx worker/backup-worker.ts --continuous",
     "test": "node --import tsx --test server/**/*.test.ts",
     "typecheck": "nuxt typecheck"
   },

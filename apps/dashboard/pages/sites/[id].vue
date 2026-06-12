@@ -223,6 +223,15 @@ async function runAction(action: () => Promise<void>) {
         </div>
       </AppPanel>
 
+      <section>
+        <header class="section-heading">
+          <p class="eyebrow">Remote operations foundation</p>
+          <h2>Backups and restore planning</h2>
+          <p>Manage dashboard-owned backup policy, connection capability, artifacts, and safe restore preflight.</p>
+        </header>
+        <SiteBackupsSection :site-id="siteId" />
+      </section>
+
       <AppPanel title="Site audit log" description="Important events for this managed site.">
         <AuditTimeline :events="auditEvents" />
       </AppPanel>

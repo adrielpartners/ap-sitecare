@@ -12,6 +12,12 @@ export interface RuntimeSettings {
     hostingerApiBaseUrl: string
     hostingerApiToken: string
   }
+  backups: {
+    allowedLocalBaseDirectories: string
+    dropboxAccountLabel: string
+    dropboxEnabled: boolean
+    dropboxTokenStrategy: 'runtime-access-token' | 'oauth'
+  }
   credentialEncryptionKey: string
   databasePath: string
 }

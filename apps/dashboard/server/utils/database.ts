@@ -14,6 +14,7 @@ export function createDatabase(databasePath: string): Database.Database {
   }
 
   const connection = new Database(resolvedPath)
+  connection.pragma('busy_timeout = 5000')
   connection.pragma('journal_mode = WAL')
   connection.pragma('foreign_keys = ON')
   runMigrations(connection)

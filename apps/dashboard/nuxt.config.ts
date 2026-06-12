@@ -29,6 +29,12 @@ export default defineNuxtConfig({
       hostingerApiBaseUrl: '',
       hostingerApiToken: ''
     },
+    backups: {
+      allowedLocalBaseDirectories: '',
+      dropboxAccountLabel: '',
+      dropboxEnabled: true,
+      dropboxTokenStrategy: 'runtime-access-token'
+    },
     credentialEncryptionKey: '',
     databasePath: './data/sitecare.sqlite'
   },

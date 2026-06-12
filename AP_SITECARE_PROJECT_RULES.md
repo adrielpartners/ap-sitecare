@@ -514,3 +514,33 @@ Do not add a second package manager.
 - Quick actions must route to implemented behavior or a safe coming-soon page.
 - The operations dashboard uses the approved dark token system. Visual values
   belong in `apps/dashboard/assets/styles/tokens.css`.
+
+---
+
+# 25. Remote Backup Execution Rules
+
+- The dashboard exclusively owns backup policies, schedules, retention intent,
+  storage configuration, connection capability, and restore planning.
+- The WordPress plugin must not gain backup or restore ownership.
+- Backup and restore APIs require dashboard authentication.
+- Storage tokens and plaintext database passwords must never be stored in
+  policy, artifact, job, restore-plan, audit, or UI records. Database passwords
+  may only be stored encrypted in the hosting connection record.
+- Local VPS paths must exist and resolve inside
+  `NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES`.
+- Local VPS backup source trees must reject symbolic links before upload.
+- Backup execution must run only in the separate backup-worker process.
+- Backup commands must use fixed executables and argument arrays without a
+  shell or user-provided command strings.
+- Workers must claim queued jobs atomically, heartbeat running work, finalize
+  stale work as failed, and always clean isolated temporary directories.
+- Unimplemented connection and storage adapters must report unsupported and
+  must never imply verified capability.
+- Manual backup requests only queue work; dashboard requests never execute it.
+- Automatic retention deletion is intent only until dry-run cleanup behavior is
+  separately approved and verified.
+- Restore planning must stop after preflight. No destructive restore,
+  confirmation, rollback, shell, or arbitrary filesystem-write route may
+  exist in this foundation.
+- Every policy change, backup job plan, provider test, verification, and
+  restore preflight must emit an audit event.

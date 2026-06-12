@@ -35,7 +35,15 @@ const activityLabels: Record<string, string> = {
   'credential.rotated': 'Token rotated',
   'credential.issued': 'Site token issued',
   'site.updated': 'Site details updated',
-  'site.disabled': 'Site disabled'
+  'site.disabled': 'Site disabled',
+  'backup.policy.updated': 'Backup policy updated',
+  'backup.job.queued': 'Backup job prepared',
+  'backup.storage.tested': 'Backup storage checked',
+  'backup.hosting-connection.tested': 'Hosting connection checked',
+  'backup.verified': 'Backup verified',
+  'backup.verification.failed': 'Backup verification failed',
+  'restore.plan.created': 'Restore plan created',
+  'restore.preflight.failed': 'Restore preflight failed'
 }
 
 function distribution(counts: Record<HealthStatus, number>, total: number): Record<HealthStatus, number> {

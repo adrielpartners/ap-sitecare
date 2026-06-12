@@ -942,3 +942,122 @@ These records do not execute jobs and do not claim that work occurred.
 The shell exposes safe routes for Dashboard, Clients, Sites, Reports, Security,
 Updates, Backups, Alerts, and Settings. Sections without implemented domain
 behavior render explicit coming-soon pages.
+
+---
+
+# 23. Remote Backup and Restore Planning Foundation
+
+Backup policy and restore planning are owned exclusively by the AP SiteCare
+Dashboard. The WordPress plugin has no backup scheduling, retention, storage,
+connection, or restore-decision responsibilities.
+
+## Data Ownership
+
+Migration 4 adds:
+
+- `backup_policies`
+- `hosting_connections`
+- `backup_artifacts`
+- `backup_jobs`
+- `restore_plans`
+
+Migration 5 adds encrypted Local VPS database connection fields, atomic job
+claim/heartbeat/attempt fields, and artifact manifest/checksum/upload
+verification evidence.
+
+## Service Flow
+
+```text
+Dashboard UI
+→ Protected Backup API
+→ BackupService
+→ BackupRepository + Provider/Connection Adapters
+→ SQLite + AuditService
+```
+
+## Provider and Connection Adapters
+
+Dropbox is the first storage-provider adapter. Its access token and base path
+remain runtime environment configuration and are never returned through the
+API or stored in backup policy records.
+
+Local VPS is the first hosting-connection foundation. Local WordPress paths
+must exist and resolve inside one of the comma-separated directories configured
+by:
+
+```text
+NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES
+NUXT_BACKUPS_DROPBOX_ENABLED
+NUXT_BACKUPS_DROPBOX_TOKEN_STRATEGY
+```
+
+Dropbox account label, token strategy, enabled state, and base folder are
+runtime-backed provider configuration. The token itself remains secret runtime
+configuration. OAuth is represented as a token strategy foundation; an OAuth
+authorization flow is not implemented yet.
+
+Local paths must be mounted read-only into both the dashboard and backup-worker
+containers.
+
+SSH/SFTP, SFTP-only, database credential, hosting API, and manual connection
+types are modeled but report unsupported until an execution adapter is
+implemented and verified.
+
+## Execution Boundary
+
+The approved Local VPS + Dropbox worker can:
+
+- configure and audit backup policies
+- calculate restore capability
+- queue manual-backup jobs
+- atomically claim and execute one queued job at a time
+- create gzip-compressed file archives and database dumps
+- create and locally verify manifests and SHA-256 checksums
+- upload and verify Dropbox objects
+- inspect recorded backup evidence and client-safe manifests
+- create and audit restore preflight plans
+
+The worker cannot:
+
+- automatically delete expired artifacts
+- execute a restore
+- run user-supplied shell commands
+- write to arbitrary filesystem paths
+- execute through MCP, agents, SSH/SFTP, or hosting APIs
+
+All restore plans require confirmation, but no confirmation or execution route
+exists yet.
+
+## Protected Backup APIs
+
+```text
+GET  /api/backups
+GET  /api/backups/:id
+GET  /api/backups/:id/manifest
+POST /api/backups/:id/verify
+POST /api/backups/:id/retry
+POST /api/backup-storage/dropbox/test
+
+GET  /api/sites/:id/backups
+PUT  /api/sites/:id/backups/policy
+POST /api/sites/:id/backups/manual
+POST /api/sites/:id/backups/connection-test
+
+GET  /api/sites/:id/restore-plans
+POST /api/sites/:id/restore-plans
+```
+
+Backup endpoints use explicit `{ ok, data }` and `{ ok, error }` envelopes.
+
+## Backup Worker
+
+```text
+npm run backup-worker
+npm run backup-worker:continuous
+```
+
+The worker uses fixed `/usr/bin/tar`, `/usr/bin/mysqldump`, and
+`/usr/bin/gzip` executables with argument arrays and no shell. Database
+passwords are encrypted at rest with `NUXT_CREDENTIAL_ENCRYPTION_KEY`, written
+only to a protected temporary MySQL option file, and never returned or logged.
+See `BACKUP_WORKER_OPERATIONS.md` for deployment requirements.
