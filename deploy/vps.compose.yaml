@@ -1,0 +1,56 @@
+name: sitecare
+
+services:
+  sitecare-dashboard:
+    build:
+      context: /opt/sitecare
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: /backup-sources
+      NUXT_DATABASE_PATH: /data/sitecare.sqlite
+      PORT: 3000
+    networks:
+      - traefik_proxy
+    volumes:
+      - sitecare-data:/data
+      - /opt/sitecare/backup-sources:/backup-sources:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sitecare-dashboard.rule=Host(`sitecare.adrielpartners.com`)"
+      - "traefik.http.routers.sitecare-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.sitecare-dashboard.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.sitecare-dashboard.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  backup-worker:
+    build:
+      context: /opt/sitecare
+      dockerfile: Dockerfile
+      target: worker
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: /backup-sources
+      NUXT_DATABASE_PATH: /data/sitecare.sqlite
+    volumes:
+      - sitecare-data:/data
+      - /opt/sitecare/backup-sources:/backup-sources:ro
+
+volumes:
+  sitecare-data:
+
+networks:
+  traefik_proxy:
+    external: true

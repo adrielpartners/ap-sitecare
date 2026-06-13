@@ -692,6 +692,9 @@ Approved and implemented on 2026-06-13.
 - Added an explicit per-site switch before multiple destinations are allowed.
 - Snapshotted destination identifiers onto queued backup jobs.
 - Added multi-Dropbox upload fan-out in the separate backup worker.
+- Added a tracked VPS Compose definition that runs the dashboard and worker
+  with a shared database volume and read-only backup-source mount.
+- Added an in-dashboard backup setup checklist for storage and site secrets.
 - Added configuration-only placeholders for Google Drive and
   Amazon/S3-compatible destinations.
 - Preserved explicit unsupported behavior for unimplemented execution adapters.

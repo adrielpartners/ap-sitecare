@@ -105,6 +105,34 @@ async function testDestination(id: string) {
       <p v-if="notice" class="settings-message settings-message--notice" role="status">{{ notice }}</p>
       <p v-if="errorMessage" class="settings-message settings-message--error" role="alert">{{ errorMessage }}</p>
 
+      <AppPanel title="Backup setup checklist" description="Secrets are entered here in the dashboard. SiteCare encrypts them before storing them.">
+        <div class="grid">
+          <AppCard muted>
+            <div class="stack stack--sm">
+              <AppBadge tone="info">1. Storage destination</AppBadge>
+              <h3>Add Dropbox access</h3>
+              <p class="text-meta">Create a Dropbox app access token, enter it below, save the destination, then use Test connection. The token is never shown again.</p>
+              <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noreferrer">Open Dropbox App Console</a>
+            </div>
+          </AppCard>
+          <AppCard muted>
+            <div class="stack stack--sm">
+              <AppBadge tone="info">2. Site source</AppBadge>
+              <h3>Connect each WordPress site</h3>
+              <p class="text-meta">On each site page, configure the Local VPS WordPress path and database credentials. Passwords are encrypted and never returned.</p>
+              <NuxtLink to="/sites">Open managed sites</NuxtLink>
+            </div>
+          </AppCard>
+          <AppCard muted>
+            <div class="stack stack--sm">
+              <AppBadge tone="warning">Current execution boundary</AppBadge>
+              <h3>Remote hosting needs a mounted source</h3>
+              <p class="text-meta">The active worker supports Local VPS sources only. Remote sites must be mounted read-only under <code>/opt/sitecare/backup-sources</code> before backups can run.</p>
+            </div>
+          </AppCard>
+        </div>
+      </AppPanel>
+
       <AppPanel title="Central destination pool" description="Enabled destinations marked for the master pool become the default storage choices for managed sites.">
         <div v-if="destinations.length" class="grid">
           <AppCard v-for="destination in destinations" :key="destination.id" :tone="destination.enabled && destination.inMasterPool ? 'success' : 'neutral'">

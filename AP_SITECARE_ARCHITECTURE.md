@@ -396,6 +396,7 @@ The repository contains:
 
 - a multi-stage Dockerfile
 - a Docker Compose service
+- a tracked production VPS Compose definition at `deploy/vps.compose.yaml`
 - a persistent volume mounted at `/data`
 - a container health check using `/api/health`
 

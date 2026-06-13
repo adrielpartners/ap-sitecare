@@ -51,6 +51,17 @@ The host path is mounted at `/backup-sources` read-only in the dashboard and
 worker containers. Configure site WordPress paths using the container-visible
 path, for example `/backup-sources/example.com`.
 
+The production VPS definition is tracked at:
+
+```text
+deploy/vps.compose.yaml
+```
+
+It mounts `/opt/sitecare/backup-sources` read-only into both services. Remote
+WordPress sites must be mounted or synchronized into a dedicated child
+directory before they can use the Local VPS execution adapter. Do not place
+unrelated host files beneath the allowed source root.
+
 ## Running
 
 Claim and execute at most one queued job, then exit:
