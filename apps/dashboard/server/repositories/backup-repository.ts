@@ -109,6 +109,10 @@ function mapRestorePlan(row: any): RestorePlan {
 export class BackupRepository {
   constructor(private readonly database: Database.Database = useDatabase()) {}
 
+  getDatabase(): Database.Database {
+    return this.database
+  }
+
   getPolicy(siteId: string): BackupPolicy | null {
     const row = this.database.prepare('SELECT * FROM backup_policies WHERE site_id = ?').get(siteId)
     return row ? mapPolicy(row) : null
@@ -253,6 +257,19 @@ export class BackupRepository {
       )
     `).run(job)
     return job
+  }
+
+  saveJobDestinations(jobId: string, destinationIds: string[]): void {
+    const insert = this.database.prepare(`
+      INSERT INTO backup_job_destinations (job_id, destination_id, priority) VALUES (?, ?, ?)
+    `)
+    this.database.transaction(() => destinationIds.forEach((destinationId, priority) => insert.run(jobId, destinationId, priority)))()
+  }
+
+  getJobDestinationIds(jobId: string): string[] {
+    return (this.database.prepare(`
+      SELECT destination_id FROM backup_job_destinations WHERE job_id = ? ORDER BY priority ASC
+    `).all(jobId) as Array<{ destination_id: string }>).map(row => row.destination_id)
   }
 
   failStaleJobs(staleBefore: string, now: string): BackupJob[] {

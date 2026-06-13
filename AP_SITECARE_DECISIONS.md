@@ -788,3 +788,48 @@ operational deployment inspectable.
 ## Reversibility
 
 Moderate.
+
+---
+
+# Decision 026: Manage backup destinations centrally with explicit site overrides
+
+## Decision
+
+AP SiteCare owns a central registry of backup destinations. Managed sites
+inherit the enabled central destination pool by default, may use an explicit
+site-specific override, and may opt into multiple destinations only through a
+site-level setting.
+
+The original environment-configured Dropbox connection remains a
+runtime-managed central destination. Additional destination credentials may be
+entered through protected dashboard APIs and stored encrypted at rest with
+`NUXT_CREDENTIAL_ENCRYPTION_KEY`.
+
+Queued backup jobs snapshot their destination identifiers. Dropbox is the only
+currently executable destination adapter. Google Drive and Amazon/S3-compatible
+destinations remain configuration-only until their execution adapters are
+implemented and verified.
+
+## Rationale
+
+Most managed sites should use Adriel Partners' shared storage pool, while some
+clients require isolated or redundant storage. Central defaults reduce routine
+configuration, and explicit overrides preserve client-specific flexibility
+without silently changing queued work.
+
+## Tradeoffs
+
+- The database now owns encrypted provider credentials in addition to runtime
+  configuration.
+- Encryption-key backup and rotation become more operationally important.
+- Multiple destinations increase upload time and partial-failure exposure.
+- Provider-specific execution remains unavailable until each adapter is
+  separately implemented and verified.
+
+## Date Adopted
+
+2026-06-13
+
+## Reversibility
+
+Moderate.

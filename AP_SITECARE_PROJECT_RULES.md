@@ -338,11 +338,11 @@ Update documentation when changing:
 
 Update:
 
-- ARCHITECTURE.md
-- DECISIONS.md
-- PROJECT_RULES.md
-- VISUAL_IDENTITY.md
-- IMPLEMENTATION_PLAN.md
+- AP_SITECARE_ARCHITECTURE.md
+- AP_SITECARE_DECISIONS.md
+- AP_SITECARE_PROJECT_RULES.md
+- AP_SITECARE_VISUAL_IDENTITY.md
+- AP_SITECARE_IMPLEMENTATION_PLAN.md
 
 when appropriate.
 
@@ -487,7 +487,10 @@ Do not add a second package manager.
 # 23. Integration and Agent Rules
 
 - External integration clients are read-only in Version One.
-- Provider credentials belong only in runtime environment variables.
+- General read-only integration credentials belong in runtime environment
+  variables. Backup-destination credentials are the approved exception: they
+  may be entered through protected dashboard APIs and stored only as encrypted
+  destination credentials using `NUXT_CREDENTIAL_ENCRYPTION_KEY`.
 - Provider clients must return explicit not-configured states when settings
   are absent.
 - Action Requests represent proposals and reviews only.
@@ -526,6 +529,15 @@ Do not add a second package manager.
 - Storage tokens and plaintext database passwords must never be stored in
   policy, artifact, job, restore-plan, audit, or UI records. Database passwords
   may only be stored encrypted in the hosting connection record.
+- Backup-destination credentials may only be stored encrypted in the
+  destination registry. Destination APIs and audit events must never return or
+  record plaintext credentials.
+- Sites inherit the enabled central destination pool unless an explicit
+  site-specific override is saved.
+- Multiple backup destinations are disabled per site by default and require an
+  explicit site-level opt-in.
+- Queued jobs must snapshot destination identifiers so later configuration
+  changes cannot silently redirect queued backup work.
 - Local VPS paths must exist and resolve inside
   `NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES`.
 - Local VPS backup source trees must reject symbolic links before upload.

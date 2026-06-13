@@ -680,6 +680,26 @@ Do not build:
 
 ---
 
+# Post-Version-One Backup Destination Registry
+
+Approved and implemented on 2026-06-13.
+
+- Added a central backup destination registry in the main Settings page.
+- Preserved the environment-configured Dropbox connection as a runtime-managed
+  central destination.
+- Added encrypted dashboard-managed credentials for additional destinations.
+- Added central-pool inheritance and site-specific destination overrides.
+- Added an explicit per-site switch before multiple destinations are allowed.
+- Snapshotted destination identifiers onto queued backup jobs.
+- Added multi-Dropbox upload fan-out in the separate backup worker.
+- Added configuration-only placeholders for Google Drive and
+  Amazon/S3-compatible destinations.
+- Preserved explicit unsupported behavior for unimplemented execution adapters.
+- Kept credentials out of APIs, audit metadata, backup policies, artifacts,
+  and jobs.
+
+---
+
 # Definition of Success
 
 Version One succeeds when:

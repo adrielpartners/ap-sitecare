@@ -8,6 +8,8 @@ export type BackupFrequency = 'daily' | 'weekly' | 'monthly'
 export type BackupRunType = 'scheduled' | 'manual' | 'pre-restore'
 export type BackupStatus = 'planned' | 'queued' | 'running' | 'completed' | 'failed' | 'expired'
 export type StorageProviderType = 'dropbox' | 's3-compatible' | 'google-drive' | 'local-filesystem' | 'backblaze-b2'
+export type BackupDestinationProvider = 'dropbox' | 'google-drive' | 's3-compatible'
+export type BackupDestinationMode = 'master' | 'override'
 export type HostingConnectionType = 'local-vps' | 'ssh-sftp' | 'sftp-only' | 'database-credentials' | 'hosting-api' | 'manual-unsupported'
 export type RestoreCapability = 'full' | 'partial' | 'backup-only' | 'unsupported'
 export type RestorePlanStatus = 'draft' | 'preflight-passed' | 'preflight-failed' | 'cancelled'
@@ -165,6 +167,28 @@ export interface StorageProviderConfiguration {
   enabled: boolean
   tokenStrategy: 'runtime-access-token' | 'oauth' | 'not-configured'
   configured: boolean
+}
+
+export interface BackupDestination {
+  id: string
+  name: string
+  provider: BackupDestinationProvider
+  enabled: boolean
+  inMasterPool: boolean
+  credentialSource: 'encrypted' | 'runtime'
+  configuration: Record<string, string>
+  credentialConfigured: boolean
+  executable: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SiteBackupDestinationSettings {
+  siteId: string
+  mode: BackupDestinationMode
+  allowMultiple: boolean
+  destinationIds: string[]
+  effectiveDestinations: BackupDestination[]
 }
 
 export interface BackupArtifact {

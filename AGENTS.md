@@ -12,10 +12,12 @@ This file is the first-stop instruction file for AI agents. It does not replace 
 Before making substantial changes, read these files in order:
 
 1. `CODING_CONSTITUTION.md`
-2. `ARCHITECTURE.md`
-3. `PROJECT_RULES.md`
-4. `DECISIONS.md`
-5. Any applicable mode file, such as:
+2. `AP_SITECARE_ARCHITECTURE.md`
+3. `AP_SITECARE_PROJECT_RULES.md`
+4. `AP_SITECARE_DECISIONS.md`
+5. `AP_SITECARE_IMPLEMENTATION_PLAN.md`
+6. `AP_SITECARE_VISUAL_IDENTITY.md`
+7. Any applicable mode file, such as:
    - `MODE_WORDPRESS_NATIVE.md`
    - `MODE_WORDPRESS_HYBRID.md`
    - `MODE_NUXT_APP.md`
@@ -46,7 +48,7 @@ Use it for:
 
 Do not override it casually.
 
-## `ARCHITECTURE.md`
+## `AP_SITECARE_ARCHITECTURE.md`
 
 Project-specific factual blueprint.
 
@@ -65,9 +67,9 @@ Use it for:
 - integrations
 - environment variables
 
-If the code and `ARCHITECTURE.md` disagree, do not silently choose one. Note the mismatch and make the smallest safe change.
+If the code and `AP_SITECARE_ARCHITECTURE.md` disagree, do not silently choose one. Note the mismatch and make the smallest safe change.
 
-## `PROJECT_RULES.md`
+## `AP_SITECARE_PROJECT_RULES.md`
 
 Repository-specific enforcement rules.
 
@@ -83,13 +85,31 @@ Use it for:
 
 Follow local project rules even when another style would also be valid.
 
-## `DECISIONS.md`
+## `AP_SITECARE_DECISIONS.md`
 
 Decision history.
 
 Use it to avoid relitigating previous architecture choices.
 
-Before reversing a major decision, check whether it has already been documented. If a new major decision is made, add an entry to `DECISIONS.md`.
+Before reversing a major decision, check whether it has already been documented. If a new major decision is made, add an entry to `AP_SITECARE_DECISIONS.md`.
+
+## `AP_SITECARE_IMPLEMENTATION_PLAN.md`
+
+Use it for:
+
+- approved implementation phases
+- current project status
+- completed post-Version-One work
+- explicit future and out-of-scope work
+
+## `AP_SITECARE_VISUAL_IDENTITY.md`
+
+Use it for:
+
+- visual direction
+- design-system hierarchy
+- approved interface patterns
+- visual completion requirements
 
 ## Mode Files
 
@@ -185,7 +205,7 @@ Rules:
 - Hooks connect WordPress to application logic. Hooks must not become application logic.
 - Background jobs must not be improvised outside the documented job system.
 
-If the project uses a different flow, follow `ARCHITECTURE.md`.
+If the project uses a different flow, follow `AP_SITECARE_ARCHITECTURE.md`.
 
 ---
 
@@ -222,7 +242,7 @@ Before adding a dependency, confirm:
 - the dependency does not add disproportionate weight
 - the dependency does not reduce portability without good reason
 
-If a dependency is added, explain why in the work summary. If the project has a dependency policy in `PROJECT_RULES.md`, follow it.
+If a dependency is added, explain why in the work summary. If the project has a dependency policy in `AP_SITECARE_PROJECT_RULES.md`, follow it.
 
 ---
 
@@ -312,9 +332,9 @@ Update documentation when a change affects:
 
 Use:
 
-- `ARCHITECTURE.md` for current project facts
-- `DECISIONS.md` for major decisions and tradeoffs
-- `PROJECT_RULES.md` for repository-specific enforcement rules
+- `AP_SITECARE_ARCHITECTURE.md` for current project facts
+- `AP_SITECARE_DECISIONS.md` for major decisions and tradeoffs
+- `AP_SITECARE_PROJECT_RULES.md` for repository-specific enforcement rules
 - mode files for project-type-specific rules
 
 Do not let code and documentation drift apart.

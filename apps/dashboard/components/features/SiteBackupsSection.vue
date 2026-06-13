@@ -10,6 +10,9 @@ const frequency = ref('daily')
 const filesEnabled = ref(true)
 const databaseEnabled = ref(true)
 const storageProvider = ref('dropbox')
+const destinationMode = ref('master')
+const allowMultipleDestinations = ref(false)
+const selectedDestinationIds = ref<string[]>([])
 const keepDaily = ref('7')
 const keepWeekly = ref('4')
 const keepMonthly = ref('6')
@@ -36,6 +39,9 @@ watch(overview, (value) => {
   filesEnabled.value = policy?.filesEnabled ?? true
   databaseEnabled.value = policy?.databaseEnabled ?? true
   storageProvider.value = policy?.storageProvider ?? 'dropbox'
+  destinationMode.value = value.destinationSettings?.mode ?? 'master'
+  allowMultipleDestinations.value = value.destinationSettings?.allowMultiple ?? false
+  selectedDestinationIds.value = [...(value.destinationSettings?.destinationIds ?? [])]
   keepDaily.value = String(policy?.retention.keepDaily ?? 7)
   keepWeekly.value = String(policy?.retention.keepWeekly ?? 4)
   keepMonthly.value = String(policy?.retention.keepMonthly ?? 6)
@@ -78,6 +84,17 @@ async function runAction(action: () => Promise<{ message?: string } | void>, suc
 
 async function savePolicy() {
   await runAction(async () => {
+    const destinationResult = await $fetch(`/api/sites/${props.siteId}/backup-destinations`, {
+      method: 'PUT',
+      body: {
+        mode: destinationMode.value,
+        allowMultiple: allowMultipleDestinations.value,
+        destinationIds: selectedDestinationIds.value
+      }
+    })
+    if ('data' in destinationResult && destinationResult.data.effectiveDestinations[0]) {
+      storageProvider.value = destinationResult.data.effectiveDestinations[0].provider
+    }
     await $fetch(`/api/sites/${props.siteId}/backups/policy`, {
       method: 'PUT',
       body: {
@@ -106,6 +123,16 @@ async function savePolicy() {
       }
     })
   }, 'Backup policy saved and audited.')
+}
+
+function toggleDestination(destinationId: string, selected: boolean) {
+  if (selected) {
+    selectedDestinationIds.value = allowMultipleDestinations.value
+      ? [...new Set([...selectedDestinationIds.value, destinationId])]
+      : [destinationId]
+  } else {
+    selectedDestinationIds.value = selectedDestinationIds.value.filter(id => id !== destinationId)
+  }
 }
 
 async function testStorage() {
@@ -194,8 +221,8 @@ function formatBytes(value: number | null): string {
           <AppBadge :tone="overview.storage.enabled && overview.storage.configured ? 'success' : 'warning'">
             {{ !overview.storage.enabled ? 'Disabled' : overview.storage.configured ? 'Configured' : 'Not configured' }}
           </AppBadge>
-          <h3>Dropbox storage</h3>
-          <p class="text-meta">{{ overview.storage.basePath || 'Base folder is not configured.' }}</p>
+          <h3>Backup destinations</h3>
+          <p class="text-meta">{{ overview.destinationSettings.effectiveDestinations.length ? overview.destinationSettings.effectiveDestinations.map(destination => destination.name).join(', ') : 'No effective destination configured.' }}</p>
         </div>
       </AppCard>
       <AppCard muted>
@@ -212,6 +239,32 @@ function formatBytes(value: number | null): string {
 
     <AppPanel title="Backup policy" description="Configure dashboard-owned backup intent, retention, and restore safeguards.">
       <form class="stack" @submit.prevent="savePolicy">
+        <div class="section-heading">
+          <h3>Backup destinations</h3>
+          <p>Use the central destination pool by default, or override it for this client site. Multiple locations are intentionally opt-in per site.</p>
+        </div>
+        <div class="grid">
+          <AppSelect v-model="destinationMode" label="Destination source" name="destination-mode" :options="[
+            { label: 'Use central destination pool', value: 'master' },
+            { label: 'Use site-specific override', value: 'override' }
+          ]" />
+          <AppCheckbox v-model="allowMultipleDestinations" name="allow-multiple-destinations" label="Allow multiple backup locations" description="Edge-case setting: permits this site to select more than one destination." />
+        </div>
+        <div v-if="destinationMode === 'override'" class="grid">
+          <AppCheckbox
+            v-for="destination in overview?.destinations ?? []"
+            :key="destination.id"
+            :model-value="selectedDestinationIds.includes(destination.id)"
+            :name="`destination-${destination.id}`"
+            :label="destination.name"
+            :description="`${destination.provider} · ${destination.executable ? 'execution ready' : 'adapter pending'}`"
+            :disabled="!destination.enabled"
+            @update:model-value="toggleDestination(destination.id, $event)"
+          />
+        </div>
+        <p v-else class="text-meta">
+          Effective central destinations: {{ overview?.destinationSettings.effectiveDestinations.map(destination => destination.name).join(', ') || 'None configured' }}
+        </p>
         <div class="grid">
           <AppCheckbox v-model="enabled" name="backup-enabled" label="Enable backup policy" description="Allows backup jobs to be prepared for this site." />
           <AppCheckbox v-model="filesEnabled" name="files-enabled" label="Include files" />
@@ -221,13 +274,6 @@ function formatBytes(value: number | null): string {
         <div class="grid">
           <AppSelect v-model="frequency" label="Backup frequency" name="backup-frequency" :options="[
             { label: 'Daily', value: 'daily' }, { label: 'Weekly', value: 'weekly' }, { label: 'Monthly', value: 'monthly' }
-          ]" />
-          <AppSelect v-model="storageProvider" label="Storage provider" name="storage-provider" :options="[
-            { label: 'Dropbox', value: 'dropbox' },
-            { label: 'S3-compatible (coming soon)', value: 's3-compatible' },
-            { label: 'Google Drive (coming soon)', value: 'google-drive' },
-            { label: 'Local filesystem (coming soon)', value: 'local-filesystem' },
-            { label: 'Backblaze B2 (coming soon)', value: 'backblaze-b2' }
           ]" />
           <AppSelect v-model="connectionType" label="Hosting connection" name="connection-type" :options="[
             { label: 'Local VPS path', value: 'local-vps' },

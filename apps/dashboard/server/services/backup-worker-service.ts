@@ -9,6 +9,7 @@ import { BackupRepository } from '../repositories/backup-repository'
 import { SiteRepository } from '../repositories/site-repository'
 import { decryptSecret } from '../utils/credential-crypto'
 import { AuditService } from './audit-service'
+import { BackupDestinationService } from './backup-destination-service'
 
 export interface BackupWorkerSettings {
   allowedLocalBaseDirectories: string[]
@@ -37,7 +38,8 @@ export class BackupWorkerService {
       settings.dropboxAccountLabel,
       settings.dropboxEnabled,
       settings.dropboxTokenStrategy
-    )
+    ),
+    private readonly destinationService?: BackupDestinationService
   ) {}
 
   async runNext(): Promise<BackupJob | null> {
@@ -76,7 +78,6 @@ export class BackupWorkerService {
       if (!site || !policy || !connection) throw new Error('Backup job configuration is incomplete.')
       if (!policy.enabled) throw new Error('Backup policy is disabled.')
       if (connection.connectionType !== 'local-vps') throw new Error('Only Local VPS backup execution is supported.')
-      if (policy.storageProvider !== 'dropbox') throw new Error('Only Dropbox backup storage is supported.')
       const local = new LocalVpsConnection(this.settings.allowedLocalBaseDirectories)
       if (!connection.localPath) throw new Error('Local WordPress path is not configured.')
       const wordpressPath = local.validatePath(connection.localPath)
@@ -112,6 +113,8 @@ export class BackupWorkerService {
       const packageFiles = await this.builder.writeManifestAndChecksums(workDirectory, manifestBase, built)
       const checksumFile = packageFiles.files.find(file => file.type === 'checksums')
       if (!checksumFile) throw new Error('Checksum artifact was not created.')
+      const storages = this.resolveStorages(job)
+      const primaryStorage = storages[0]?.storage ?? this.storage
       this.repository.updateArtifact({
         ...artifact,
         filesIncluded: policy.filesEnabled,
@@ -119,18 +122,21 @@ export class BackupWorkerService {
         checksum: checksumFile.checksumSha256,
         checksumVerifiedAt: new Date().toISOString(),
         manifest: packageFiles.manifest,
-        manifestPath: this.storage.destinationPath(artifact.storagePath, 'manifest.json')
+        manifestPath: primaryStorage.destinationPath(artifact.storagePath, 'manifest.json')
       })
 
       let totalSize = 0
-      for (const file of packageFiles.files) {
-        this.repository.heartbeatJob(job.id, job.claimToken, new Date().toISOString())
-        const result = await this.storage.upload(file.path, this.storage.destinationPath(artifact.storagePath, file.archiveName))
-        if (!result.verified) throw new Error(`Dropbox upload verification failed for ${file.archiveName}.`)
-        totalSize += file.sizeBytes
+      for (const destination of storages) {
+        const destinationRoot = destination.storage.artifactPath(domain, artifact.id)
+        for (const file of packageFiles.files) {
+          this.repository.heartbeatJob(job.id, job.claimToken, new Date().toISOString())
+          const result = await destination.storage.upload(file.path, destination.storage.destinationPath(destinationRoot, file.archiveName))
+          if (!result.verified) throw new Error(`Dropbox upload verification failed for ${file.archiveName}.`)
+        }
+        this.record(job, 'backup.dropbox-upload.completed', { destinationId: destination.id, fileCount: packageFiles.files.length })
+        this.record(job, 'backup.dropbox-upload.verified', { destinationId: destination.id, fileCount: packageFiles.files.length })
       }
-      this.record(job, 'backup.dropbox-upload.completed', { fileCount: packageFiles.files.length, sizeBytes: totalSize })
-      this.record(job, 'backup.dropbox-upload.verified', { fileCount: packageFiles.files.length })
+      totalSize = packageFiles.files.reduce((sum, file) => sum + file.sizeBytes, 0)
 
       const completedAt = new Date().toISOString()
       this.repository.updateArtifact({
@@ -183,6 +189,16 @@ export class BackupWorkerService {
       username: connection.databaseUsername,
       password: decryptSecret(ciphertext, this.settings.credentialEncryptionKey)
     }
+  }
+
+  private resolveStorages(job: BackupJob): Array<{ id: string, storage: DropboxStorageProvider }> {
+    const destinationIds = this.repository.getJobDestinationIds(job.id)
+    if (!this.destinationService || !destinationIds.length) return [{ id: 'runtime-dropbox', storage: this.storage }]
+    return destinationIds.map((id) => {
+      const destination = this.destinationService?.list().find(item => item.id === id)
+      if (!destination) throw new Error('A queued backup destination is no longer available.')
+      return { id, storage: this.destinationService!.dropbox(destination) }
+    })
   }
 
   private record(job: BackupJob, eventType: string, metadata: Record<string, unknown>): void {

@@ -148,7 +148,8 @@ apps/dashboard/assets/styles/
   utilities.css
 ```
 
-Alternative structure is acceptable only if documented in `ARCHITECTURE.md`.
+Alternative structure is acceptable only if documented in
+`AP_SITECARE_ARCHITECTURE.md`.
 
 ---
 

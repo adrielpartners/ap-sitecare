@@ -239,6 +239,56 @@ const migrations: Migration[] = [
       CREATE INDEX backup_jobs_status_created
         ON backup_jobs(status, created_at ASC);
     `
+  },
+  {
+    id: 6,
+    name: 'add_backup_destination_registry',
+    sql: `
+      CREATE TABLE backup_destinations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        provider TEXT NOT NULL CHECK (provider IN ('dropbox', 'google-drive', 's3-compatible')),
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+        in_master_pool INTEGER NOT NULL DEFAULT 0 CHECK (in_master_pool IN (0, 1)),
+        credential_source TEXT NOT NULL DEFAULT 'encrypted' CHECK (credential_source IN ('encrypted', 'runtime')),
+        configuration_json TEXT NOT NULL DEFAULT '{}',
+        credential_ciphertext TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE site_backup_destination_settings (
+        site_id TEXT PRIMARY KEY,
+        mode TEXT NOT NULL DEFAULT 'master' CHECK (mode IN ('master', 'override')),
+        allow_multiple INTEGER NOT NULL DEFAULT 0 CHECK (allow_multiple IN (0, 1)),
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE site_backup_destination_assignments (
+        site_id TEXT NOT NULL,
+        destination_id TEXT NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (site_id, destination_id),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (destination_id) REFERENCES backup_destinations(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE backup_job_destinations (
+        job_id TEXT NOT NULL,
+        destination_id TEXT NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (job_id, destination_id),
+        FOREIGN KEY (job_id) REFERENCES backup_jobs(id) ON DELETE CASCADE,
+        FOREIGN KEY (destination_id) REFERENCES backup_destinations(id) ON DELETE RESTRICT
+      );
+
+      CREATE INDEX backup_destinations_master_pool
+        ON backup_destinations(in_master_pool, enabled, name);
+
+      CREATE INDEX site_backup_destination_priority
+        ON site_backup_destination_assignments(site_id, priority);
+    `
   }
 ]
 

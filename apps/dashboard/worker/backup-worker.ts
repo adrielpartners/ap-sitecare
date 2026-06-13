@@ -5,6 +5,8 @@ import { BackupRepository } from '../server/repositories/backup-repository'
 import { SiteRepository } from '../server/repositories/site-repository'
 import { AuditService } from '../server/services/audit-service'
 import { BackupWorkerService } from '../server/services/backup-worker-service'
+import { BackupDestinationRepository } from '../server/repositories/backup-destination-repository'
+import { BackupDestinationService } from '../server/services/backup-destination-service'
 
 const databasePath = process.env.NUXT_DATABASE_PATH || './data/sitecare.sqlite'
 const database = createDatabase(databasePath)
@@ -19,11 +21,16 @@ const settings = {
   tempRoot: process.env.NUXT_BACKUPS_TEMP_ROOT || '/tmp/ap-sitecare-backups',
   staleAfterMinutes: positiveInteger(process.env.NUXT_BACKUPS_STALE_AFTER_MINUTES, 60)
 }
+const auditService = new AuditService(new AuditRepository(database))
+const destinationService = new BackupDestinationService(settings, new BackupDestinationRepository(database), auditService)
 const worker = new BackupWorkerService(
   settings,
   new BackupRepository(database),
   new SiteRepository(database),
-  new AuditService(new AuditRepository(database))
+  auditService,
+  undefined,
+  undefined,
+  destinationService
 )
 const continuous = process.argv.includes('--continuous')
 

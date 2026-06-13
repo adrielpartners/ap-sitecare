@@ -965,6 +965,19 @@ Migration 5 adds encrypted Local VPS database connection fields, atomic job
 claim/heartbeat/attempt fields, and artifact manifest/checksum/upload
 verification evidence.
 
+Migration 6 adds:
+
+- `backup_destinations`
+- `site_backup_destination_settings`
+- `site_backup_destination_assignments`
+- `backup_job_destinations`
+
+Backup destinations are centrally managed dashboard records. Sites inherit the
+enabled central destination pool by default, may select site-specific
+overrides, and may explicitly opt into multiple destinations. Destination IDs
+are snapshotted onto queued jobs so later settings changes do not redirect
+already queued work.
+
 ## Service Flow
 
 ```text
@@ -977,9 +990,16 @@ Dashboard UI
 
 ## Provider and Connection Adapters
 
-Dropbox is the first storage-provider adapter. Its access token and base path
-remain runtime environment configuration and are never returned through the
-API or stored in backup policy records.
+Dropbox is the first executable storage-provider adapter. The original
+environment-configured Dropbox connection remains available as a
+runtime-managed destination. Additional destination credentials may be entered
+through the protected dashboard and are encrypted at rest with
+`NUXT_CREDENTIAL_ENCRYPTION_KEY`. Credentials are never returned through APIs,
+stored in policy/artifact/job records, or included in audit metadata.
+
+Google Drive and Amazon/S3-compatible destinations may be configured and
+assigned, but remain explicitly non-executable until their adapters are
+implemented and verified.
 
 Local VPS is the first hosting-connection foundation. Local WordPress paths
 must exist and resolve inside one of the comma-separated directories configured
@@ -1038,10 +1058,16 @@ POST /api/backups/:id/verify
 POST /api/backups/:id/retry
 POST /api/backup-storage/dropbox/test
 
+GET  /api/backup-destinations
+POST /api/backup-destinations
+PUT  /api/backup-destinations/:id
+POST /api/backup-destinations/:id/test
+
 GET  /api/sites/:id/backups
 PUT  /api/sites/:id/backups/policy
 POST /api/sites/:id/backups/manual
 POST /api/sites/:id/backups/connection-test
+PUT  /api/sites/:id/backup-destinations
 
 GET  /api/sites/:id/restore-plans
 POST /api/sites/:id/restore-plans

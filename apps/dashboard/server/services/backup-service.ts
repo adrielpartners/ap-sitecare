@@ -16,6 +16,8 @@ import { BackupRepository } from '../repositories/backup-repository'
 import { encryptSecret } from '../utils/credential-crypto'
 import { AuditService } from './audit-service'
 import { SiteService } from './site-service'
+import { BackupDestinationService } from './backup-destination-service'
+import { BackupDestinationRepository } from '../repositories/backup-destination-repository'
 
 const frequencies: BackupFrequency[] = ['daily', 'weekly', 'monthly']
 const providers: StorageProviderType[] = ['dropbox', 's3-compatible', 'google-drive', 'local-filesystem', 'backblaze-b2']
@@ -61,7 +63,8 @@ export class BackupService {
     private readonly settings: BackupRuntimeSettings,
     private readonly repository = new BackupRepository(),
     private readonly siteService = new SiteService(),
-    private readonly auditService = new AuditService()
+    private readonly auditService = new AuditService(),
+    private readonly destinationService = new BackupDestinationService(settings, new BackupDestinationRepository(repository.getDatabase()), auditService, siteService)
   ) {}
 
   listPolicies(): Array<{ site: { id: string, name: string, url: string }, policy: BackupPolicy | null, connection: HostingConnection | null, restoreCapability: RestoreCapability, latestBackup: BackupArtifact | null }> {
@@ -89,6 +92,8 @@ export class BackupService {
       connection,
       connectionAssessment: assessment,
       storage: this.dropbox().configuration(),
+      destinations: this.destinationService.list(),
+      destinationSettings: this.destinationService.getSiteSettings(siteId),
       latestBackup: backups[0] ?? null,
       nextScheduledBackup: policy?.enabled ? this.nextScheduled(policy.frequency) : null,
       backups,
@@ -174,12 +179,18 @@ export class BackupService {
     const assessment = overview.connectionAssessment
     if (overview.policy.filesEnabled && !assessment.backupFiles) throw new Error('The configured connection cannot back up files.')
     if (overview.policy.databaseEnabled && !assessment.backupDatabase) throw new Error('The configured connection cannot back up the database.')
-    if (overview.policy.storageProvider !== 'dropbox') throw new Error('The selected storage provider adapter is not implemented yet.')
-    if (!overview.storage.enabled || !overview.storage.configured) throw new Error('Dropbox is not enabled and configured in the dashboard runtime.')
+    const destinations = this.destinationService.resolveForSite(siteId)
+    if (!destinations.length) throw new Error('No enabled backup destination is configured for this site.')
+    if (destinations.some(destination => !destination.executable || !destination.credentialConfigured)) {
+      throw new Error('Every selected backup destination must have an executable adapter and configured credential.')
+    }
 
     const backupId = randomUUID()
     const now = new Date().toISOString()
     const domain = new URL(overview.site.url).hostname
+    const primaryDestination = destinations[0]
+    if (!primaryDestination) throw new Error('No enabled backup destination is configured for this site.')
+    const primaryStorage = this.destinationService.dropbox(primaryDestination)
     const artifact: BackupArtifact = {
       id: backupId,
       siteId,
@@ -187,8 +198,8 @@ export class BackupService {
       frequency: 'manual',
       filesIncluded: overview.policy.filesEnabled,
       databaseIncluded: overview.policy.databaseEnabled,
-      storageProvider: overview.policy.storageProvider,
-      storagePath: this.dropbox().artifactPath(domain, backupId),
+      storageProvider: primaryDestination.provider,
+      storagePath: primaryStorage.artifactPath(domain, backupId),
       status: 'queued',
       sizeBytes: null,
       checksum: null,
@@ -218,12 +229,13 @@ export class BackupService {
       heartbeatAt: null,
       errorMessage: null
     })
+    this.repository.saveJobDestinations(job.id, destinations.map(destination => destination.id))
     this.auditService.record({
       siteId,
       actorType: 'dashboard-user',
       actorIdentifier,
       eventType: 'backup.job.queued',
-      metadata: { backupId, jobId: job.id, runner: job.runner }
+      metadata: { backupId, jobId: job.id, runner: job.runner, destinationCount: destinations.length }
     })
     return {
       artifact,
@@ -298,10 +310,17 @@ export class BackupService {
     if (previous.status !== 'failed') throw new Error('Only failed backups can be retried.')
     const now = new Date().toISOString()
     const newBackupId = randomUUID()
+    const destinations = this.destinationService.resolveForSite(previous.siteId)
+    const primaryDestination = destinations[0]
+    if (!primaryDestination) throw new Error('No enabled backup destination is configured for this site.')
+    if (destinations.some(destination => !destination.executable || !destination.credentialConfigured)) {
+      throw new Error('Every selected backup destination must have an executable adapter and configured credential.')
+    }
     const artifact = this.repository.createArtifact({
       ...previous,
       id: newBackupId,
-      storagePath: this.dropbox().artifactPath(new URL(this.siteService.get(previous.siteId).url).hostname, newBackupId),
+      storageProvider: primaryDestination.provider,
+      storagePath: this.destinationService.dropbox(primaryDestination).artifactPath(new URL(this.siteService.get(previous.siteId).url).hostname, newBackupId),
       status: 'queued',
       sizeBytes: null,
       checksum: null,
@@ -328,6 +347,7 @@ export class BackupService {
       heartbeatAt: null,
       errorMessage: null
     })
+    this.repository.saveJobDestinations(job.id, destinations.map(destination => destination.id))
     this.auditService.record({
       siteId: artifact.siteId,
       actorType: 'dashboard-user',
