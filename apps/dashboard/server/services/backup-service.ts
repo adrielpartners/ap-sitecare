@@ -288,7 +288,9 @@ export class BackupService {
     return {
       artifact,
       job,
-      message: 'Backup job queued. A separate background worker will execute it.'
+      message: artifact.filesIncluded
+        ? 'Backup job queued. A separate background worker will execute it.'
+        : 'Database backup job queued. File backups will be included after the WordPress path is mounted for the worker.'
     }
   }
 
@@ -502,9 +504,10 @@ export class BackupService {
   private manualBackupSelection(policy: BackupPolicy | null, assessment: HostingConnectionAssessment): { filesIncluded: boolean, databaseIncluded: boolean } {
     if (policy?.enabled) {
       if (!policy.filesEnabled && !policy.databaseEnabled) throw new Error('The backup policy must include files or database.')
-      if (policy.filesEnabled && !assessment.backupFiles) throw new Error('The configured connection cannot back up files.')
-      if (policy.databaseEnabled && !assessment.backupDatabase) throw new Error('The configured connection cannot back up the database.')
-      return { filesIncluded: policy.filesEnabled, databaseIncluded: policy.databaseEnabled }
+      return {
+        filesIncluded: policy.filesEnabled && assessment.backupFiles,
+        databaseIncluded: policy.databaseEnabled && assessment.backupDatabase
+      }
     }
 
     return {

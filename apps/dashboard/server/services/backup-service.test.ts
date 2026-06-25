@@ -14,6 +14,7 @@ import { SiteService } from './site-service'
 
 function createFixture() {
   const database = createDatabase(':memory:')
+  const backupRepository = new BackupRepository(database)
   const auditRepository = new AuditRepository(database)
   const auditService = new AuditService(auditRepository)
   const siteService = new SiteService(new SiteRepository(database), auditService)
@@ -28,9 +29,9 @@ function createFixture() {
     dropboxTokenStrategy: 'runtime-access-token',
     allowedLocalBaseDirectories: [join(root, 'sites')],
     credentialEncryptionKey: 'test-encryption-key'
-  }, new BackupRepository(database), siteService, auditService)
+  }, backupRepository, siteService, auditService)
   const site = siteService.create({ name: 'Backup Site', url: 'https://example.com' })
-  return { auditRepository, service, site, root, wordpressPath }
+  return { auditRepository, backupRepository, service, site, root, wordpressPath }
 }
 
 describe('Remote backup foundation', () => {
@@ -121,6 +122,40 @@ describe('Remote backup foundation', () => {
     assert.equal(result.artifact.status, 'queued')
     assert.equal(result.artifact.filesIncluded, false)
     assert.equal(result.artifact.databaseIncluded, true)
+  })
+
+  it('falls back to database-only manual backup when file access is selected but not worker-readable', () => {
+    const { backupRepository, service, site } = createFixture()
+    service.recordDetectedBackupSource(site.id, {
+      wordpressPath: '/home/example/public_html',
+      databaseHost: '127.0.0.1',
+      databasePort: 3306,
+      databaseName: 'wordpress',
+      databaseUsername: 'wordpress',
+      databasePassword: 'database-secret',
+      providerLabel: 'WordPress plugin',
+      detectedAt: new Date().toISOString()
+    })
+    const now = new Date().toISOString()
+    backupRepository.savePolicy({
+      siteId: site.id,
+      enabled: true,
+      frequency: 'daily',
+      filesEnabled: true,
+      databaseEnabled: true,
+      storageProvider: 'dropbox',
+      retention: { keepDaily: 7, keepWeekly: 4, keepMonthly: 6, autoDeleteExpired: false },
+      restoreEnabled: true,
+      restoreRequiresConfirmation: true,
+      notes: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const result = service.planManualBackup(site.id, 'operator@example.com')
+    assert.equal(result.artifact.filesIncluded, false)
+    assert.equal(result.artifact.databaseIncluded, true)
+    assert.match(result.message, /Database backup job queued/)
   })
 
   it('rejects symbolic links in the backup source tree', async () => {
