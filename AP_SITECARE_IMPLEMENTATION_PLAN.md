@@ -703,6 +703,22 @@ Approved and implemented on 2026-06-13.
 
 ---
 
+# Post-Version-One Plugin Backup Source Detection
+
+Approved and implemented on 2026-06-25.
+
+- Added plugin backup-source detection to signed check-ins.
+- Auto-detected WordPress path and database connection details from WordPress.
+- Stored database backup password encrypted in the dashboard hosting-connection
+  record.
+- Redacted database passwords from check-in history.
+- Simplified the site backup setup UI around detected source readiness,
+  schedule, contents, retention, and destinations.
+- Kept worker file-backup execution limited to configured read-only local
+  mounts.
+
+---
+
 # Definition of Success
 
 Version One succeeds when:

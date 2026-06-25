@@ -29,6 +29,7 @@ const databasePassword = ref('')
 const providerLabel = ref('')
 const notes = ref('')
 const connectionNotes = ref('')
+const showAdvancedConnection = ref(false)
 
 watch(overview, (value) => {
   if (!value) return
@@ -66,6 +67,22 @@ const capabilityTone = computed(() => ({
   'backup-only': 'info',
   unsupported: 'neutral'
 }[overview.value?.connectionAssessment.restoreCapability as 'full' | 'partial' | 'backup-only' | 'unsupported' ?? 'unsupported'] as 'success' | 'warning' | 'info' | 'neutral'))
+
+const detectedSourceTone = computed(() => {
+  if (!overview.value?.connection) return 'warning'
+  if (overview.value.connectionAssessment.backupFiles && overview.value.connection.databaseConfigured) return 'success'
+  if (overview.value.connection.localPath || overview.value.connection.databaseConfigured) return 'warning'
+  return 'neutral'
+})
+
+const detectedSourceLabel = computed(() => {
+  const connection = overview.value?.connection
+  if (!connection) return 'Waiting for plugin check-in'
+  if (overview.value?.connectionAssessment.backupFiles && connection.databaseConfigured) return 'Ready for files and database'
+  if (connection.databaseConfigured) return 'Database detected; file mount needed'
+  if (connection.localPath) return 'Path detected; database details needed'
+  return 'Detection incomplete'
+})
 
 async function runAction(action: () => Promise<{ message?: string } | void>, successMessage: string) {
   busy.value = true
@@ -237,8 +254,30 @@ function formatBytes(value: number | null): string {
     <p v-if="notice" class="backup-message backup-message--notice" role="status">{{ notice }}</p>
     <p v-if="errorMessage" class="backup-message backup-message--error" role="alert">{{ errorMessage }}</p>
 
-    <AppPanel title="Backup policy" description="Configure dashboard-owned backup intent, retention, and restore safeguards.">
+    <AppPanel title="Backup setup" description="SiteCare uses the WordPress plugin to detect source paths and database credentials automatically. Adjust only the operating choices here.">
       <form class="stack" @submit.prevent="savePolicy">
+        <div class="grid">
+          <AppCard :tone="detectedSourceTone">
+            <div class="stack stack--sm">
+              <AppBadge :tone="detectedSourceTone">{{ detectedSourceLabel }}</AppBadge>
+              <h3>Detected source</h3>
+              <p class="text-meta">
+                {{ overview?.connection?.localPath || 'No WordPress path reported yet.' }}
+              </p>
+              <p class="text-meta">
+                Database: {{ overview?.connection?.databaseConfigured ? `${overview.connection.databaseName} on ${overview.connection.databaseHost}` : 'Not detected yet' }}
+              </p>
+            </div>
+          </AppCard>
+          <AppCard muted>
+            <div class="stack stack--sm">
+              <AppBadge :tone="capabilityTone">{{ overview?.connectionAssessment.restoreCapability ?? 'unknown' }}</AppBadge>
+              <h3>Worker readiness</h3>
+              <p class="text-meta">{{ overview?.connectionAssessment.messages.join(' ') }}</p>
+            </div>
+          </AppCard>
+        </div>
+
         <div class="section-heading">
           <h3>Backup destinations</h3>
           <p>Use the central destination pool by default, or override it for this client site. Multiple locations are intentionally opt-in per site.</p>
@@ -265,6 +304,11 @@ function formatBytes(value: number | null): string {
         <p v-else class="text-meta">
           Effective central destinations: {{ overview?.destinationSettings.effectiveDestinations.map(destination => destination.name).join(', ') || 'None configured' }}
         </p>
+
+        <div class="section-heading">
+          <h3>Schedule and contents</h3>
+          <p>These are the only settings normally needed after the plugin has checked in.</p>
+        </div>
         <div class="grid">
           <AppCheckbox v-model="enabled" name="backup-enabled" label="Enable backup policy" description="Allows backup jobs to be prepared for this site." />
           <AppCheckbox v-model="filesEnabled" name="files-enabled" label="Include files" />
@@ -275,28 +319,8 @@ function formatBytes(value: number | null): string {
           <AppSelect v-model="frequency" label="Backup frequency" name="backup-frequency" :options="[
             { label: 'Daily', value: 'daily' }, { label: 'Weekly', value: 'weekly' }, { label: 'Monthly', value: 'monthly' }
           ]" />
-          <AppSelect v-model="connectionType" label="Hosting connection" name="connection-type" :options="[
-            { label: 'Local VPS path', value: 'local-vps' },
-            { label: 'SSH/SFTP (placeholder)', value: 'ssh-sftp' },
-            { label: 'SFTP only (placeholder)', value: 'sftp-only' },
-            { label: 'Database credentials (placeholder)', value: 'database-credentials' },
-            { label: 'Hosting API (placeholder)', value: 'hosting-api' },
-            { label: 'Manual / unsupported', value: 'manual-unsupported' }
-          ]" />
         </div>
-        <div class="grid">
-          <AppInput v-model="localPath" name="local-path" label="Local WordPress path" description="Must be inside a server-configured allowed base directory." />
-          <AppInput v-model="providerLabel" name="provider-label" label="Hosting/provider label" />
-          <AppCheckbox v-model="databaseConfigured" name="database-configured" label="Database access configured" description="Capability is derived from the encrypted database fields below." disabled />
-        </div>
-        <div class="section-heading"><h3>Database backup credentials</h3><p>The password is encrypted at rest and is never returned after saving. Leave it blank to retain the saved password.</p></div>
-        <div class="grid">
-          <AppInput v-model="databaseHost" name="database-host" label="Database host" />
-          <AppInput v-model="databasePort" name="database-port" label="Database port" />
-          <AppInput v-model="databaseName" name="database-name" label="Database name" />
-          <AppInput v-model="databaseUsername" name="database-username" label="Database username" />
-          <AppInput v-model="databasePassword" name="database-password" label="Database password" type="password" />
-        </div>
+
         <div>
           <div class="section-heading"><h3>Retention</h3><p>Automatic deletion remains disabled until a tested cleanup runner exists.</p></div>
           <div class="grid">
@@ -306,8 +330,37 @@ function formatBytes(value: number | null): string {
             <AppCheckbox v-model="autoDeleteExpired" name="auto-delete" label="Auto-delete expired backups" description="Saved as intent only; no automatic deletion runs in Version One." />
           </div>
         </div>
+
+        <AppCheckbox v-model="showAdvancedConnection" name="show-advanced-connection" label="Show advanced detected connection details" description="Only needed for troubleshooting or manual overrides." />
+        <div v-if="showAdvancedConnection" class="advanced-connection stack">
+          <div class="section-heading">
+            <h3>Advanced connection details</h3>
+            <p>The plugin auto-fills these values during check-in. Database passwords are stored encrypted and never returned to this screen.</p>
+          </div>
+          <div class="grid">
+            <AppSelect v-model="connectionType" label="Hosting connection" name="connection-type" :options="[
+              { label: 'Local VPS path', value: 'local-vps' },
+              { label: 'SSH/SFTP (placeholder)', value: 'ssh-sftp' },
+              { label: 'SFTP only (placeholder)', value: 'sftp-only' },
+              { label: 'Database credentials (placeholder)', value: 'database-credentials' },
+              { label: 'Hosting API (placeholder)', value: 'hosting-api' },
+              { label: 'Manual / unsupported', value: 'manual-unsupported' }
+            ]" />
+            <AppInput v-model="localPath" name="local-path" label="Detected WordPress path" description="For file backups, the worker must see this path inside its allowed mounted backup source directory." />
+            <AppInput v-model="providerLabel" name="provider-label" label="Detected hosting/provider label" />
+            <AppCheckbox v-model="databaseConfigured" name="database-configured" label="Database access configured" description="Derived from encrypted database fields." disabled />
+          </div>
+          <div class="grid">
+            <AppInput v-model="databaseHost" name="database-host" label="Database host" />
+            <AppInput v-model="databasePort" name="database-port" label="Database port" />
+            <AppInput v-model="databaseName" name="database-name" label="Database name" />
+            <AppInput v-model="databaseUsername" name="database-username" label="Database username" />
+            <AppInput v-model="databasePassword" name="database-password" label="Replace database password" type="password" />
+          </div>
+          <AppTextarea v-model="connectionNotes" name="connection-notes" label="Connection notes" />
+        </div>
+
         <AppTextarea v-model="notes" name="backup-notes" label="Backup policy notes" />
-        <AppTextarea v-model="connectionNotes" name="connection-notes" label="Connection notes" />
         <div class="cluster">
           <AppButton type="submit" :loading="busy">Save backup policy</AppButton>
           <AppButton variant="secondary" :disabled="busy" @click="testConnection">Test hosting connection</AppButton>
@@ -372,5 +425,12 @@ function formatBytes(value: number | null): string {
 .backup-message--error {
   background: var(--color-danger-soft);
   color: var(--color-danger);
+}
+
+.advanced-connection {
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
 }
 </style>

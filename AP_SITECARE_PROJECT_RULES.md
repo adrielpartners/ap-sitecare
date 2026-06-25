@@ -529,6 +529,9 @@ Do not add a second package manager.
 - Storage tokens and plaintext database passwords must never be stored in
   policy, artifact, job, restore-plan, audit, or UI records. Database passwords
   may only be stored encrypted in the hosting connection record.
+- The WordPress plugin may send database backup credentials only through the
+  existing signed HMAC check-in boundary. The dashboard must immediately store
+  the password encrypted and must redact it from check-in payload history.
 - Backup-destination credentials may only be stored encrypted in the
   destination registry. Destination APIs and audit events must never return or
   record plaintext credentials.

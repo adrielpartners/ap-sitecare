@@ -39,6 +39,35 @@ final class DataCollectorService
                 ? gmdate('c', (int) $update_core->last_checked)
                 : null,
             'activeTheme' => $active_theme->exists() ? $active_theme->get('Name') : null,
+            'backupSource' => $this->collect_backup_source(),
+        );
+    }
+
+    private function collect_backup_source(): array
+    {
+        $database_host = defined('DB_HOST') ? (string) DB_HOST : '';
+        $host = $database_host;
+        $port = 3306;
+
+        if (str_contains($database_host, ':/')) {
+            $host = explode(':', $database_host, 2)[0];
+        } elseif (str_contains($database_host, ':')) {
+            $parts = explode(':', $database_host, 2);
+            $host = $parts[0];
+            if (isset($parts[1]) && ctype_digit($parts[1])) {
+                $port = (int) $parts[1];
+            }
+        }
+
+        return array(
+            'wordpressPath' => defined('ABSPATH') ? ABSPATH : null,
+            'databaseHost' => $host !== '' ? $host : null,
+            'databasePort' => $port,
+            'databaseName' => defined('DB_NAME') ? DB_NAME : null,
+            'databaseUsername' => defined('DB_USER') ? DB_USER : null,
+            'databasePassword' => defined('DB_PASSWORD') ? DB_PASSWORD : null,
+            'providerLabel' => php_uname('n'),
+            'detectedAt' => gmdate('c'),
         );
     }
 }

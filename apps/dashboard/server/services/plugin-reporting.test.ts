@@ -8,7 +8,9 @@ import { runMigrations } from '../database/migrations'
 import { CheckInRepository } from '../repositories/check-in-repository'
 import { SiteRepository } from '../repositories/site-repository'
 import { AuditRepository } from '../repositories/audit-repository'
+import { BackupRepository } from '../repositories/backup-repository'
 import { AuditService } from './audit-service'
+import { BackupService } from './backup-service'
 import { CredentialService } from './credential-service'
 import { HealthService } from './health-service'
 import { createPluginSignature, PluginAuthenticationService } from './plugin-authentication-service'
@@ -23,8 +25,19 @@ function createServices() {
   const audits = new AuditService(new AuditRepository(database))
   const siteService = new SiteService(sites, audits)
   const health = new HealthService(new CheckInRepository(database), sites, audits)
+  const backupRepository = new BackupRepository(database)
+  const backup = new BackupService({
+    dropboxAccessToken: 'test-token',
+    dropboxBackupRoot: '/AP-SiteCare',
+    dropboxAccountLabel: 'Test Dropbox',
+    dropboxEnabled: true,
+    dropboxTokenStrategy: 'runtime-access-token',
+    allowedLocalBaseDirectories: ['/backup-sources'],
+    credentialEncryptionKey: 'test-encryption-key'
+  }, backupRepository, siteService, audits)
   return {
     database,
+    backupRepository,
     siteService,
     credentials: new CredentialService('test-encryption-key', sites, audits),
     authentication: new PluginAuthenticationService(
@@ -32,7 +45,7 @@ function createServices() {
       new CredentialService('test-encryption-key', sites, audits),
       siteService
     ),
-    reporting: new PluginReportingService(health),
+    reporting: new PluginReportingService(health, backup),
     clientSummary: new PluginClientSummaryService(siteService, health, audits)
   }
 }
@@ -59,6 +72,40 @@ describe('Phase 5 plugin reporting', () => {
     assert.equal(result.snapshot.status, 'attention')
     assert.equal(result.snapshot.pluginUpdateCount, 2)
     assert.equal(result.snapshot.themeUpdateCount, 1)
+    services.database.close()
+  })
+
+  it('stores plugin-detected backup credentials encrypted and redacts check-in history', () => {
+    const services = createServices()
+    const site = services.siteService.create({ name: 'Example', url: 'https://example.com' })
+
+    services.reporting.recordCheckIn(site.id, '2026-06-09T12:00:00.000Z', {
+      wordpressVersion: '6.8.1',
+      phpVersion: '8.3.7',
+      pluginUpdateCount: 0,
+      themeUpdateCount: 0,
+      lastCronRunAt: null,
+      backupSource: {
+        wordpressPath: '/home/example/public_html',
+        databaseHost: 'localhost',
+        databasePort: 3306,
+        databaseName: 'wordpress',
+        databaseUsername: 'wp_user',
+        databasePassword: 'database-secret',
+        providerLabel: 'example-host',
+        detectedAt: '2026-06-09T12:00:00.000Z'
+      }
+    })
+
+    const connection = services.backupRepository.getConnection(site.id)
+    assert.equal(connection?.localPath, '/home/example/public_html')
+    assert.equal(connection?.databaseConfigured, true)
+    assert.equal(connection?.databaseName, 'wordpress')
+    const stored = services.database.prepare('SELECT payload_json, database_password_ciphertext FROM site_check_ins JOIN hosting_connections USING (site_id) WHERE site_id = ?').get(site.id) as
+      { payload_json: string, database_password_ciphertext: string }
+    assert.equal(stored.payload_json.includes('database-secret'), false)
+    assert.equal(stored.payload_json.includes('databasePasswordConfigured'), true)
+    assert.equal(stored.database_password_ciphertext.includes('database-secret'), false)
     services.database.close()
   })
 

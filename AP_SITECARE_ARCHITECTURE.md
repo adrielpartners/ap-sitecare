@@ -1049,6 +1049,25 @@ The worker cannot:
 All restore plans require confirmation, but no confirmation or execution route
 exists yet.
 
+## Plugin-Detected Backup Source
+
+The WordPress reporter includes backup-source discovery in signed plugin
+check-ins:
+
+- WordPress path from `ABSPATH`
+- database host, port, name, username, and password from WordPress constants
+- server/provider label hints
+
+The dashboard stores the database password only in the encrypted
+`hosting_connections.database_password_ciphertext` field using
+`NUXT_CREDENTIAL_ENCRYPTION_KEY`. Check-in history stores only redacted
+backup-source metadata and never persists the plaintext database password in
+`site_check_ins.payload_json`.
+
+Plugin-discovered paths describe the WordPress server's filesystem. File
+backup execution still requires the dashboard/worker container to see that
+path under the configured read-only backup-source mount.
+
 ## Protected Backup APIs
 
 ```text

@@ -133,6 +133,39 @@ Operational safety is more important than maximum automation.
 
 Moderate.
 
+---
+
+# Decision 027: Auto-detect backup source details through signed plugin check-ins
+
+## Decision
+
+The WordPress plugin sends backup-source details, including the database
+password, through the existing signed HMAC check-in boundary.
+
+The dashboard stores the password only as encrypted hosting-connection
+credential material and redacts it from check-in history.
+
+## Rationale
+
+Operators should not have to copy database settings from `wp-config.php` into
+the dashboard. The plugin already runs inside WordPress and can detect the
+site path and database constants accurately.
+
+## Tradeoffs
+
+- The plugin reporting payload now carries sensitive credential material.
+- The dashboard encryption key becomes even more operationally important.
+- File backups still require a worker-visible mounted source path.
+- The backup setup UI can become dramatically simpler.
+
+## Date Adopted
+
+2026-06-25
+
+## Reversibility
+
+Moderate.
+
 # Decision 005: Cloudflare Access owns authentication
 
 ## Decision

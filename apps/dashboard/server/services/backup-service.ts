@@ -58,6 +58,17 @@ export interface UpdateBackupPolicyInput {
   connectionNotes?: string | null
 }
 
+export interface DetectedBackupSourceInput {
+  wordpressPath: string | null
+  databaseHost: string | null
+  databasePort: number | null
+  databaseName: string | null
+  databaseUsername: string | null
+  databasePassword: string | null
+  providerLabel: string | null
+  detectedAt: string | null
+}
+
 export class BackupService {
   constructor(
     private readonly settings: BackupRuntimeSettings,
@@ -112,6 +123,9 @@ export class BackupService {
     const databaseName = this.optional(input.databaseName)
     const databaseUsername = this.optional(input.databaseUsername)
     const databasePort = input.databasePort ?? 3306
+    if (!Number.isInteger(databasePort) || databasePort < 1 || databasePort > 65535) {
+      throw new Error('Database port must be between 1 and 65535.')
+    }
     const databasePasswordCiphertext = input.databasePassword
       ? encryptSecret(input.databasePassword, this.settings.credentialEncryptionKey)
       : existingPasswordCiphertext
@@ -169,6 +183,40 @@ export class BackupService {
       }
     })
     return { policy, connection, connectionAssessment: assessment }
+  }
+
+  recordDetectedBackupSource(siteId: string, input: DetectedBackupSourceInput): HostingConnection {
+    this.siteService.get(siteId)
+    const existing = this.repository.getConnection(siteId)
+    const existingPasswordCiphertext = this.repository.getDatabasePasswordCiphertext(siteId)
+    const now = new Date().toISOString()
+    const databaseHost = this.optional(input.databaseHost)
+    const databaseName = this.optional(input.databaseName)
+    const databaseUsername = this.optional(input.databaseUsername)
+    const databasePort = input.databasePort ?? 3306
+    this.validateDatabaseValue(databaseHost, /^[a-zA-Z0-9._:-]+$/, 'Database host')
+    this.validateDatabaseValue(databaseName, /^[a-zA-Z0-9_$.-]+$/, 'Database name')
+    this.validateDatabaseValue(databaseUsername, /^[a-zA-Z0-9_.@-]+$/, 'Database username')
+    const databasePasswordCiphertext = input.databasePassword
+      ? encryptSecret(input.databasePassword, this.settings.credentialEncryptionKey)
+      : existingPasswordCiphertext
+    const databaseConfigured = Boolean(databaseHost && databaseName && databaseUsername && databasePasswordCiphertext)
+    const connection: HostingConnection = {
+      siteId,
+      connectionType: 'local-vps',
+      localPath: this.optional(input.wordpressPath),
+      databaseConfigured,
+      databaseHost,
+      databasePort: databaseConfigured ? databasePort : null,
+      databaseName,
+      databaseUsername,
+      providerLabel: this.optional(input.providerLabel) ?? existing?.providerLabel ?? 'WordPress plugin',
+      notes: `Detected automatically by the WordPress plugin${input.detectedAt ? ` at ${input.detectedAt}` : ''}.`,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now
+    }
+    this.repository.saveConnection(connection, databasePasswordCiphertext)
+    return connection
   }
 
   planManualBackup(siteId: string, actorIdentifier: string) {
