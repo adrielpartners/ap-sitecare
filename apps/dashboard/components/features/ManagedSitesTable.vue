@@ -31,7 +31,7 @@ const emit = defineEmits<{
           <div class="managed-sites-table__identity">
             <span class="managed-sites-table__signal" :class="`managed-sites-table__signal--${site.status}`" aria-hidden="true" />
             <div>
-              <strong>{{ site.name }}</strong>
+              <NuxtLink class="managed-sites-table__title" :to="`/sites/${site.id}`">{{ site.name }}</NuxtLink>
               <span class="managed-sites-table__url">{{ site.url }}</span>
             </div>
           </div>
@@ -64,6 +64,17 @@ const emit = defineEmits<{
   margin-top: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+}
+
+.managed-sites-table__title {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.managed-sites-table__title:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
 }
 
 .managed-sites-table__identity {

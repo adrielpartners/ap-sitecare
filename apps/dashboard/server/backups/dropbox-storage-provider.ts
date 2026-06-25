@@ -39,14 +39,31 @@ export class DropboxStorageProvider implements StorageProvider {
     if (!this.token || !this.basePath) {
       return this.result(false, false, 'Dropbox access token and base folder are not configured.')
     }
-    const response = await this.fetcher('https://api.dropboxapi.com/2/users/get_current_account', {
+    const metadataResponse = await this.fetcher(`${DROPBOX_API}/files/list_folder`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}` },
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ path: '', limit: 1 }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     })
-    return this.result(true, response.ok, response.ok
-      ? 'Dropbox connection verified.'
-      : 'Dropbox rejected the configured credential.')
+    const writeResponse = metadataResponse.ok
+      ? await this.fetcher(`${DROPBOX_CONTENT_API}/files/upload_session/start`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            'Dropbox-API-Arg': JSON.stringify({ close: true }),
+            'Content-Type': 'application/octet-stream'
+          },
+          body: new ArrayBuffer(0),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        })
+      : null
+    const connected = metadataResponse.ok && Boolean(writeResponse?.ok)
+    return this.result(true, connected, connected
+      ? 'Dropbox connection and required backup permissions verified.'
+      : 'Dropbox rejected the credential or required files.metadata.read/files.content.write permissions.')
   }
 
   artifactPath(domain: string, backupId: string): string {

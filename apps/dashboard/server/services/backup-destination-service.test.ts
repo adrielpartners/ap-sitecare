@@ -4,6 +4,7 @@ import { AuditRepository } from '../repositories/audit-repository'
 import { BackupDestinationRepository } from '../repositories/backup-destination-repository'
 import { SiteRepository } from '../repositories/site-repository'
 import { createDatabase } from '../utils/database'
+import { DropboxStorageProvider } from '../backups/dropbox-storage-provider'
 import { AuditService } from './audit-service'
 import { BackupDestinationService } from './backup-destination-service'
 import { SiteService } from './site-service'
@@ -66,5 +67,36 @@ describe('Backup destination registry', () => {
       () => service.saveSiteSettings(site.id, 'override', false, ['runtime-dropbox', second.id], 'operator@example.com'),
       /Enable multiple destinations/
     )
+  })
+
+  it('requires a Dropbox access token when creating a dashboard-managed destination', () => {
+    const { service } = createFixture()
+    assert.throws(
+      () => service.save({
+        name: 'Missing Token Dropbox',
+        provider: 'dropbox',
+        enabled: true,
+        inMasterPool: true,
+        configuration: { basePath: '/Missing-Token' }
+      }, 'operator@example.com'),
+      /Dropbox access token is required/
+    )
+  })
+
+  it('tests the Dropbox metadata-read and content-write permissions used by backups', async () => {
+    const requests: string[] = []
+    const fetcher = (async (input: string | URL | Request) => {
+      requests.push(String(input))
+      return new Response('{}', { status: 200 })
+    }) as typeof fetch
+    const provider = new DropboxStorageProvider('token', '/AP-SiteCare', 'Primary Dropbox', true, 'oauth', fetcher)
+
+    const result = await provider.testConnection()
+
+    assert.equal(result.connected, true)
+    assert.deepEqual(requests, [
+      'https://api.dropboxapi.com/2/files/list_folder',
+      'https://content.dropboxapi.com/2/files/upload_session/start'
+    ])
   })
 })

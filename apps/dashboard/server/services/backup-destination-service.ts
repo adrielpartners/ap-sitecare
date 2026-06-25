@@ -168,6 +168,7 @@ export class BackupDestinationService {
     if (!providers.includes(input.provider)) throw new Error('Unsupported backup destination provider.')
     const configuration = this.cleanConfiguration(input.provider, input.configuration)
     if (input.provider === 'dropbox' && !configuration.basePath) throw new Error('Dropbox base path is required.')
+    if (input.provider === 'dropbox' && !input.id && !input.credential?.trim()) throw new Error('Dropbox access token is required.')
     if (input.provider === 'google-drive' && !configuration.folderId) throw new Error('Google Drive folder ID is required.')
     if (input.provider === 's3-compatible' && (!configuration.bucket || !configuration.region || !configuration.accessKeyId)) {
       throw new Error('Amazon/S3 bucket, region, and access key ID are required.')

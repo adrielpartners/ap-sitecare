@@ -17,6 +17,21 @@ const busy = ref(false)
 const notice = ref('')
 const errorMessage = ref('')
 
+function requestErrorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object') return 'The backup destination could not be saved.'
+  const requestError = error as {
+    data?: { error?: { message?: unknown }, message?: unknown, statusMessage?: unknown }
+    message?: unknown
+    statusMessage?: unknown
+  }
+  const message = requestError.data?.error?.message
+    ?? requestError.data?.statusMessage
+    ?? requestError.data?.message
+    ?? requestError.statusMessage
+    ?? requestError.message
+  return typeof message === 'string' ? message : 'The backup destination could not be saved.'
+}
+
 function resetForm() {
   editingId.value = ''
   name.value = ''
@@ -72,7 +87,7 @@ async function saveDestination() {
     resetForm()
     await refresh()
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'The backup destination could not be saved.'
+    errorMessage.value = requestErrorMessage(error)
   } finally {
     busy.value = false
   }
@@ -86,7 +101,7 @@ async function testDestination(id: string) {
     const result = await $fetch(`/api/backup-destinations/${id}/test`, { method: 'POST' })
     notice.value = 'data' in result ? result.data.message : 'Destination test completed.'
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'The backup destination could not be tested.'
+    errorMessage.value = requestErrorMessage(error)
   } finally {
     busy.value = false
   }
@@ -111,7 +126,7 @@ async function testDestination(id: string) {
             <div class="stack stack--sm">
               <AppBadge tone="info">1. Storage destination</AppBadge>
               <h3>Add Dropbox access</h3>
-              <p class="text-meta">Create a Dropbox app access token, enter it below, save the destination, then use Test connection. The token is never shown again.</p>
+              <p class="text-meta">Create an App Folder-scoped Dropbox app with <code>files.metadata.read</code> and <code>files.content.write</code>, generate an access token, enter it below, then use Test connection. Generated tokens are suitable for initial setup but may expire; refresh-token OAuth is not implemented yet.</p>
               <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noreferrer">Open Dropbox App Console</a>
             </div>
           </AppCard>
@@ -158,7 +173,7 @@ async function testDestination(id: string) {
       <AppPanel :title="editingId ? 'Edit backup destination' : 'Add backup destination'" description="Credentials are encrypted at rest and are never returned after saving.">
         <form class="stack" @submit.prevent="saveDestination">
           <div class="grid">
-            <AppInput v-model="name" label="Destination name" name="destination-name" placeholder="Primary Dropbox" />
+            <AppInput v-model="name" label="Destination name" name="destination-name" placeholder="Primary Dropbox" required />
             <AppSelect v-model="provider" label="Provider" name="destination-provider" :options="[
               { label: 'Dropbox', value: 'dropbox' },
               { label: 'Google Drive (adapter pending)', value: 'google-drive' },
@@ -169,8 +184,8 @@ async function testDestination(id: string) {
           </div>
 
           <div v-if="provider === 'dropbox'" class="grid">
-            <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" />
-            <AppInput v-model="credential" label="Dropbox access token" name="dropbox-token" type="password" description="Leave blank while editing to retain the saved token." />
+            <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" required description="A folder inside the Dropbox app's accessible root, for example /AP-SiteCare. For an App Folder-scoped app, do not repeat the app folder name here." />
+            <AppInput v-model="credential" label="Dropbox access token" name="dropbox-token" type="password" :required="!editingId" description="Generate this in the Dropbox App Console. Leave blank while editing to retain the saved token." />
           </div>
           <div v-else-if="provider === 'google-drive'" class="grid">
             <AppInput v-model="folderId" label="Google Drive folder ID" name="google-folder-id" />
