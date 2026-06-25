@@ -16,6 +16,20 @@ const errorMessage = ref('')
 const busy = ref(false)
 const auditEvents = computed(() => auditResponse.value?.data ?? [])
 const integrationResults = ref<Record<string, { state: string, summary: string, checkedAt: string }>>({})
+const tabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'backups', label: 'Backups' },
+  { id: 'integrations', label: 'Integrations' },
+  { id: 'credentials', label: 'Credentials' },
+  { id: 'audit', label: 'Audit Log' }
+] as const
+type SiteTabId = typeof tabs[number]['id']
+const activeTab = ref<SiteTabId>('overview')
+
+function setActiveTab(tabId: SiteTabId) {
+  activeTab.value = tabId
+}
 
 watch(detail, (value) => {
   if (value) {
@@ -135,95 +149,93 @@ async function runAction(action: () => Promise<void>) {
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
       <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
 
-      <AppPanel title="Site details" description="Update the managed-site inventory record.">
-        <form class="stack" @submit.prevent="updateSite">
-          <AppInput v-model="name" label="Site name" name="name" />
-          <AppInput v-model="url" label="Site URL" name="url" type="url" />
-          <div class="grid">
-            <AppInput v-model="hostingProvider" label="Hosting provider" name="hosting-provider" />
-            <AppInput v-model="backupStrategy" label="Backup strategy" name="backup-strategy" />
-            <AppSelect
-              v-model="riskLevel"
-              label="Risk level"
-              name="risk-level"
-              :options="[
-                { label: 'Low', value: 'low' },
-                { label: 'Standard', value: 'standard' },
-                { label: 'High', value: 'high' }
-              ]"
-            />
-          </div>
-          <AppTextarea v-model="notes" label="Operational notes" name="notes" />
-          <div class="cluster">
-            <AppButton :loading="busy" type="submit">Save changes</AppButton>
-            <AppButton
-              v-if="detail.site.status === 'active'"
-              :disabled="busy"
-              variant="danger"
-              @click="disableSite"
-            >
-              Disable site
-            </AppButton>
-          </div>
-        </form>
-      </AppPanel>
+      <nav class="site-tabs" role="tablist" aria-label="Site detail sections">
+        <button
+          v-for="tab in tabs"
+          :id="`site-tab-${tab.id}`"
+          :key="tab.id"
+          class="site-tabs__button"
+          :class="{ 'site-tabs__button--active': activeTab === tab.id }"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === tab.id"
+          :aria-controls="`site-panel-${tab.id}`"
+          @click="setActiveTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
 
-      <AppPanel
-        title="Latest WordPress report"
-        description="Operational data reported by the AP SiteCare WordPress agent."
+      <section
+        v-show="activeTab === 'overview'"
+        id="site-panel-overview"
+        role="tabpanel"
+        aria-labelledby="site-tab-overview"
       >
-        <div v-if="detail.health.latest" class="grid">
-          <AppCard muted><p class="text-meta">WordPress</p><h2>{{ detail.health.latest.wordpressVersion ?? 'Unknown' }}</h2></AppCard>
-          <AppCard muted><p class="text-meta">PHP</p><h2>{{ detail.health.latest.phpVersion ?? 'Unknown' }}</h2></AppCard>
-          <AppCard muted><p class="text-meta">Plugin updates</p><h2>{{ detail.health.latest.pluginUpdateCount }}</h2></AppCard>
-          <AppCard muted><p class="text-meta">Theme updates</p><h2>{{ detail.health.latest.themeUpdateCount }}</h2></AppCard>
-        </div>
-        <AppEmptyState
-          v-else
-          title="Awaiting the first report"
-          description="Configure the WordPress reporter plugin and send a manual check-in."
-        />
-      </AppPanel>
-
-      <AppPanel
-        title="Site credentials"
-        description="The reporter plugin uses the site ID and shared secret to sign requests."
-      >
-        <div class="stack">
-          <div>
-            <p class="text-meta">Site ID</p>
-            <code>{{ detail.site.id }}</code>
-          </div>
-          <div v-if="issuedSecret" class="secret">
-            <p><strong>New site secret</strong></p>
-            <code>{{ issuedSecret }}</code>
-            <p class="text-meta">This secret is shown once. Store it in the reporter plugin now.</p>
-          </div>
-          <AppButton :loading="busy" variant="secondary" @click="issueCredential">
-            {{ detail.activeCredential ? 'Rotate credential' : 'Generate credential' }}
-          </AppButton>
-        </div>
-      </AppPanel>
-
-      <AppPanel
-        title="External visibility"
-        description="Read-only checks against systems that remain the source of truth."
-      >
-        <div class="grid">
-          <AppCard v-for="provider in ['cloudflare', 'dropbox', 'hostinger'] as const" :key="provider" muted>
-            <div class="stack stack--sm">
-              <AppBadge :tone="integrationResults[provider]?.state === 'healthy' ? 'success' : 'neutral'">
-                {{ integrationResults[provider]?.state ?? 'Not checked' }}
-              </AppBadge>
-              <h2>{{ provider.charAt(0).toUpperCase() + provider.slice(1) }}</h2>
-              <p class="text-meta">{{ integrationResults[provider]?.summary ?? 'Run a read-only provider check.' }}</p>
-              <AppButton :loading="busy" variant="secondary" @click="inspectIntegration(provider)">Check now</AppButton>
+        <AppPanel title="Site details" description="Update the managed-site inventory record.">
+          <form class="stack" @submit.prevent="updateSite">
+            <AppInput v-model="name" label="Site name" name="name" />
+            <AppInput v-model="url" label="Site URL" name="url" type="url" />
+            <div class="grid">
+              <AppInput v-model="hostingProvider" label="Hosting provider" name="hosting-provider" />
+              <AppInput v-model="backupStrategy" label="Backup strategy" name="backup-strategy" />
+              <AppSelect
+                v-model="riskLevel"
+                label="Risk level"
+                name="risk-level"
+                :options="[
+                  { label: 'Low', value: 'low' },
+                  { label: 'Standard', value: 'standard' },
+                  { label: 'High', value: 'high' }
+                ]"
+              />
             </div>
-          </AppCard>
-        </div>
-      </AppPanel>
+            <AppTextarea v-model="notes" label="Operational notes" name="notes" />
+            <div class="cluster">
+              <AppButton :loading="busy" type="submit">Save changes</AppButton>
+              <AppButton
+                v-if="detail.site.status === 'active'"
+                :disabled="busy"
+                variant="danger"
+                @click="disableSite"
+              >
+                Disable site
+              </AppButton>
+            </div>
+          </form>
+        </AppPanel>
+      </section>
 
-      <section>
+      <section
+        v-show="activeTab === 'reports'"
+        id="site-panel-reports"
+        role="tabpanel"
+        aria-labelledby="site-tab-reports"
+      >
+        <AppPanel
+          title="Latest WordPress report"
+          description="Operational data reported by the AP SiteCare WordPress agent."
+        >
+          <div v-if="detail.health.latest" class="grid">
+            <AppCard muted><p class="text-meta">WordPress</p><h2>{{ detail.health.latest.wordpressVersion ?? 'Unknown' }}</h2></AppCard>
+            <AppCard muted><p class="text-meta">PHP</p><h2>{{ detail.health.latest.phpVersion ?? 'Unknown' }}</h2></AppCard>
+            <AppCard muted><p class="text-meta">Plugin updates</p><h2>{{ detail.health.latest.pluginUpdateCount }}</h2></AppCard>
+            <AppCard muted><p class="text-meta">Theme updates</p><h2>{{ detail.health.latest.themeUpdateCount }}</h2></AppCard>
+          </div>
+          <AppEmptyState
+            v-else
+            title="Awaiting the first report"
+            description="Configure the WordPress reporter plugin and send a manual check-in."
+          />
+        </AppPanel>
+      </section>
+
+      <section
+        v-show="activeTab === 'backups'"
+        id="site-panel-backups"
+        role="tabpanel"
+        aria-labelledby="site-tab-backups"
+      >
         <header class="section-heading">
           <p class="eyebrow">Remote operations foundation</p>
           <h2>Backups and restore planning</h2>
@@ -232,14 +244,114 @@ async function runAction(action: () => Promise<void>) {
         <SiteBackupsSection :site-id="siteId" />
       </section>
 
-      <AppPanel title="Site audit log" description="Important events for this managed site.">
-        <AuditTimeline :events="auditEvents" />
-      </AppPanel>
+      <section
+        v-show="activeTab === 'integrations'"
+        id="site-panel-integrations"
+        role="tabpanel"
+        aria-labelledby="site-tab-integrations"
+      >
+        <AppPanel
+          title="External visibility"
+          description="Read-only checks against systems that remain the source of truth."
+        >
+          <div class="grid">
+            <AppCard v-for="provider in ['cloudflare', 'dropbox', 'hostinger'] as const" :key="provider" muted>
+              <div class="stack stack--sm">
+                <AppBadge :tone="integrationResults[provider]?.state === 'healthy' ? 'success' : 'neutral'">
+                  {{ integrationResults[provider]?.state ?? 'Not checked' }}
+                </AppBadge>
+                <h2>{{ provider.charAt(0).toUpperCase() + provider.slice(1) }}</h2>
+                <p class="text-meta">{{ integrationResults[provider]?.summary ?? 'Run a read-only provider check.' }}</p>
+                <AppButton :loading="busy" variant="secondary" @click="inspectIntegration(provider)">Check now</AppButton>
+              </div>
+            </AppCard>
+          </div>
+        </AppPanel>
+      </section>
+
+      <section
+        v-show="activeTab === 'credentials'"
+        id="site-panel-credentials"
+        role="tabpanel"
+        aria-labelledby="site-tab-credentials"
+      >
+        <AppPanel
+          title="Site credentials"
+          description="The reporter plugin uses the site ID and shared secret to sign requests."
+        >
+          <div class="stack">
+            <div>
+              <p class="text-meta">Site ID</p>
+              <code>{{ detail.site.id }}</code>
+            </div>
+            <div v-if="issuedSecret" class="secret">
+              <p><strong>New site secret</strong></p>
+              <code>{{ issuedSecret }}</code>
+              <p class="text-meta">This secret is shown once. Store it in the reporter plugin now.</p>
+            </div>
+            <AppButton :loading="busy" variant="secondary" @click="issueCredential">
+              {{ detail.activeCredential ? 'Rotate credential' : 'Generate credential' }}
+            </AppButton>
+          </div>
+        </AppPanel>
+      </section>
+
+      <section
+        v-show="activeTab === 'audit'"
+        id="site-panel-audit"
+        role="tabpanel"
+        aria-labelledby="site-tab-audit"
+      >
+        <AppPanel title="Site audit log" description="Important events for this managed site.">
+          <AuditTimeline :events="auditEvents" />
+        </AppPanel>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
+.site-tabs {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding: var(--space-2);
+  border: var(--border-default);
+  border-color: var(--color-card-border);
+  border-radius: var(--radius-xl);
+  background: rgb(7 13 23 / 58%);
+  box-shadow: inset 0 1px 0 var(--color-card-highlight);
+}
+
+.site-tabs__button {
+  flex: 0 0 auto;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  transition:
+    background var(--motion-base) var(--ease-standard),
+    border-color var(--motion-base) var(--ease-standard),
+    color var(--motion-base) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard);
+}
+
+.site-tabs__button:hover {
+  border-color: var(--color-card-border);
+  color: var(--color-text);
+}
+
+.site-tabs__button--active {
+  border-color: var(--color-border-glow);
+  background: var(--gradient-selected);
+  color: var(--color-text);
+  box-shadow: var(--shadow-nav-selected);
+}
+
 .notice,
 .error {
   margin-bottom: var(--space-0);
