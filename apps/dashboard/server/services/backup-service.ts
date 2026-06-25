@@ -221,12 +221,12 @@ export class BackupService {
 
   planManualBackup(siteId: string, actorIdentifier: string) {
     const overview = this.getSiteOverview(siteId)
-    if (!overview.policy?.enabled) throw new Error('Enable and save a backup policy before preparing a manual backup.')
-    if (!overview.policy.filesEnabled && !overview.policy.databaseEnabled) throw new Error('The backup policy must include files or database.')
     if (!overview.connection) throw new Error('A hosting connection must be configured before preparing a backup.')
     const assessment = overview.connectionAssessment
-    if (overview.policy.filesEnabled && !assessment.backupFiles) throw new Error('The configured connection cannot back up files.')
-    if (overview.policy.databaseEnabled && !assessment.backupDatabase) throw new Error('The configured connection cannot back up the database.')
+    const requested = this.manualBackupSelection(overview.policy, assessment)
+    if (!requested.filesIncluded && !requested.databaseIncluded) {
+      throw new Error('The detected source cannot back up files or the database yet.')
+    }
     const destinations = this.destinationService.resolveForSite(siteId)
     if (!destinations.length) throw new Error('No enabled backup destination is configured for this site.')
     if (destinations.some(destination => !destination.executable || !destination.credentialConfigured)) {
@@ -244,8 +244,8 @@ export class BackupService {
       siteId,
       backupType: 'manual',
       frequency: 'manual',
-      filesIncluded: overview.policy.filesEnabled,
-      databaseIncluded: overview.policy.databaseEnabled,
+      filesIncluded: requested.filesIncluded,
+      databaseIncluded: requested.databaseIncluded,
       storageProvider: primaryDestination.provider,
       storagePath: primaryStorage.artifactPath(domain, backupId),
       status: 'queued',
@@ -497,6 +497,20 @@ export class BackupService {
     if (frequency === 'weekly') date.setUTCDate(date.getUTCDate() + 7)
     if (frequency === 'monthly') date.setUTCMonth(date.getUTCMonth() + 1)
     return date.toISOString()
+  }
+
+  private manualBackupSelection(policy: BackupPolicy | null, assessment: HostingConnectionAssessment): { filesIncluded: boolean, databaseIncluded: boolean } {
+    if (policy?.enabled) {
+      if (!policy.filesEnabled && !policy.databaseEnabled) throw new Error('The backup policy must include files or database.')
+      if (policy.filesEnabled && !assessment.backupFiles) throw new Error('The configured connection cannot back up files.')
+      if (policy.databaseEnabled && !assessment.backupDatabase) throw new Error('The configured connection cannot back up the database.')
+      return { filesIncluded: policy.filesEnabled, databaseIncluded: policy.databaseEnabled }
+    }
+
+    return {
+      filesIncluded: false,
+      databaseIncluded: assessment.backupDatabase
+    }
   }
 
   private validateInput(input: UpdateBackupPolicyInput): void {

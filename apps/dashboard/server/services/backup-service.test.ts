@@ -104,6 +104,25 @@ describe('Remote backup foundation', () => {
     assert.equal(restore.plan.confirmationRequired, true)
   })
 
+  it('queues a database-only manual backup from plugin-detected credentials without a saved policy', () => {
+    const { service, site } = createFixture()
+    service.recordDetectedBackupSource(site.id, {
+      wordpressPath: null,
+      databaseHost: '127.0.0.1',
+      databasePort: 3306,
+      databaseName: 'wordpress',
+      databaseUsername: 'wordpress',
+      databasePassword: 'database-secret',
+      providerLabel: 'WordPress plugin',
+      detectedAt: new Date().toISOString()
+    })
+
+    const result = service.planManualBackup(site.id, 'operator@example.com')
+    assert.equal(result.artifact.status, 'queued')
+    assert.equal(result.artifact.filesIncluded, false)
+    assert.equal(result.artifact.databaseIncluded, true)
+  })
+
   it('rejects symbolic links in the backup source tree', async () => {
     const { root, wordpressPath } = createFixture()
     const outside = join(root, 'outside')

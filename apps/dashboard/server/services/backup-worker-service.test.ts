@@ -104,6 +104,46 @@ function createFixture(options?: { databaseEnabled?: boolean, runnerFailure?: st
   return { auditRepository, backupRepository, database, queued, storage, worker }
 }
 
+function createDetectedDatabaseFixture() {
+  const database = createDatabase(':memory:')
+  const backupRepository = new BackupRepository(database)
+  const auditRepository = new AuditRepository(database)
+  const auditService = new AuditService(auditRepository)
+  const siteRepository = new SiteRepository(database)
+  const siteService = new SiteService(siteRepository, auditService)
+  const root = mkdtempSync(join(tmpdir(), 'apsc-worker-db-'))
+  const tempRoot = join(root, 'temp')
+  const settings = {
+    dropboxAccessToken: 'fixture-token',
+    dropboxBackupRoot: '/AP-SiteCare',
+    dropboxAccountLabel: 'Fixture Dropbox',
+    dropboxEnabled: true,
+    dropboxTokenStrategy: 'runtime-access-token' as const,
+    allowedLocalBaseDirectories: [join(root, 'sites')],
+    credentialEncryptionKey: 'fixture-encryption-key'
+  }
+  const service = new BackupService(settings, backupRepository, siteService, auditService)
+  const site = siteService.create({ name: 'Detected DB Fixture', url: 'https://example.com' })
+  service.recordDetectedBackupSource(site.id, {
+    wordpressPath: null,
+    databaseHost: '127.0.0.1',
+    databasePort: 3306,
+    databaseName: 'wordpress',
+    databaseUsername: 'wordpress',
+    databasePassword: 'super-secret-database-password',
+    providerLabel: 'WordPress plugin',
+    detectedAt: new Date().toISOString()
+  })
+  const queued = service.planManualBackup(site.id, 'operator@example.com')
+  const storage = new FixtureDropboxStorage()
+  const worker = new BackupWorkerService({
+    ...settings,
+    tempRoot,
+    staleAfterMinutes: 60
+  }, backupRepository, siteRepository, auditService, new BackupArtifactBuilder(new FixtureProcessRunner()), storage)
+  return { auditRepository, backupRepository, queued, storage, worker }
+}
+
 describe('Backup execution worker', () => {
   it('prevents duplicate claims for the same queued job', () => {
     const { backupRepository } = createFixture()
@@ -142,6 +182,21 @@ describe('Backup execution worker', () => {
       'wordpress-files.tar.gz'
     ])
     assert.equal(auditRepository.listForSite(queued.artifact.siteId).some(event => event.eventType === 'backup.completed'), true)
+  })
+
+  it('runs a database-only manual job without a saved policy or local WordPress path', async () => {
+    const { backupRepository, queued, storage, worker } = createDetectedDatabaseFixture()
+    const result = await worker.runNext()
+    const artifact = backupRepository.getArtifact(queued.artifact.id)
+    assert.equal(result?.status, 'completed')
+    assert.equal(artifact?.status, 'completed')
+    assert.equal(artifact?.filesIncluded, false)
+    assert.equal(artifact?.databaseIncluded, true)
+    assert.deepEqual(storage.uploaded.map(path => path.split('/').at(-1)).sort(), [
+      'checksum.sha256',
+      'manifest.json',
+      'wordpress-database.sql.gz'
+    ])
   })
 
   it('fails clearly and does not persist secrets in jobs, artifacts, or audit events', async () => {

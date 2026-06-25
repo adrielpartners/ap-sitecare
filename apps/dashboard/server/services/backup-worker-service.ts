@@ -73,28 +73,29 @@ export class BackupWorkerService {
       workDirectory = await mkdtemp(join(resolve(this.settings.tempRoot), 'apsc-backup-'))
       const artifact = this.requiredArtifact(job.backupId)
       const site = this.sites.findById(job.siteId)
-      const policy = this.repository.getPolicy(job.siteId)
       const connection = this.repository.getConnection(job.siteId)
-      if (!site || !policy || !connection) throw new Error('Backup job configuration is incomplete.')
-      if (!policy.enabled) throw new Error('Backup policy is disabled.')
+      if (!site || !connection) throw new Error('Backup job configuration is incomplete.')
       if (connection.connectionType !== 'local-vps') throw new Error('Only Local VPS backup execution is supported.')
       const local = new LocalVpsConnection(this.settings.allowedLocalBaseDirectories)
-      if (!connection.localPath) throw new Error('Local WordPress path is not configured.')
-      const wordpressPath = local.validatePath(connection.localPath)
-      await local.validateTreeHasNoSymlinks(wordpressPath)
+      let wordpressPath = connection.localPath ?? ''
+      if (artifact.filesIncluded) {
+        if (!connection.localPath) throw new Error('Local WordPress path is not configured.')
+        wordpressPath = local.validatePath(connection.localPath)
+        await local.validateTreeHasNoSymlinks(wordpressPath)
+      }
 
       const built: BuiltBackupArtifact[] = []
-      if (policy.filesEnabled) {
+      if (artifact.filesIncluded) {
         built.push(await this.builder.createFilesArchive(wordpressPath, workDirectory))
         await local.validateTreeHasNoSymlinks(wordpressPath)
         this.record(job, 'backup.files-archive.created', { archiveName: built.at(-1)?.archiveName })
       }
-      if (policy.databaseEnabled) {
+      if (artifact.databaseIncluded) {
         const database = this.databaseConfiguration(connection)
         built.push(await this.builder.createDatabaseArchive(database, workDirectory))
         this.record(job, 'backup.database-dump.created', { included: true })
       }
-      if (!built.length) throw new Error('Backup policy does not include files or database.')
+      if (!built.length) throw new Error('Backup job does not include files or database.')
 
       const domain = new URL(site.url).hostname
       const manifestBase: Omit<BackupManifest, 'includedArtifacts' | 'archiveNames'> = {
@@ -104,9 +105,9 @@ export class BackupWorkerService {
         backupId: artifact.id,
         backupTimestamp: artifact.startedAt,
         wordpressPath,
-        ...(policy.databaseEnabled && connection.databaseName ? { databaseName: connection.databaseName } : {}),
-        includedPaths: policy.filesEnabled ? [wordpressPath] : [],
-        excludedPaths: policy.filesEnabled ? [...FILE_BACKUP_EXCLUSIONS] : [],
+        ...(artifact.databaseIncluded && connection.databaseName ? { databaseName: connection.databaseName } : {}),
+        includedPaths: artifact.filesIncluded ? [wordpressPath] : [],
+        excludedPaths: artifact.filesIncluded ? [...FILE_BACKUP_EXCLUSIONS] : [],
         storageProvider: 'dropbox',
         storagePath: artifact.storagePath
       }
@@ -117,8 +118,8 @@ export class BackupWorkerService {
       const primaryStorage = storages[0]?.storage ?? this.storage
       this.repository.updateArtifact({
         ...artifact,
-        filesIncluded: policy.filesEnabled,
-        databaseIncluded: policy.databaseEnabled,
+        filesIncluded: artifact.filesIncluded,
+        databaseIncluded: artifact.databaseIncluded,
         checksum: checksumFile.checksumSha256,
         checksumVerifiedAt: new Date().toISOString(),
         manifest: packageFiles.manifest,

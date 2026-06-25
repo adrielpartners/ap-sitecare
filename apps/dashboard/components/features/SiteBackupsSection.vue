@@ -93,10 +93,18 @@ async function runAction(action: () => Promise<{ message?: string } | void>, suc
     notice.value = result?.message ?? successMessage
     await refresh()
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'The backup request could not be completed.'
+    errorMessage.value = backupErrorMessage(error)
   } finally {
     busy.value = false
   }
+}
+
+function backupErrorMessage(error: unknown): string {
+  const data = typeof error === 'object' && error && 'data' in error
+    ? (error as { data?: { error?: { message?: string } } }).data
+    : null
+  return data?.error?.message
+    || (error instanceof Error ? error.message : 'The backup request could not be completed.')
 }
 
 async function savePolicy() {
