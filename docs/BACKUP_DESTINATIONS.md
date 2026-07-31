@@ -1,36 +1,73 @@
-# Backup Destinations
+# SiteCare Pro Backup Destinations
 
-AP SiteCare stores backup destinations as central dashboard records.
+SiteCare stores backup destinations as central Dashboard records. One effective
+independent off-site destination is executable per Pro site in Phase 7.
 
-## Resolution Rules
+## Resolution and path rules
 
-- Destinations marked `in master pool` are inherited by sites using the default `master` mode.
-- A site can switch to `override` mode and select its own destinations.
-- Multiple destinations are disabled per site by default and must be explicitly enabled on the site backup settings page.
-- Destination IDs are snapshotted onto a queued backup job so later settings changes do not redirect queued work.
+- Sites inherit the first enabled destination in the central master pool, or
+  select one site-specific override.
+- A destination ID is snapshotted onto each queued job, so later settings
+  changes cannot redirect in-flight work.
+- The default Dropbox root is `/SiteCare Backups` and can be changed in
+  Dashboard Settings. Spaces are ordinary path characters and are entered
+  literally; do not use `%20` or backslash escaping.
+- SiteCare creates and preserves one stable client folder, then writes new
+  artifacts to `Client Name/YYYY/MM/{backup-id}`.
+- Changing the destination root affects new artifacts only. Exact paths for
+  retained objects remain in `backup_artifact_objects`.
+- Every object filename includes the website hostname, UTC timestamp, and
+  backup ID.
 
 ## Credentials
 
-- Destination credentials saved through the dashboard are encrypted with `NUXT_CREDENTIAL_ENCRYPTION_KEY`.
-- Credentials are never returned by APIs or included in audit metadata.
-- The environment-configured Dropbox connection appears as a runtime-managed destination and remains configured through VPS environment variables.
-- `NUXT_CREDENTIAL_ENCRYPTION_KEY` must be configured with the same durable value in the dashboard and backup worker before dashboard-managed credentials can be saved or used.
+- Dashboard-managed credentials and Dropbox refresh tokens are encrypted with
+  the durable `NUXT_CREDENTIAL_ENCRYPTION_KEY`.
+- Credentials are never returned by APIs or included in jobs, artifacts,
+  notification metadata, or audit metadata.
+- The Dashboard, automation worker, and backup worker must share the same
+  encryption key and Dropbox application configuration.
+- A revoked Dropbox grant requires an explicit reconnect. Ordinary access-token
+  expiration is handled automatically from the stored refresh token.
 
-## Dropbox Setup
+## Dropbox app setup
 
-- Create one Dropbox API app for AP SiteCare.
-- App Folder access is recommended because it limits SiteCare to the app's dedicated Dropbox folder.
-- Enable the `files.metadata.read` and `files.content.write` scopes before generating the access token.
-- Generate an access token from the app's OAuth 2 settings and save that token as the destination credential for initial setup and verification.
-- The Dropbox base path is a folder inside the app's accessible Dropbox root. The default is `/SiteCare Backups`; with App Folder access, that means a `SiteCare Backups` subfolder inside the app folder. Do not repeat the app folder name.
-- AP SiteCare does not currently implement a Dropbox OAuth authorization or callback route. A redirect URI is not required when using a generated access token. Do not configure `/api/integrations/dropbox/callback` as though it were active.
-- Current Dropbox access tokens are short-lived. Durable unattended backup execution requires a future offline OAuth flow that stores a refresh token and renews access tokens; that flow is not implemented yet.
-- The connection test verifies metadata-read and content-write permissions without creating a backup file.
+1. Create one Dropbox API app. App Folder access is recommended.
+2. Enable `files.metadata.read`, `files.content.read`, and
+   `files.content.write`.
+3. Add the exact redirect URI configured as
+   `NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI`; production defaults to:
+   `https://sitecare.adrielpartners.com/api/backup-destinations/oauth/callback`.
+4. Configure the app key and secret in deployment secrets.
+5. In Dashboard Settings, create a Dropbox destination with OAuth authorization
+   and `/SiteCare Backups` (or another approved literal root).
+6. Select **Connect Dropbox**, approve access once, then run **Test connection**.
 
-## Provider Support
+Required deployment variables:
 
-- Dropbox: configuration and backup execution supported.
-- Google Drive: configuration record supported; execution adapter pending.
-- Amazon/S3-compatible: configuration record supported; execution adapter pending.
+```text
+NUXT_CREDENTIAL_ENCRYPTION_KEY
+NUXT_INTEGRATIONS_DROPBOX_APP_KEY
+NUXT_INTEGRATIONS_DROPBOX_APP_SECRET
+NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI
+NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT
+NUXT_BACKUPS_DROPBOX_ACCOUNT_LABEL
+NUXT_BACKUPS_DROPBOX_ENABLED
+NUXT_BACKUPS_DROPBOX_TOKEN_STRATEGY
+```
 
-An enabled backup job cannot be queued when any effective destination lacks an executable adapter or configured credential.
+`NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN` remains supported as a temporary
+runtime-managed cutover path. A runtime refresh token may instead be supplied
+as `NUXT_INTEGRATIONS_DROPBOX_REFRESH_TOKEN`, but Dashboard OAuth is preferred
+because connection status and reconnect history remain visible.
+
+## Provider support
+
+- Dropbox: OAuth connection, upload, metadata verification, temporary download
+  links, and deletion adapter available. Scheduled deletion remains disabled
+  until a production retention dry-run is approved.
+- Google Drive: configuration record only; execution adapter pending.
+- Amazon/S3-compatible: configuration record only; execution adapter pending.
+
+An enabled backup cannot be queued unless its effective destination is enabled,
+has a configured credential, and has an executable adapter.

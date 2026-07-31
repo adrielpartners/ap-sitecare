@@ -7,6 +7,10 @@ export function getBackupService(event?: H3Event): BackupService {
   const config = getRuntimeSettings(event)
   return new BackupService({
     dropboxAccessToken: config.integrations.dropboxAccessToken,
+    dropboxRefreshToken: config.integrations.dropboxRefreshToken,
+    dropboxAppKey: config.integrations.dropboxAppKey,
+    dropboxAppSecret: config.integrations.dropboxAppSecret,
+    dropboxRedirectUri: config.integrations.dropboxRedirectUri,
     dropboxBackupRoot: config.integrations.dropboxBackupRoot,
     dropboxAccountLabel: config.backups.dropboxAccountLabel,
     dropboxEnabled: String(config.backups.dropboxEnabled) !== 'false',
@@ -15,7 +19,8 @@ export function getBackupService(event?: H3Event): BackupService {
       .split(',')
       .map(value => value.trim())
       .filter(Boolean),
-    credentialEncryptionKey: config.credentialEncryptionKey
+    credentialEncryptionKey: config.credentialEncryptionKey,
+    tempRoot: config.backups.tempRoot
   })
 }
 

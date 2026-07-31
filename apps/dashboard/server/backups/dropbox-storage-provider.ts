@@ -9,8 +9,15 @@ const DROPBOX_CONTENT_API = 'https://content.dropboxapi.com/2'
 const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 120_000
 
+export interface DropboxOAuthRefreshConfiguration {
+  appKey: string
+  appSecret: string
+  refreshToken: string
+}
+
 export class DropboxStorageProvider implements StorageProvider {
   readonly type = 'dropbox' as const
+  private refreshedAccessToken: { value: string, expiresAt: number } | null = null
 
   constructor(
     private readonly token: string,
@@ -18,7 +25,8 @@ export class DropboxStorageProvider implements StorageProvider {
     private readonly accountLabel: string,
     private readonly enabled: boolean,
     private readonly tokenStrategy: 'runtime-access-token' | 'oauth',
-    private readonly fetcher: Fetcher = fetch
+    private readonly fetcher: Fetcher = fetch,
+    private readonly oauth?: DropboxOAuthRefreshConfiguration
   ) {}
 
   configuration(): StorageProviderConfiguration {
@@ -27,22 +35,23 @@ export class DropboxStorageProvider implements StorageProvider {
       accountLabel: this.accountLabel.trim() || null,
       basePath: this.basePath.trim() ? this.normalizedBasePath() : '',
       enabled: this.enabled,
-      tokenStrategy: this.token ? this.tokenStrategy : 'not-configured',
-      configured: Boolean(this.token && this.basePath)
+      tokenStrategy: this.hasCredential() ? this.tokenStrategy : 'not-configured',
+      configured: Boolean(this.hasCredential() && this.basePath)
     }
   }
 
   async testConnection(): Promise<StorageProviderTestResult> {
     if (!this.enabled) {
-      return this.result(Boolean(this.token && this.basePath), false, 'Dropbox backup storage is disabled.')
+      return this.result(Boolean(this.hasCredential() && this.basePath), false, 'Dropbox backup storage is disabled.')
     }
-    if (!this.token || !this.basePath) {
-      return this.result(false, false, 'Dropbox access token and base folder are not configured.')
+    if (!this.hasCredential() || !this.basePath) {
+      return this.result(false, false, 'Dropbox OAuth credential or access token and base folder are not configured.')
     }
+    const authorization = await this.authorizationHeader()
     const metadataResponse = await this.fetcher(`${DROPBOX_API}/files/list_folder`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: authorization,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ path: '', limit: 1 }),
@@ -52,7 +61,7 @@ export class DropboxStorageProvider implements StorageProvider {
       ? await this.fetcher(`${DROPBOX_CONTENT_API}/files/upload_session/start`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${this.token}`,
+            Authorization: authorization,
             'Dropbox-API-Arg': JSON.stringify({ close: true }),
             'Content-Type': 'application/octet-stream'
           },
@@ -66,10 +75,15 @@ export class DropboxStorageProvider implements StorageProvider {
       : 'Dropbox rejected the credential or required files.metadata.read/files.content.write permissions.')
   }
 
-  artifactPath(domain: string, backupId: string): string {
-    const safeDomain = domain.toLowerCase().replace(/[^a-z0-9.-]/g, '-')
+  artifactPath(clientFolder: string, backupId: string, timestamp: string | Date = new Date()): string {
+    const safeClientFolder = clientFolder.trim().replace(/[\\/\u0000-\u001f]/g, '-').replace(/^\.+$/, '-')
     const safeBackupId = backupId.replace(/[^a-zA-Z0-9-]/g, '')
-    return `${this.normalizedBasePath()}/${safeDomain}/${safeBackupId}`.replace(/\/+/g, '/')
+    if (!safeClientFolder) throw new Error('Dropbox client folder is required.')
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
+    if (Number.isNaN(date.getTime())) throw new Error('Backup timestamp is invalid.')
+    const year = String(date.getUTCFullYear())
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    return `${this.normalizedBasePath()}/${safeClientFolder}/${year}/${month}/${safeBackupId}`.replace(/\/+/g, '/')
   }
 
   destinationPath(directory: string, fileName: string): string {
@@ -132,7 +146,7 @@ export class DropboxStorageProvider implements StorageProvider {
     const response = await this.fetcher(`${DROPBOX_API}/files/get_metadata`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: await this.authorizationHeader(),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ path: normalizedPath, include_deleted: false }),
@@ -141,6 +155,36 @@ export class DropboxStorageProvider implements StorageProvider {
     const body = await this.json<{ path_display?: string, size?: number }>(response, 'Dropbox metadata lookup failed.')
     if (typeof body.size !== 'number') throw new Error('Dropbox metadata did not describe a file.')
     return { path: body.path_display ?? normalizedPath, sizeBytes: body.size }
+  }
+
+  async temporaryLink(path: string): Promise<string> {
+    this.requireConfigured()
+    const response = await this.fetcher(`${DROPBOX_API}/files/get_temporary_link`, {
+      method: 'POST',
+      headers: {
+        Authorization: await this.authorizationHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ path: this.normalizeDestinationPath(path) }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    })
+    const body = await this.json<{ link?: string }>(response, 'Dropbox could not create a temporary download link.')
+    if (!body.link) throw new Error('Dropbox did not return a temporary download link.')
+    return body.link
+  }
+
+  async delete(path: string): Promise<void> {
+    this.requireConfigured()
+    const response = await this.fetcher(`${DROPBOX_API}/files/delete_v2`, {
+      method: 'POST',
+      headers: {
+        Authorization: await this.authorizationHeader(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ path: this.normalizeDestinationPath(path) }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    })
+    if (!response.ok) throw new Error('Dropbox could not delete the expired backup object.')
   }
 
   private normalizedBasePath(): string {
@@ -156,14 +200,14 @@ export class DropboxStorageProvider implements StorageProvider {
   }
 
   private requireConfigured(): void {
-    if (!this.enabled || !this.token || !this.basePath) throw new Error('Dropbox backup storage is not configured and enabled.')
+    if (!this.enabled || !this.hasCredential() || !this.basePath) throw new Error('Dropbox backup storage is not configured and enabled.')
   }
 
-  private contentRequest(endpoint: string, argument: Record<string, unknown>, body: Buffer): Promise<Response> {
+  private async contentRequest(endpoint: string, argument: Record<string, unknown>, body: Buffer): Promise<Response> {
     return this.fetcher(`${DROPBOX_CONTENT_API}${endpoint}`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: await this.authorizationHeader(),
         'Dropbox-API-Arg': JSON.stringify(argument),
         'Content-Type': 'application/octet-stream'
       },
@@ -179,5 +223,39 @@ export class DropboxStorageProvider implements StorageProvider {
 
   private result(configured: boolean, connected: boolean, message: string): StorageProviderTestResult {
     return { provider: this.type, configured, connected, message, checkedAt: new Date().toISOString() }
+  }
+
+  private hasCredential(): boolean {
+    return Boolean(this.token || (this.oauth?.appKey && this.oauth.appSecret && this.oauth.refreshToken))
+  }
+
+  private async authorizationHeader(): Promise<string> {
+    if (!this.oauth) {
+      if (!this.token) throw new Error('Dropbox access token is not configured.')
+      return `Bearer ${this.token}`
+    }
+    if (this.refreshedAccessToken && this.refreshedAccessToken.expiresAt > Date.now() + 60_000) {
+      return `Bearer ${this.refreshedAccessToken.value}`
+    }
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: this.oauth.refreshToken
+    })
+    const response = await this.fetcher('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.oauth.appKey}:${this.oauth.appSecret}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    })
+    const token = await this.json<{ access_token?: string, expires_in?: number }>(response, 'Dropbox OAuth refresh failed; reconnect the destination.')
+    if (!token.access_token) throw new Error('Dropbox OAuth refresh did not return an access token.')
+    this.refreshedAccessToken = {
+      value: token.access_token,
+      expiresAt: Date.now() + Math.max(300, token.expires_in ?? 14_400) * 1000
+    }
+    return `Bearer ${token.access_token}`
   }
 }

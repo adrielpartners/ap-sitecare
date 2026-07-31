@@ -8,6 +8,7 @@ const provider = ref('dropbox')
 const enabled = ref(true)
 const inMasterPool = ref(true)
 const credential = ref('')
+const dropboxAuthMode = ref('oauth-refresh-token')
 const basePath = ref('/SiteCare Backups')
 const folderId = ref('')
 const bucket = ref('')
@@ -40,6 +41,7 @@ function resetForm() {
   enabled.value = true
   inMasterPool.value = true
   credential.value = ''
+  dropboxAuthMode.value = 'oauth-refresh-token'
   basePath.value = '/SiteCare Backups'
   folderId.value = ''
   bucket.value = ''
@@ -55,6 +57,7 @@ function editDestination(destination: any) {
   enabled.value = destination.enabled
   inMasterPool.value = destination.inMasterPool
   credential.value = ''
+  dropboxAuthMode.value = destination.configuration.authMode ?? 'access-token'
   basePath.value = destination.configuration.basePath ?? ''
   folderId.value = destination.configuration.folderId ?? ''
   bucket.value = destination.configuration.bucket ?? ''
@@ -69,7 +72,7 @@ async function saveDestination() {
   errorMessage.value = ''
   try {
     const configuration = provider.value === 'dropbox'
-      ? { basePath: basePath.value }
+      ? { basePath: basePath.value, authMode: dropboxAuthMode.value }
       : provider.value === 'google-drive'
         ? { folderId: folderId.value }
         : { bucket: bucket.value, region: region.value, endpoint: endpoint.value, basePath: basePath.value, accessKeyId: accessKeyId.value }
@@ -93,6 +96,24 @@ async function saveDestination() {
     busy.value = false
   }
 }
+
+async function connectDropbox(id: string) {
+  busy.value = true
+  notice.value = ''
+  errorMessage.value = ''
+  try {
+    const result = await api<any>(`/api/backup-destinations/${id}/oauth/start`, { method: 'POST' })
+    if (!('data' in result) || !result.data.authorizationUrl) throw new Error('Dropbox connection could not be started.')
+    window.location.assign(result.data.authorizationUrl)
+  } catch (error) {
+    errorMessage.value = requestErrorMessage(error)
+    busy.value = false
+  }
+}
+
+const route = useRoute()
+if (route.query.dropbox === 'connected') notice.value = 'Dropbox connected with durable OAuth refresh access.'
+if (route.query.dropbox === 'error') errorMessage.value = typeof route.query.message === 'string' ? route.query.message : 'Dropbox authorization failed.'
 
 async function testDestination(id: string) {
   busy.value = true
@@ -129,7 +150,7 @@ async function testDestination(id: string) {
             <div class="stack stack--sm">
               <AppBadge tone="info">1. Storage destination</AppBadge>
               <h3>Add Dropbox access</h3>
-              <p class="text-meta">Create an App Folder-scoped Dropbox app with <code>files.metadata.read</code> and <code>files.content.write</code>, generate an access token, enter it below, then use Test connection. Generated tokens are suitable for initial setup but may expire; refresh-token OAuth is not implemented yet.</p>
+              <p class="text-meta">Create an App Folder-scoped Dropbox app with <code>files.metadata.read</code>, <code>files.content.read</code>, and <code>files.content.write</code>. Save the destination, then connect once with OAuth. SiteCare stores the refresh token and renews short-lived access automatically.</p>
               <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noreferrer">Open Dropbox App Console</a>
             </div>
           </AppCard>
@@ -137,15 +158,15 @@ async function testDestination(id: string) {
             <div class="stack stack--sm">
               <AppBadge tone="info">2. Site source</AppBadge>
               <h3>Connect each WordPress site</h3>
-              <p class="text-meta">On each site page, configure the Local VPS WordPress path and database credentials. Passwords are encrypted and never returned.</p>
+              <p class="text-meta">On each Pro site page, configure Hostinger SSH/SFTP with a private key and the WordPress root. The connection is tested and the private key is encrypted at rest.</p>
               <NuxtLink to="/sites">Open managed sites</NuxtLink>
             </div>
           </AppCard>
           <AppCard muted>
             <div class="stack stack--sm">
-              <AppBadge tone="warning">Current execution boundary</AppBadge>
-              <h3>Remote hosting needs a mounted source</h3>
-              <p class="text-meta">The active worker supports Local VPS sources only. Remote sites must be mounted read-only under <code>/opt/sitecare/backup-sources</code> before backups can run.</p>
+              <AppBadge tone="info">Portable output</AppBadge>
+              <h3>Full WordPress package</h3>
+              <p class="text-meta">Every successful backup contains website files, compressed SQL, a manifest, SHA-256 checksums, and supervised restore instructions.</p>
             </div>
           </AppCard>
         </div>
@@ -165,6 +186,7 @@ async function testDestination(id: string) {
               <p v-if="destination.credentialSource === 'runtime'" class="text-meta">Managed by VPS environment configuration.</p>
               <div class="cluster">
                 <AppButton variant="secondary" :disabled="busy" @click="testDestination(destination.id)">Test connection</AppButton>
+                <AppButton v-if="destination.provider === 'dropbox' && destination.credentialSource !== 'runtime'" variant="secondary" :disabled="busy" @click="connectDropbox(destination.id)">{{ destination.configuration.authMode === 'oauth-refresh-token' && destination.credentialConfigured ? 'Reconnect Dropbox' : 'Connect Dropbox' }}</AppButton>
                 <AppButton v-if="destination.credentialSource !== 'runtime'" variant="secondary" :disabled="busy" @click="editDestination(destination)">Edit destination</AppButton>
               </div>
             </div>
@@ -188,7 +210,12 @@ async function testDestination(id: string) {
 
           <div v-if="provider === 'dropbox'" class="grid">
             <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" required description="A folder inside the Dropbox app's accessible root, defaulting to /SiteCare Backups. For an App Folder-scoped app, do not repeat the app folder name here." />
-            <AppInput v-model="credential" label="Dropbox access token" name="dropbox-token" type="password" :required="!editingId" description="Generate this in the Dropbox App Console. Leave blank while editing to retain the saved token." />
+            <AppSelect v-model="dropboxAuthMode" label="Authorization" name="dropbox-auth-mode" :options="[
+              { label: 'OAuth refresh token (recommended)', value: 'oauth-refresh-token' },
+              { label: 'Static access token', value: 'access-token' }
+            ]" />
+            <AppInput v-if="dropboxAuthMode === 'access-token'" v-model="credential" label="Dropbox access token" name="dropbox-token" type="password" :required="!editingId" description="Leave blank while editing to retain the saved token." />
+            <p v-else class="text-meta">Save this destination, then select Connect Dropbox in the destination card. Routine reauthentication is not required.</p>
           </div>
           <div v-else-if="provider === 'google-drive'" class="grid">
             <AppInput v-model="folderId" label="Google Drive folder ID" name="google-folder-id" />

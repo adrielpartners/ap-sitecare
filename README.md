@@ -60,6 +60,17 @@ The active phased roadmap is:
 instructions/AP_SITECARE_IMPLEMENTATION_PLAN.md
 ```
 
+Roadmap Phases 1–7 are implemented. Phase 7 adds monthly SiteCare Pro portable
+full-site backups, Hostinger SSH/SFTP acquisition, Dropbox offline OAuth,
+24-month retention tracking, backup email notifications, and supervised restore
+evidence. Production acceptance still requires a live Hostinger source test,
+Dropbox OAuth refresh/reconnect proof, and one supervised restore rehearsal.
+
+Backup destination setup is documented in
+[`docs/BACKUP_DESTINATIONS.md`](docs/BACKUP_DESTINATIONS.md), and worker operation
+and production acceptance are documented in
+[`BACKUP_WORKER_OPERATIONS.md`](BACKUP_WORKER_OPERATIONS.md).
+
 The original completed plan is preserved at:
 
 ```text

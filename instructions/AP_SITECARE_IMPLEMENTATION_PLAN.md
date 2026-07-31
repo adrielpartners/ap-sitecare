@@ -8,7 +8,7 @@ Repository: `ap-sitecare`
 
 Last Updated: 2026-07-31
 
-Roadmap Status: Phase 1 through Phase 6 implementation complete. The production
+Roadmap Status: Phase 1 through Phase 7 implementation complete. The production
 database/application-authentication deployment cutover remains gated and may
 be completed independently before production release.
 
@@ -1397,7 +1397,8 @@ Recommended next assignment:
 
 ## Phase 7 — SiteCare Pro Long-Term Backups
 
-Status: `not-started`
+Status: `implementation-complete — 2026-07-31`; production Hostinger source,
+Dropbox OAuth, and supervised-restore proofs remain deployment acceptance gates.
 
 ### Goal
 
@@ -1488,6 +1489,91 @@ off-site backup service for SiteCare Pro.
 - Dropbox does not require routine technician reauthentication
 - backup filenames and folders follow the approved structure
 - a supervised restore has been proven on compatible hosting
+
+### Completion Record
+
+Delivered:
+
+- migration 12 for Pro policy state, transactional SSH/SFTP credentials,
+  stable client folders, portable backup objects, OAuth state, retention dry
+  runs, and supervised restore evidence
+- a daily automation evaluation that queues one idempotent full monthly backup
+  for entitled Pro sites, immediately evaluates newly created schedules, and
+  rechecks entitlements before execution
+- 24-month artifact expiration, preservation across plan lifecycle changes,
+  one effective off-site destination, and audited retention dry runs with
+  remote deletion deliberately disabled pending acceptance
+- a Hostinger shared-hosting SSH/SFTP adapter using SSH-key authentication,
+  learned/pinned host keys, recursive file download, and fixed WP-CLI database
+  export; legacy Local VPS paths are marked quarantined in migration 12
+- transactional policy/connection saves, atomic artifact/job/destination
+  creation, atomic completion/failure finalization, worker leases, partial
+  upload evidence, retries as new artifacts, and normalized secret-safe errors
+- portable packages containing hostname/timestamp/backup-ID filenames, full
+  website files, compressed SQL, manifest v2, SHA-256 checksums, and
+  `RESTORE.md`; tar, gzip, and checksum integrity are verified before success
+- Dropbox access-token compatibility plus offline OAuth authorization and
+  automatic refresh-token renewal, with `/SiteCare Backups` as the default
+  configurable root and stable `Client Name/YYYY/MM/{backup-id}` paths
+- exact per-object storage paths and checksums so changing a destination root
+  affects only new backups and existing retained artifacts remain downloadable
+- separate Hostinger daily-backup evidence and SiteCare long-term-backup status,
+  latest success, recent failures, retention dates, and per-site backup-category
+  success/failure email fan-out through the transactional outbox
+- supervised restore preflight, four-hour Dropbox download links, technician
+  checklist, target host, notes, timestamps, outcome, and audit evidence; no
+  unattended restore execution exists
+- outbound-only worker network access for Dropbox, Brevo, Cloudflare,
+  Hostinger, and SSH/SFTP without exposing worker ports
+
+Verification:
+
+- 72 PostgreSQL-backed application tests pass
+- Nuxt type checking passes
+- production Nuxt build passes
+- focused tests cover monthly deduplication, 24-month retention, stable Dropbox
+  paths with spaces, OAuth token refresh, package contents, secret redaction,
+  worker contention, stale recovery, database-only transition behavior, and
+  retention dry runs
+
+Production acceptance gates:
+
+- create/configure the Dropbox app key, secret, and exact callback URI; connect
+  the destination once and verify refresh behavior against the production app
+- enable Hostinger Remote Access for one Pro site, add a SiteCare SSH public
+  key, configure its host/user/root, and prove the read boundary plus WP-CLI
+  database export on the actual Agency Cloud Pro account
+- execute one full backup, interrupt/retry a controlled upload, verify all
+  Dropbox objects, and complete a supervised restore onto a clean compatible
+  WordPress host before declaring the live service accepted
+- approve a separate retention-deletion change only after reviewing at least
+  one production dry-run; Phase 7 does not delete Dropbox objects automatically
+
+Known limitations:
+
+- Hostinger's public API does not provide a shared-hosting full-file export;
+  SSH/SFTP is therefore the implemented source, and its account-specific read
+  boundary must be proven live
+- WP-CLI availability is required for password-free database export; if the
+  live Agency environment does not expose it, retain the encrypted transitional
+  database credential path until a safer fixed alternative is approved
+- Google Drive and S3-compatible records remain non-executable future adapters
+- the required `MODE_NUXT_APP.md` instruction file referenced by project rules
+  is still absent; the architecture and coding rules were followed
+
+Deployment notes:
+
+- deploy migration 12, Dashboard, automation worker, backup worker, and email
+  worker together
+- configure the new Dropbox OAuth variables documented in `.env.example`; the
+  existing access-token path remains backward compatible during cutover
+- use `docs/BACKUP_DESTINATIONS.md` and `BACKUP_WORKER_OPERATIONS.md` as the
+  storage, Hostinger source, worker, recovery, and acceptance handoff
+
+Recommended next assignment:
+
+- complete the three production acceptance proofs above, then begin Phase 8 —
+  SiteHealth Checkups and SiteHealth Reviews
 
 ---
 

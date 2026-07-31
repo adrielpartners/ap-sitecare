@@ -1,31 +1,38 @@
-# AP SiteCare Backup Worker Operations
+# SiteCare Pro Backup Worker Operations
 
 ## Scope
 
-The backup worker executes queued backups only for Local VPS connections using
-Dropbox storage. It does not execute restores, retention deletion, SSH/SFTP,
-hosting API actions, MCP actions, or agent-triggered actions.
+The specialized worker executes queued SiteCare Pro long-term backups. It
+supports tested Hostinger SSH/SFTP, legacy explicitly mounted Local VPS, and a
+transitional database-only connection. It never performs unattended restores,
+user-supplied commands, Hostinger routine restoration, MCP actions, or agent
+actions.
 
-## Required Executables
+## Required executables
 
-The worker requires these fixed executable paths:
+The worker image installs fixed executable paths:
 
 ```text
+/usr/bin/ssh
+/usr/bin/sftp
 /usr/bin/tar
 /usr/bin/gzip
 /usr/bin/mysqldump
 ```
 
-The worker Docker target installs `default-mysql-client`, `tar`, and `gzip`.
+Hostinger SSH/SFTP execution uses a fixed SFTP recursive download and the fixed
+remote WP-CLI database export. Local and transitional database execution uses
+`mysqldump --single-transaction` with a temporary mode-0600 option file.
 
-## Required Environment
+## Required environment
 
 ```text
 NUXT_DATABASE_URL
 NUXT_CREDENTIAL_ENCRYPTION_KEY
-NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN
 NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT
-NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES
+NUXT_INTEGRATIONS_DROPBOX_APP_KEY
+NUXT_INTEGRATIONS_DROPBOX_APP_SECRET
+NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI
 NUXT_BACKUPS_DROPBOX_ACCOUNT_LABEL
 NUXT_BACKUPS_DROPBOX_ENABLED
 NUXT_BACKUPS_DROPBOX_TOKEN_STRATEGY
@@ -33,77 +40,113 @@ NUXT_BACKUPS_TEMP_ROOT
 NUXT_BACKUPS_STALE_AFTER_MINUTES
 ```
 
-`NUXT_CREDENTIAL_ENCRYPTION_KEY` must be the same durable secret used by the
-dashboard. Losing it makes saved database passwords unreadable. Dropbox tokens
-and plaintext database passwords must never be logged or committed.
+Use Dashboard OAuth for the destination refresh token. The backward-compatible
+runtime alternatives are `NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN` and
+`NUXT_INTEGRATIONS_DROPBOX_REFRESH_TOKEN`.
 
-## Local Source Mounts
+The encryption key must be the same durable secret used by the Dashboard and
+automation worker. Losing it makes stored source and destination credentials
+unreadable. Secrets and plaintext database passwords must never be logged or
+committed.
 
-Every configured Local VPS WordPress path must resolve inside an allowed base
-directory. In Docker Compose, set:
+## Hostinger source setup
+
+For each Pro site selected for acceptance:
+
+1. In Hostinger hPanel, enable Remote Access for the site/account.
+2. Add the SiteCare worker's SSH public key and keep password authentication
+   unnecessary.
+3. Record the Hostinger host/IP, port (commonly `65002`), username, and safe
+   absolute WordPress root on Site Detail.
+4. Add or rotate the private key in SiteCare. It is encrypted immediately and
+   never returned.
+5. Run **Test hosting connection**. The test requires readable `wp-config.php`,
+   discovers/pins the host key on first success, and verifies WP-CLI.
+6. Queue a manual full backup and confirm files, SQL, manifest, checksums, and
+   README in Dropbox before relying on the monthly schedule.
+
+The remote root accepts only a safe absolute path without whitespace or parent
+traversal. Host/user/port/root changes and key rotation return the connection to
+`not-tested`. A failed test records secret-safe evidence and prevents scheduled
+execution.
+
+Hostinger Agency shared-hosting read boundaries can differ by account. Prove
+that the configured user can read the required full WordPress tree. If WP-CLI
+is not available, do not weaken the fixed-command boundary; retain the
+transitional encrypted database path until another source is approved.
+
+## Legacy local source mounts
+
+Migration 12 marks existing Local VPS records `quarantined`. They are executable
+only when the path exists inside an allowed read-only worker mount:
 
 ```text
 AP_SITECARE_BACKUP_HOST_ROOT=/absolute/host/path/containing/sites
 NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES=/backup-sources
 ```
 
-The host path is mounted at `/backup-sources` read-only in the dashboard and
-worker containers. Configure site WordPress paths using the container-visible
-path, for example `/backup-sources/example.com`.
+Production maps `/opt/sitecare/backup-sources` to `/backup-sources`. Do not put
+unrelated host files under the allowed source root.
 
-The production VPS definition is tracked at:
+## Running and networking
 
-```text
-deploy/vps.compose.yaml
-```
-
-It mounts `/opt/sitecare/backup-sources` read-only into both services. Remote
-WordPress sites must be mounted or synchronized into a dedicated child
-directory before they can use the Local VPS execution adapter. Do not place
-unrelated host files beneath the allowed source root.
-
-## Running
-
-Claim and execute at most one queued job, then exit:
+Run one claim and exit:
 
 ```bash
 npm run backup-worker
 ```
 
-Poll continuously:
+Run continuously:
 
 ```bash
 npm run backup-worker:continuous
 ```
 
-Docker Compose runs the continuous worker as a separate service:
+Production Compose runs Dashboard, backup, automation, and email workers.
+Workers join the private PostgreSQL network plus an outbound-only egress
+network; they expose no ports. Egress is required for Dropbox, Brevo,
+Cloudflare, Hostinger API, and Hostinger SSH/SFTP.
 
-```bash
-docker compose up -d dashboard backup-worker
-```
+## Package and storage behavior
 
-## Job and Failure Behavior
+- Full Pro work requires both files and database source capability.
+- File tar readability, SQL gzip integrity, and SHA-256 checksums are verified
+  before upload.
+- The portable package is not split and uses no proprietary or incremental
+  format.
+- Paths use `/SiteCare Backups/Client Name/YYYY/MM/{backup-id}` by default.
+- Exact object path, checksum, size, upload, and verification state is recorded
+  after each object; evidence survives a later partial failure.
+- Successful and failed jobs enqueue Dashboard-generated backup email to every
+  enabled site recipient subscribed to the `backup` category.
 
-- Claims are atomic; two workers cannot claim the same queued job.
-- PostgreSQL row locking uses `FOR UPDATE SKIP LOCKED`, so multiple worker
-  processes can safely compete for queued jobs.
-- Running jobs heartbeat every 15 seconds.
-- A later worker marks expired heartbeats failed using
-  `NUXT_BACKUPS_STALE_AFTER_MINUTES`.
-- Failed jobs are not automatically retried. Dashboard retry creates a new job.
-- Temporary work uses an isolated mode-0700 directory and is removed in a
-  `finally` cleanup path.
-- Source mounts are read-only. The worker writes only to its temporary
-  directory, PostgreSQL job records, and Dropbox.
+## Job, retention, and restore behavior
 
-## Operational Risks
+- Atomic claims use `FOR UPDATE SKIP LOCKED`; heartbeats run every 15 seconds.
+- Stale work is failed after `NUXT_BACKUPS_STALE_AFTER_MINUTES`.
+- Manual retry creates a new backup ID and never overwrites failure history.
+- Monthly scheduling is deduplicated by site and UTC calendar month.
+- Suspension, cancellation, downgrade, or disabled sites fail the worker's
+  entitlement recheck before acquisition.
+- Artifacts keep their original 24-month expiration after lifecycle changes.
+- The retention automation currently records a dry run and marks candidates
+  `expiration-due`. It does not delete Dropbox objects.
+- Restore preflight and temporary downloads are Dashboard functions. The worker
+  never changes a target host.
 
-- Source files or databases can change during backup creation; application-level
-  consistency beyond `mysqldump --single-transaction` is not guaranteed.
-- Dropbox metadata verification confirms uploaded path and size. Local SHA-256
-  checksums are uploaded for later restore/preflight verification.
-- Large sites require sufficient temporary disk space for archives and dumps.
-- Symlinks anywhere in the WordPress source tree cause the job to fail.
-- PostgreSQL requires independent infrastructure backups and tested restores;
-  its durable volume alone is not a backup.
-- Restore execution and retention deletion remain intentionally unavailable.
+## Production acceptance
+
+Before declaring Phase 7 live:
+
+- connect Dropbox through OAuth, allow an access token to expire, and verify an
+  automatic refresh plus a clean reconnect after controlled revocation
+- run a full Hostinger backup, inspect every object and checksum, and verify the
+  package on a clean WordPress-compatible host
+- interrupt one controlled upload, verify retained partial/failure evidence,
+  and complete a retry as a new artifact
+- review at least one retention dry-run before separately approving deletion
+- record the supervised restore target, checklist, notes, timestamps, operator,
+  and outcome in SiteCare
+
+PostgreSQL itself still requires independent infrastructure backups and tested
+restoration; its Docker volume alone is not a backup.

@@ -26,6 +26,10 @@ import { HostingerPortfolioService } from './hostinger-portfolio-service'
 import { WordPressConnectorService } from './wordpress-connector-service'
 import { CloudflareClient } from '../integrations/cloudflare-client'
 import { CloudflareService } from './cloudflare-service'
+import { BackupService } from './backup-service'
+import { BackupRepository } from '../repositories/backup-repository'
+import { SiteRepository } from '../repositories/site-repository'
+import { SiteService } from './site-service'
 
 const sensitiveKey = /(password|secret|token|credential|authorization|api[-_]?key)/i
 
@@ -303,6 +307,46 @@ export class SchedulerService {
     return created
   }
 
+  async ensurePhaseSevenSchedules(at = new Date()): Promise<number> {
+    const repository = new AutomationRepository(this.database)
+    const subscriptions = await new ServicePlanRepository(this.database).listSubscriptions()
+    let created = 0
+    for (const subscription of subscriptions) {
+      const id = `system:sitecare-pro-backup:${subscription.siteId}`
+      if (await repository.findSchedule(id)) continue
+      await this.save({
+        id,
+        siteId: subscription.siteId,
+        name: 'Evaluate SiteCare Pro monthly backup schedule',
+        jobType: 'sitecare.backup.schedule',
+        operationKey: 'sitecare-pro-backup',
+        intervalSeconds: 86_400,
+        maxAttempts: 3,
+        enabled: true,
+        nextRunAt: at.toISOString(),
+        actorIdentifier: 'system:scheduler'
+      })
+      created += 1
+    }
+    const retentionId = 'system:sitecare-backup-retention'
+    if (!await repository.findSchedule(retentionId)) {
+      await this.save({
+        id: retentionId,
+        siteId: null,
+        name: 'Evaluate SiteCare long-term backup retention',
+        jobType: 'sitecare.backup.retention-dry-run',
+        operationKey: 'sitecare-backup-retention',
+        intervalSeconds: 86_400,
+        maxAttempts: 3,
+        enabled: true,
+        nextRunAt: at.toISOString(),
+        actorIdentifier: 'system:scheduler'
+      })
+      created += 1
+    }
+    return created
+  }
+
   async tick(at = new Date(), limit = 100): Promise<number> {
     const now = at.toISOString()
     return this.withTransaction(async executor => {
@@ -508,6 +552,17 @@ export interface CoreAutomationHandlerSettings {
   cloudflareWebhookDestinationId: string
   cloudflareNotificationPolicyId: string
   cloudflareWebhookSecretConfigured: boolean
+  dropboxAccessToken: string
+  dropboxRefreshToken: string
+  dropboxAppKey: string
+  dropboxAppSecret: string
+  dropboxRedirectUri: string
+  dropboxBackupRoot: string
+  dropboxAccountLabel: string
+  dropboxEnabled: boolean
+  dropboxTokenStrategy: 'runtime-access-token' | 'oauth'
+  allowedLocalBaseDirectories: string[]
+  backupTempRoot: string
 }
 
 export function createCoreAutomationHandlers(
@@ -521,7 +576,18 @@ export function createCoreAutomationHandlers(
     cloudflareAccountId: process.env.NUXT_INTEGRATIONS_CLOUDFLARE_ACCOUNT_ID ?? '',
     cloudflareWebhookDestinationId: process.env.NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_DESTINATION_ID ?? '',
     cloudflareNotificationPolicyId: process.env.NUXT_INTEGRATIONS_CLOUDFLARE_NOTIFICATION_POLICY_ID ?? '',
-    cloudflareWebhookSecretConfigured: Boolean(process.env.NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_SECRET)
+    cloudflareWebhookSecretConfigured: Boolean(process.env.NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_SECRET),
+    dropboxAccessToken: process.env.NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN ?? '',
+    dropboxRefreshToken: process.env.NUXT_INTEGRATIONS_DROPBOX_REFRESH_TOKEN ?? '',
+    dropboxAppKey: process.env.NUXT_INTEGRATIONS_DROPBOX_APP_KEY ?? '',
+    dropboxAppSecret: process.env.NUXT_INTEGRATIONS_DROPBOX_APP_SECRET ?? '',
+    dropboxRedirectUri: process.env.NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI ?? '',
+    dropboxBackupRoot: process.env.NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT ?? '/SiteCare Backups',
+    dropboxAccountLabel: process.env.NUXT_BACKUPS_DROPBOX_ACCOUNT_LABEL ?? 'SiteCare Dropbox',
+    dropboxEnabled: process.env.NUXT_BACKUPS_DROPBOX_ENABLED !== 'false',
+    dropboxTokenStrategy: process.env.NUXT_BACKUPS_DROPBOX_TOKEN_STRATEGY === 'oauth' ? 'oauth' : 'runtime-access-token',
+    allowedLocalBaseDirectories: (process.env.NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES ?? '').split(',').map(value => value.trim()).filter(Boolean),
+    backupTempRoot: process.env.NUXT_BACKUPS_TEMP_ROOT ?? '/tmp/ap-sitecare-backups'
   }
 ): Map<string, AutomationJobHandler> {
   const credentials = new CredentialService(settings.credentialEncryptionKey, undefined, undefined)
@@ -547,6 +613,21 @@ export function createCoreAutomationHandlers(
       webhookSecretConfigured: settings.cloudflareWebhookSecretConfigured
     }
   )
+  const audit = new AuditService(new AuditRepository(database))
+  const backups = new BackupService({
+    credentialEncryptionKey: settings.credentialEncryptionKey,
+    dropboxAccessToken: settings.dropboxAccessToken,
+    dropboxRefreshToken: settings.dropboxRefreshToken,
+    dropboxAppKey: settings.dropboxAppKey,
+    dropboxAppSecret: settings.dropboxAppSecret,
+    dropboxRedirectUri: settings.dropboxRedirectUri,
+    dropboxBackupRoot: settings.dropboxBackupRoot,
+    dropboxAccountLabel: settings.dropboxAccountLabel,
+    dropboxEnabled: settings.dropboxEnabled,
+    dropboxTokenStrategy: settings.dropboxTokenStrategy,
+    allowedLocalBaseDirectories: settings.allowedLocalBaseDirectories,
+    tempRoot: settings.backupTempRoot
+  }, new BackupRepository(database), new SiteService(new SiteRepository(database), audit), audit)
   return new Map([
     ['entitlements.synchronize', {
       async execute(job) {
@@ -609,6 +690,29 @@ export function createCoreAutomationHandlers(
     ['cloudflare.uptime.retention', {
       async execute() {
         return { deletedObservationCount: await cloudflare.purgeRawHistory() }
+      }
+    }],
+    ['sitecare.backup.schedule', {
+      async execute(job) {
+        if (!job.siteId) throw new AutomationPermanentError('SiteCare backup scheduling requires a site.', 'site-required')
+        const entitlement = await new EntitlementService(database).get(job.siteId)
+        if (!entitlement.capabilities['long-term-backups']) {
+          return { skipped: true, reason: 'long-term-backups-not-entitled' }
+        }
+        const result = await backups.planScheduledBackup(job.siteId, job.requestedBy)
+        if (!('skipped' in result)) {
+          await new ServicePlanRepository(database).acknowledgePendingActivationIntents(
+            job.siteId,
+            ['long-term-backups'],
+            new Date().toISOString()
+          )
+        }
+        return result
+      }
+    }],
+    ['sitecare.backup.retention-dry-run', {
+      async execute(job) {
+        return backups.runRetentionDryRun(job.requestedBy)
       }
     }]
   ])

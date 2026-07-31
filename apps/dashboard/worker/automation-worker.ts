@@ -37,6 +37,7 @@ try {
     await scheduler.ensureEntitlementSchedules()
     await scheduler.ensurePhaseFiveSchedules()
     await scheduler.ensurePhaseSixSchedules()
+    await scheduler.ensurePhaseSevenSchedules()
     await scheduler.tick()
     const handled = await worker.runNext()
     if (!continuous || stopping) break

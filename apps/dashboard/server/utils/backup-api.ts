@@ -35,7 +35,13 @@ export function parseBackupPolicyBody(body: Record<string, unknown>) {
     databaseUsername: optionalString(body, 'databaseUsername'),
     databasePassword: optionalString(body, 'databasePassword'),
     providerLabel: optionalString(body, 'providerLabel'),
-    connectionNotes: optionalString(body, 'connectionNotes')
+    connectionNotes: optionalString(body, 'connectionNotes'),
+    remoteHost: optionalString(body, 'remoteHost'),
+    remotePort: optionalNumber(body, 'remotePort'),
+    remoteUsername: optionalString(body, 'remoteUsername'),
+    remoteRootPath: optionalString(body, 'remoteRootPath'),
+    sshPrivateKey: optionalString(body, 'sshPrivateKey'),
+    hostKey: optionalString(body, 'hostKey')
   }
 }
 

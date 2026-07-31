@@ -36,7 +36,7 @@ describe('Backup destination registry', () => {
     await destroyTestDatabase(database)
   })
 
-  it('encrypts saved credentials and resolves site-specific multiple destinations', async () => {
+  it('encrypts saved credentials and resolves a site-specific destination', async () => {
     const { database, service, site } = await createFixture()
     const secret = 'client-dropbox-secret'
     const destination = await service.save({
@@ -47,8 +47,9 @@ describe('Backup destination registry', () => {
       configuration: { basePath: '/Client-Backups' },
       credential: secret
     }, 'operator@example.com')
-    const settings = await service.saveSiteSettings(site.id, 'override', true, ['runtime-dropbox', destination.id], 'operator@example.com')
-    assert.equal(settings.effectiveDestinations.length, 2)
+    const settings = await service.saveSiteSettings(site.id, 'override', false, [destination.id], 'operator@example.com')
+    assert.equal(settings.effectiveDestinations.length, 1)
+    assert.equal(settings.effectiveDestinations[0]?.id, destination.id)
     assert.equal(JSON.stringify(settings).includes(secret), false)
     const stored = (await database.query<{ credential_ciphertext: string }>(
       'SELECT credential_ciphertext FROM backup_destinations WHERE id = $1',
@@ -58,7 +59,7 @@ describe('Backup destination registry', () => {
     await destroyTestDatabase(database)
   })
 
-  it('requires the site-level multiple destination switch before accepting multiple overrides', async () => {
+  it('rejects multiple simultaneous destinations in the current Pro service', async () => {
     const { database, service, site } = await createFixture()
     const second = await service.save({
       name: 'Second Dropbox',
@@ -70,7 +71,7 @@ describe('Backup destination registry', () => {
     }, 'operator@example.com')
     await assert.rejects(
       service.saveSiteSettings(site.id, 'override', false, ['runtime-dropbox', second.id], 'operator@example.com'),
-      /Enable multiple destinations/
+      /exactly one independent off-site/
     )
     await destroyTestDatabase(database)
   })
@@ -105,5 +106,42 @@ describe('Backup destination registry', () => {
       'https://api.dropboxapi.com/2/files/list_folder',
       'https://content.dropboxapi.com/2/files/upload_session/start'
     ])
+  })
+
+  it('refreshes Dropbox OAuth access without routine reauthentication', async () => {
+    const authorizationHeaders: string[] = []
+    const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/oauth2/token')) {
+        return new Response(JSON.stringify({ access_token: 'short-lived-access', expires_in: 14400 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      authorizationHeaders.push(String((init?.headers as Record<string, string>)?.Authorization))
+      return new Response('{}', { status: 200 })
+    }) as typeof fetch
+    const provider = new DropboxStorageProvider(
+      '',
+      '/SiteCare Backups',
+      'Primary Dropbox',
+      true,
+      'oauth',
+      fetcher,
+      { appKey: 'app-key', appSecret: 'app-secret', refreshToken: 'durable-refresh-token' }
+    )
+
+    const result = await provider.testConnection()
+
+    assert.equal(result.connected, true)
+    assert.deepEqual(authorizationHeaders, ['Bearer short-lived-access', 'Bearer short-lived-access'])
+  })
+
+  it('builds stable client, year, month, and backup-id paths without escaping spaces', () => {
+    const provider = new DropboxStorageProvider('token', '/SiteCare Backups', 'Primary Dropbox', true, 'runtime-access-token')
+    assert.equal(
+      provider.artifactPath('Adriel Partners Client', 'backup-123', '2026-07-31T20:00:00.000Z'),
+      '/SiteCare Backups/Adriel Partners Client/2026/07/backup-123'
+    )
   })
 })

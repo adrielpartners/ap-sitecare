@@ -7,16 +7,16 @@ const busy = ref(false)
 const notice = ref('')
 const errorMessage = ref('')
 const enabled = ref(false)
-const frequency = ref('daily')
+const frequency = ref('monthly')
 const filesEnabled = ref(true)
 const databaseEnabled = ref(true)
 const storageProvider = ref('dropbox')
 const destinationMode = ref('master')
 const allowMultipleDestinations = ref(false)
 const selectedDestinationIds = ref<string[]>([])
-const keepDaily = ref('7')
-const keepWeekly = ref('4')
-const keepMonthly = ref('6')
+const keepDaily = ref('0')
+const keepWeekly = ref('0')
+const keepMonthly = ref('24')
 const autoDeleteExpired = ref(false)
 const restoreEnabled = ref(false)
 const connectionType = ref('manual-unsupported')
@@ -30,6 +30,16 @@ const databasePassword = ref('')
 const providerLabel = ref('')
 const notes = ref('')
 const connectionNotes = ref('')
+const remoteHost = ref('')
+const remotePort = ref('65002')
+const remoteUsername = ref('')
+const remoteRootPath = ref('')
+const sshPrivateKey = ref('')
+const hostKey = ref('')
+const downloadLinks = ref<Record<string, Array<{ archiveName: string, url: string }>>>({})
+const restoreNotes = ref<Record<string, string>>({})
+const restoreTargets = ref<Record<string, string>>({})
+const restoreOutcomes = ref<Record<string, string>>({})
 const showAdvancedConnection = ref(false)
 
 watch(overview, (value: any) => {
@@ -37,16 +47,16 @@ watch(overview, (value: any) => {
   const policy = value.policy
   const connection = value.connection
   enabled.value = policy?.enabled ?? false
-  frequency.value = policy?.frequency ?? 'daily'
+  frequency.value = policy?.frequency ?? 'monthly'
   filesEnabled.value = policy?.filesEnabled ?? true
   databaseEnabled.value = policy?.databaseEnabled ?? true
   storageProvider.value = policy?.storageProvider ?? 'dropbox'
   destinationMode.value = value.destinationSettings?.mode ?? 'master'
   allowMultipleDestinations.value = value.destinationSettings?.allowMultiple ?? false
   selectedDestinationIds.value = [...(value.destinationSettings?.destinationIds ?? [])]
-  keepDaily.value = String(policy?.retention.keepDaily ?? 7)
-  keepWeekly.value = String(policy?.retention.keepWeekly ?? 4)
-  keepMonthly.value = String(policy?.retention.keepMonthly ?? 6)
+  keepDaily.value = String(policy?.retention.keepDaily ?? 0)
+  keepWeekly.value = String(policy?.retention.keepWeekly ?? 0)
+  keepMonthly.value = String(policy?.retention.keepMonthly ?? 24)
   autoDeleteExpired.value = policy?.retention.autoDeleteExpired ?? false
   restoreEnabled.value = policy?.restoreEnabled ?? false
   connectionType.value = connection?.connectionType ?? 'manual-unsupported'
@@ -60,6 +70,12 @@ watch(overview, (value: any) => {
   providerLabel.value = connection?.providerLabel ?? ''
   notes.value = policy?.notes ?? ''
   connectionNotes.value = connection?.notes ?? ''
+  remoteHost.value = connection?.remoteHost ?? ''
+  remotePort.value = String(connection?.remotePort ?? 65002)
+  remoteUsername.value = connection?.remoteUsername ?? ''
+  remoteRootPath.value = connection?.remoteRootPath ?? ''
+  sshPrivateKey.value = ''
+  hostKey.value = connection?.hostKey ?? ''
 }, { immediate: true })
 
 const capabilityTone = computed(() => ({
@@ -71,7 +87,7 @@ const capabilityTone = computed(() => ({
 
 const detectedSourceTone = computed(() => {
   if (!overview.value?.connection) return 'warning'
-  if (overview.value.connectionAssessment.backupFiles && overview.value.connection.databaseConfigured) return 'success'
+  if (overview.value.connection.connectionStatus === 'ready' && overview.value.connectionAssessment.backupFiles && overview.value.connectionAssessment.backupDatabase) return 'success'
   if (overview.value.connection.localPath || overview.value.connection.databaseConfigured) return 'warning'
   return 'neutral'
 })
@@ -79,7 +95,7 @@ const detectedSourceTone = computed(() => {
 const detectedSourceLabel = computed(() => {
   const connection = overview.value?.connection
   if (!connection) return 'Waiting for plugin check-in'
-  if (overview.value?.connectionAssessment.backupFiles && connection.databaseConfigured) return 'Ready for files and database'
+  if (connection.connectionStatus === 'ready' && overview.value?.connectionAssessment.backupFiles && overview.value?.connectionAssessment.backupDatabase) return 'Ready for files and database'
   if (connection.databaseConfigured) return 'Database detected; file mount needed'
   if (connection.localPath) return 'Path detected; database details needed'
   return 'Detection incomplete'
@@ -145,7 +161,13 @@ async function savePolicy() {
         databaseUsername: databaseUsername.value,
         databasePassword: databasePassword.value,
         providerLabel: providerLabel.value,
-        connectionNotes: connectionNotes.value
+        connectionNotes: connectionNotes.value,
+        remoteHost: remoteHost.value,
+        remotePort: Number(remotePort.value),
+        remoteUsername: remoteUsername.value,
+        remoteRootPath: remoteRootPath.value,
+        sshPrivateKey: sshPrivateKey.value,
+        hostKey: hostKey.value
       }
     })
   }, 'Backup policy saved and audited.')
@@ -219,6 +241,32 @@ async function prepareRestore(backupId: string) {
   }, 'Restore plan prepared.')
 }
 
+async function loadDownloadLinks(backupId: string) {
+  await runAction(async () => {
+    const result = await api<any>(`/api/backups/${backupId}/download-links`)
+    if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Backup downloads could not be prepared.')
+    downloadLinks.value = { ...downloadLinks.value, [backupId]: result.data.links }
+    return { message: 'Temporary supervised-restore download links are ready for four hours.' }
+  }, 'Download links prepared.')
+}
+
+async function recordRestoreCompleted(plan: any) {
+  await runAction(async () => {
+    await api(`/api/sites/${props.siteId}/restore-plans/${plan.id}`, {
+      method: 'PUT',
+      body: {
+        completedChecklistKeys: plan.checklist.map((item: { key: string }) => item.key),
+        technicianNotes: restoreNotes.value[plan.id] ?? '',
+        targetHostLabel: restoreTargets.value[plan.id] ?? '',
+        outcome: restoreOutcomes.value[plan.id] ?? '',
+        restorationStartedAt: plan.restorationStartedAt ?? new Date().toISOString(),
+        restorationCompletedAt: new Date().toISOString()
+      }
+    })
+    return { message: 'Supervised restore outcome recorded and audited.' }
+  }, 'Restore outcome recorded.')
+}
+
 function formatBytes(value: number | null): string {
   if (value === null) return 'Unknown'
   return `${(value / 1024 / 1024).toFixed(1)} MB`
@@ -254,8 +302,17 @@ function formatBytes(value: number | null): string {
       <AppCard muted>
         <div class="stack stack--sm">
           <AppBadge :tone="overview.latestBackup?.status === 'completed' ? 'success' : 'neutral'">{{ overview.latestBackup?.status ?? 'No backups' }}</AppBadge>
-          <h3>Latest backup</h3>
-          <p class="text-meta">{{ overview.latestBackup ? new Date(overview.latestBackup.startedAt).toLocaleString() : 'No backup artifacts recorded.' }}</p>
+          <h3>Latest SiteCare long-term backup</h3>
+          <p class="text-meta">{{ overview.latestSuccessfulBackup ? new Date(overview.latestSuccessfulBackup.completedAt).toLocaleString() : 'No successful long-term backup recorded.' }}</p>
+          <p v-if="overview.recentFailedBackups.length" class="text-meta">{{ overview.recentFailedBackups.length }} recent failed backup{{ overview.recentFailedBackups.length === 1 ? '' : 's' }} retained for review.</p>
+        </div>
+      </AppCard>
+      <AppCard muted>
+        <div class="stack stack--sm">
+          <AppBadge :tone="overview.hostingerDailyBackup?.dailyBackupAvailability === 'available' ? 'success' : 'neutral'">Hostinger-managed</AppBadge>
+          <h3>Hostinger daily backups</h3>
+          <p class="text-meta">{{ overview.hostingerDailyBackup?.latestDailyBackupAt ? `Latest reported: ${new Date(overview.hostingerDailyBackup.latestDailyBackupAt).toLocaleString()}` : overview.hostingerDailyBackup?.dailyBackupMessage ?? 'Hostinger daily backup timing is not available through the API.' }}</p>
+          <a v-if="overview.hostingerDailyBackup?.managementUrl" :href="overview.hostingerDailyBackup.managementUrl" target="_blank" rel="noreferrer">Open Hostinger</a>
         </div>
       </AppCard>
     </div>
@@ -263,7 +320,7 @@ function formatBytes(value: number | null): string {
     <p v-if="notice" class="backup-message backup-message--notice" role="status">{{ notice }}</p>
     <p v-if="errorMessage" class="backup-message backup-message--error" role="alert">{{ errorMessage }}</p>
 
-    <AppPanel title="Backup setup" description="SiteCare uses the WordPress plugin to detect source paths and database credentials automatically. Adjust only the operating choices here.">
+    <AppPanel title="SiteCare Pro long-term backup" description="Monthly portable files-and-database backups are separate from Hostinger daily backups. Use durable Hostinger SSH/SFTP access for the source.">
       <form class="stack" @submit.prevent="savePolicy">
         <div class="grid">
           <AppCard :tone="detectedSourceTone">
@@ -271,7 +328,7 @@ function formatBytes(value: number | null): string {
               <AppBadge :tone="detectedSourceTone">{{ detectedSourceLabel }}</AppBadge>
               <h3>Detected source</h3>
               <p class="text-meta">
-                {{ overview?.connection?.localPath || 'No WordPress path reported yet.' }}
+                {{ overview?.connection?.remoteRootPath || overview?.connection?.localPath || 'No executable WordPress source configured yet.' }}
               </p>
               <p class="text-meta">
                 Database: {{ overview?.connection?.databaseConfigured ? `${overview.connection.databaseName} on ${overview.connection.databaseHost}` : 'Not detected yet' }}
@@ -296,7 +353,7 @@ function formatBytes(value: number | null): string {
             { label: 'Use central destination pool', value: 'master' },
             { label: 'Use site-specific override', value: 'override' }
           ]" />
-          <AppCheckbox v-model="allowMultipleDestinations" name="allow-multiple-destinations" label="Allow multiple backup locations" description="Edge-case setting: permits this site to select more than one destination." />
+          <p class="text-meta">One independent off-site destination is supported per site in the current service.</p>
         </div>
         <div v-if="destinationMode === 'override'" class="grid">
           <AppCheckbox
@@ -316,13 +373,13 @@ function formatBytes(value: number | null): string {
 
         <div class="section-heading">
           <h3>Schedule and contents</h3>
-          <p>These are the only settings normally needed after the plugin has checked in.</p>
+          <p>SiteCare Pro defaults to one full website-files-and-database backup per month with 24-month retention. Administrative overrides remain available.</p>
         </div>
         <div class="grid">
           <AppCheckbox v-model="enabled" name="backup-enabled" label="Enable backup policy" description="Allows backup jobs to be prepared for this site." />
           <AppCheckbox v-model="filesEnabled" name="files-enabled" label="Include files" />
           <AppCheckbox v-model="databaseEnabled" name="database-enabled" label="Include database" />
-          <AppCheckbox v-model="restoreEnabled" name="restore-enabled" label="Allow restore planning" description="Restore execution remains unavailable." />
+            <AppCheckbox v-model="restoreEnabled" name="restore-enabled" label="Allow supervised restore planning" description="SiteCare prepares verified downloads and a technician checklist; it never runs an unattended restore." />
         </div>
         <div class="grid">
           <AppSelect v-model="frequency" label="Backup frequency" name="backup-frequency" :options="[
@@ -331,35 +388,43 @@ function formatBytes(value: number | null): string {
         </div>
 
         <div>
-          <div class="section-heading"><h3>Retention</h3><p>Automatic deletion remains disabled until a tested cleanup runner exists.</p></div>
+          <div class="section-heading"><h3>Retention</h3><p>SiteCare Pro keeps monthly artifacts for 24 months. The scheduled retention worker currently produces an audited dry run before deletion can be enabled.</p></div>
           <div class="grid">
             <AppInput v-model="keepDaily" name="keep-daily" label="Keep daily backups" />
             <AppInput v-model="keepWeekly" name="keep-weekly" label="Keep weekly backups" />
             <AppInput v-model="keepMonthly" name="keep-monthly" label="Keep monthly backups" />
-            <AppCheckbox v-model="autoDeleteExpired" name="auto-delete" label="Auto-delete expired backups" description="Saved as intent only; no automatic deletion runs in Version One." />
+            <AppCheckbox v-model="autoDeleteExpired" name="auto-delete" label="Expire after retention" description="Expired artifacts are marked by the audited dry-run; remote deletion still requires the controlled enablement step." />
           </div>
         </div>
 
-        <AppCheckbox v-model="showAdvancedConnection" name="show-advanced-connection" label="Show advanced detected connection details" description="Only needed for troubleshooting or manual overrides." />
+        <AppCheckbox v-model="showAdvancedConnection" name="show-advanced-connection" label="Configure Hostinger source" description="Set this once with SSH-key access; routine reauthentication is not required." />
         <div v-if="showAdvancedConnection" class="advanced-connection stack">
           <div class="section-heading">
             <h3>Advanced connection details</h3>
-            <p>The plugin auto-fills these values during check-in. Database passwords are stored encrypted and never returned to this screen.</p>
+            <p>Hostinger Agency hosting supports SSH/SFTP keys. SiteCare encrypts the private key, pins the learned host key after testing, downloads files over SFTP, and exports the database with WP-CLI.</p>
           </div>
           <div class="grid">
             <AppSelect v-model="connectionType" label="Hosting connection" name="connection-type" :options="[
-              { label: 'Local VPS path', value: 'local-vps' },
-              { label: 'SSH/SFTP (placeholder)', value: 'ssh-sftp' },
+              { label: 'Hostinger SSH/SFTP', value: 'ssh-sftp' },
+              { label: 'Local VPS path (legacy/quarantined)', value: 'local-vps' },
               { label: 'SFTP only (placeholder)', value: 'sftp-only' },
-              { label: 'Database credentials (placeholder)', value: 'database-credentials' },
+              { label: 'Database credentials (transitional database-only)', value: 'database-credentials' },
               { label: 'Hosting API (placeholder)', value: 'hosting-api' },
               { label: 'Manual / unsupported', value: 'manual-unsupported' }
             ]" />
-            <AppInput v-model="localPath" name="local-path" label="Detected WordPress path" description="For file backups, the worker must see this path inside its allowed mounted backup source directory." />
+            <AppInput v-if="connectionType === 'local-vps'" v-model="localPath" name="local-path" label="Legacy local WordPress path" description="This is quarantined unless explicitly mounted read-only into the worker." />
             <AppInput v-model="providerLabel" name="provider-label" label="Detected hosting/provider label" />
             <AppCheckbox v-model="databaseConfigured" name="database-configured" label="Database access configured" description="Derived from encrypted database fields." disabled />
           </div>
-          <div class="grid">
+          <div v-if="connectionType === 'ssh-sftp'" class="grid">
+            <AppInput v-model="remoteHost" name="remote-host" label="Hostinger SSH host" placeholder="123.45.67.89" />
+            <AppInput v-model="remotePort" name="remote-port" label="SSH/SFTP port" />
+            <AppInput v-model="remoteUsername" name="remote-username" label="SSH username" />
+            <AppInput v-model="remoteRootPath" name="remote-root-path" label="WordPress root" placeholder="/home/user/domains/example.com/public_html" />
+            <AppTextarea v-model="sshPrivateKey" name="ssh-private-key" label="Add or rotate SSH private key" description="Leave blank to retain the current encrypted key." />
+            <AppTextarea v-model="hostKey" name="ssh-host-key" label="Pinned host key" description="Optional on first test. SiteCare records the learned key after a successful connection." />
+          </div>
+          <div v-if="connectionType === 'database-credentials' || connectionType === 'local-vps'" class="grid">
             <AppInput v-model="databaseHost" name="database-host" label="Database host" />
             <AppInput v-model="databasePort" name="database-port" label="Database port" />
             <AppInput v-model="databaseName" name="database-name" label="Database name" />
@@ -396,6 +461,10 @@ function formatBytes(value: number | null): string {
               <AppButton variant="quiet" :disabled="busy" @click="verifyBackup(backup.id)">Verify backup</AppButton>
               <AppButton v-if="backup.status === 'failed'" variant="quiet" :disabled="busy" @click="retryBackup(backup.id)">Retry as new job</AppButton>
               <AppButton variant="quiet" :disabled="busy" @click="prepareRestore(backup.id)">Prepare restore</AppButton>
+              <AppButton v-if="backup.status === 'completed'" variant="quiet" :disabled="busy" @click="loadDownloadLinks(backup.id)">Get downloads</AppButton>
+            </div>
+            <div v-if="downloadLinks[backup.id]?.length" class="stack stack--sm">
+              <a v-for="link in downloadLinks[backup.id]" :key="link.archiveName" :href="link.url" target="_blank" rel="noreferrer">{{ link.archiveName }}</a>
             </div>
           </td>
         </tr>
@@ -403,14 +472,24 @@ function formatBytes(value: number | null): string {
       <AppEmptyState v-else title="No backup history" description="Save a valid policy, then queue a manual backup for the background worker." />
     </AppPanel>
 
-    <AppPanel title="Restore planner" description="Preflight-only restore plans. No destructive restore action exists.">
+    <AppPanel title="Supervised restore planner" description="Verified portable downloads and a technician checklist. Hostinger's own backup restoration remains a separate Hostinger flow.">
       <div v-if="overview?.restorePlans.length" class="stack">
         <AppCard v-for="plan in overview.restorePlans" :key="plan.id" :tone="plan.status === 'preflight-passed' ? 'warning' : 'danger'">
           <div class="stack stack--sm">
             <AppBadge :tone="plan.status === 'preflight-passed' ? 'warning' : 'danger'">{{ plan.status }}</AppBadge>
             <h3>{{ plan.restoreFiles ? 'Files' : '' }}{{ plan.restoreFiles && plan.restoreDatabase ? ' + ' : '' }}{{ plan.restoreDatabase ? 'Database' : '' }}</h3>
-            <p class="text-meta">Capability: {{ plan.capability }} · Confirmation required · Execution unavailable</p>
+            <p class="text-meta">Capability: {{ plan.capability }} · Confirmation required · No unattended execution</p>
             <p v-for="warning in plan.warnings" :key="warning" class="text-meta">{{ warning }}</p>
+            <ul>
+              <li v-for="item in plan.checklist" :key="item.key">{{ item.label }}</li>
+            </ul>
+            <template v-if="!plan.restorationCompletedAt">
+              <AppInput v-model="restoreTargets[plan.id]" :name="`restore-target-${plan.id}`" label="Target host" placeholder="Hostinger, another WordPress host, or server name" />
+              <AppTextarea v-model="restoreNotes[plan.id]" :name="`restore-notes-${plan.id}`" label="Technician notes" />
+              <AppTextarea v-model="restoreOutcomes[plan.id]" :name="`restore-outcome-${plan.id}`" label="Restore outcome" />
+              <AppButton variant="secondary" :disabled="busy" @click="recordRestoreCompleted(plan)">Record completed restore</AppButton>
+            </template>
+            <p v-else class="text-meta">Completed {{ new Date(plan.restorationCompletedAt).toLocaleString() }} by {{ plan.completedBy }} on {{ plan.targetHostLabel }}. {{ plan.outcome }}</p>
           </div>
         </AppCard>
       </div>

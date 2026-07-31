@@ -26,6 +26,7 @@ class FixtureProcessRunner implements ProcessRunner {
   async run(executable: string, args: string[]): Promise<void> {
     if (this.failWith) throw new Error(this.failWith)
     if (executable.endsWith('/tar')) {
+      if (args[0] === '-tzf') return
       await writeFile(args[1], 'fixture files archive')
       return
     }
@@ -36,6 +37,7 @@ class FixtureProcessRunner implements ProcessRunner {
       return
     }
     if (executable.endsWith('/gzip')) {
+      if (args[0] === '-t') return
       await rename(args[1], `${args[1]}.gz`)
     }
   }
@@ -184,11 +186,12 @@ describe('Backup execution worker', () => {
     assert.ok(artifact?.manifest)
     assert.ok(artifact?.checksumVerifiedAt)
     assert.ok(artifact?.uploadVerifiedAt)
-    assert.deepEqual(storage.uploaded.map(path => path.split('/').at(-1)).sort(), [
-      'checksum.sha256',
-      'manifest.json',
-      'wordpress-files.tar.gz'
-    ])
+    const uploadedNames = storage.uploaded.map(path => path.split('/').at(-1) ?? '')
+    assert.equal(uploadedNames.length, 4)
+    assert.equal(uploadedNames.some(name => name.includes('example.com_') && name.endsWith('_wordpress-files.tar.gz')), true)
+    assert.equal(uploadedNames.some(name => name.endsWith('_manifest.json')), true)
+    assert.equal(uploadedNames.some(name => name.endsWith('_checksum.sha256')), true)
+    assert.equal(uploadedNames.some(name => name.endsWith('_RESTORE.md')), true)
     assert.equal((await auditRepository.listForSite(queued.artifact.siteId)).some(event => event.eventType === 'backup.completed'), true)
     await destroyTestDatabase(database)
   })
@@ -201,11 +204,12 @@ describe('Backup execution worker', () => {
     assert.equal(artifact?.status, 'completed')
     assert.equal(artifact?.filesIncluded, false)
     assert.equal(artifact?.databaseIncluded, true)
-    assert.deepEqual(storage.uploaded.map(path => path.split('/').at(-1)).sort(), [
-      'checksum.sha256',
-      'manifest.json',
-      'wordpress-database.sql.gz'
-    ])
+    const uploadedNames = storage.uploaded.map(path => path.split('/').at(-1) ?? '')
+    assert.equal(uploadedNames.length, 4)
+    assert.equal(uploadedNames.some(name => name.endsWith('_wordpress-database.sql.gz')), true)
+    assert.equal(uploadedNames.some(name => name.endsWith('_manifest.json')), true)
+    assert.equal(uploadedNames.some(name => name.endsWith('_checksum.sha256')), true)
+    assert.equal(uploadedNames.some(name => name.endsWith('_RESTORE.md')), true)
     await destroyTestDatabase(database)
   })
 

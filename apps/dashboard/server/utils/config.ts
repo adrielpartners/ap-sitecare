@@ -24,6 +24,10 @@ export interface RuntimeSettings {
     cloudflareWebhookDestinationId: string
     cloudflareNotificationPolicyId: string
     dropboxAccessToken: string
+    dropboxRefreshToken: string
+    dropboxAppKey: string
+    dropboxAppSecret: string
+    dropboxRedirectUri: string
     dropboxBackupRoot: string
     hostingerApiBaseUrl: string
     hostingerApiToken: string
@@ -33,6 +37,7 @@ export interface RuntimeSettings {
     dropboxAccountLabel: string
     dropboxEnabled: boolean
     dropboxTokenStrategy: 'runtime-access-token' | 'oauth'
+    tempRoot: string
   }
   credentialEncryptionKey: string
   databaseUrl: string
@@ -73,6 +78,10 @@ function runtimeSettingsFromEnvironment(): RuntimeSettings {
       cloudflareWebhookDestinationId: process.env.NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_DESTINATION_ID || '',
       cloudflareNotificationPolicyId: process.env.NUXT_INTEGRATIONS_CLOUDFLARE_NOTIFICATION_POLICY_ID || '',
       dropboxAccessToken: process.env.NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN || '',
+      dropboxRefreshToken: process.env.NUXT_INTEGRATIONS_DROPBOX_REFRESH_TOKEN || '',
+      dropboxAppKey: process.env.NUXT_INTEGRATIONS_DROPBOX_APP_KEY || '',
+      dropboxAppSecret: process.env.NUXT_INTEGRATIONS_DROPBOX_APP_SECRET || '',
+      dropboxRedirectUri: process.env.NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI || '',
       dropboxBackupRoot: process.env.NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT || '',
       hostingerApiBaseUrl: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL || 'https://developers.hostinger.com',
       hostingerApiToken: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN || ''
@@ -83,7 +92,8 @@ function runtimeSettingsFromEnvironment(): RuntimeSettings {
       dropboxEnabled: process.env.NUXT_BACKUPS_DROPBOX_ENABLED !== 'false',
       dropboxTokenStrategy: process.env.NUXT_BACKUPS_DROPBOX_TOKEN_STRATEGY === 'oauth'
         ? 'oauth'
-        : 'runtime-access-token'
+        : 'runtime-access-token',
+      tempRoot: process.env.NUXT_BACKUPS_TEMP_ROOT || '/tmp/ap-sitecare-backups'
     },
     credentialEncryptionKey: process.env.NUXT_CREDENTIAL_ENCRYPTION_KEY || '',
     databaseUrl: process.env.NUXT_DATABASE_URL || 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'

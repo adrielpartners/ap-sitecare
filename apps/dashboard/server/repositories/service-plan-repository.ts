@@ -370,4 +370,17 @@ export class ServicePlanRepository {
         AND status = 'pending'
     `, [siteId, capabilities, cancelledAt])
   }
+
+  async acknowledgePendingActivationIntents(siteId: string, capabilities: ServiceCapability[], acknowledgedAt: string): Promise<number> {
+    if (capabilities.length === 0) return 0
+    const result = await this.database.query(`
+      UPDATE site_service_activation_intents
+      SET status = 'acknowledged', acknowledged_at = $3
+      WHERE site_id = $1
+        AND capability = ANY($2::text[])
+        AND status = 'pending'
+        AND eligible_at <= $3
+    `, [siteId, capabilities, acknowledgedAt])
+    return result.rowCount ?? 0
+  }
 }

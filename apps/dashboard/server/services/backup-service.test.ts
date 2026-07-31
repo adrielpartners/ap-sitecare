@@ -154,6 +154,9 @@ describe('Remote backup foundation', () => {
       retention: { keepDaily: 7, keepWeekly: 4, keepMonthly: 6, autoDeleteExpired: false },
       restoreEnabled: true,
       restoreRequiresConfirmation: true,
+      retentionMonths: 24,
+      nextDueAt: now,
+      lastScheduledPeriod: null,
       notes: null,
       createdAt: now,
       updatedAt: now
@@ -173,6 +176,64 @@ describe('Remote backup foundation', () => {
     symlinkSync(outside, join(wordpressPath, 'linked-outside'))
     const adapter = new LocalVpsConnection([join(root, 'sites')])
     await assert.rejects(adapter.validateTreeHasNoSymlinks(wordpressPath), /Symbolic links are not allowed/)
+    await destroyTestDatabase(database)
+  })
+
+  it('deduplicates monthly Pro work, records 24-month retention, and audits retention dry runs', async () => {
+    const { auditRepository, backupRepository, database, service, site, wordpressPath } = await createFixture()
+    await service.updatePolicy(site.id, {
+      enabled: true,
+      frequency: 'monthly',
+      filesEnabled: true,
+      databaseEnabled: true,
+      storageProvider: 'dropbox',
+      keepDaily: 0,
+      keepWeekly: 0,
+      keepMonthly: 24,
+      autoDeleteExpired: true,
+      restoreEnabled: true,
+      restoreRequiresConfirmation: true,
+      connectionType: 'local-vps',
+      localPath: wordpressPath,
+      databaseConfigured: true,
+      databaseHost: '127.0.0.1',
+      databasePort: 3306,
+      databaseName: 'wordpress',
+      databaseUsername: 'wordpress',
+      databasePassword: 'database-secret'
+    }, 'operator@example.com')
+
+    const scheduledAt = new Date('2026-08-15T12:00:00.000Z')
+    const first = await service.planScheduledBackup(site.id, 'system:scheduler', scheduledAt)
+    const policyAfterQueue = await backupRepository.getPolicy(site.id)
+    if (!policyAfterQueue) throw new Error('Scheduled policy was not created.')
+    await backupRepository.savePolicy({
+      ...policyAfterQueue,
+      nextDueAt: scheduledAt.toISOString(),
+      lastScheduledPeriod: null,
+      updatedAt: scheduledAt.toISOString()
+    })
+    const duplicate = await service.planScheduledBackup(site.id, 'system:scheduler', scheduledAt)
+    assert.equal('artifact' in first, true)
+    assert.equal('duplicate' in duplicate && duplicate.duplicate, true)
+    assert.equal((await backupRepository.getPolicy(site.id))?.lastScheduledPeriod, '2026-08')
+    const artifact = 'artifact' in first ? first.artifact : null
+    if (!artifact) throw new Error('Scheduled artifact was not created.')
+    assert.equal(artifact.expiresAt, '2028-08-15T12:00:00.000Z')
+    assert.match(artifact.storagePath, /^\/AP-SiteCare\/Backup Site\/2026\/08\//)
+
+    await backupRepository.updateArtifact({
+      ...artifact,
+      status: 'completed',
+      completedAt: '2026-08-15T12:05:00.000Z',
+      expiresAt: '2026-08-16T00:00:00.000Z'
+    })
+    const retention = await service.runRetentionDryRun('system:scheduler', new Date('2026-08-17T00:00:00.000Z'))
+    assert.equal(retention.candidateCount, 1)
+    assert.equal((await backupRepository.getArtifact(artifact.id))?.retentionState, 'expiration-due')
+    assert.equal((await auditRepository.listForSite(site.id)).some(event => event.eventType === 'backup.retention.dry-run-completed'), false)
+    const globalAudit = await auditRepository.list()
+    assert.equal(globalAudit.some(event => event.eventType === 'backup.retention.dry-run-completed'), true)
     await destroyTestDatabase(database)
   })
 })

@@ -40,6 +40,10 @@ export default defineNuxtConfig({
       cloudflareWebhookDestinationId: '',
       cloudflareNotificationPolicyId: '',
       dropboxAccessToken: '',
+      dropboxRefreshToken: '',
+      dropboxAppKey: '',
+      dropboxAppSecret: '',
+      dropboxRedirectUri: '',
       dropboxBackupRoot: '',
       hostingerApiBaseUrl: 'https://developers.hostinger.com',
       hostingerApiToken: ''
@@ -48,7 +52,8 @@ export default defineNuxtConfig({
       allowedLocalBaseDirectories: '',
       dropboxAccountLabel: '',
       dropboxEnabled: true,
-      dropboxTokenStrategy: 'runtime-access-token'
+      dropboxTokenStrategy: 'runtime-access-token',
+      tempRoot: '/tmp/ap-sitecare-backups'
     },
     credentialEncryptionKey: '',
     databaseUrl: 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'

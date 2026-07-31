@@ -73,6 +73,7 @@ services:
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
     networks:
       - sitecare_internal
+      - sitecare_egress
     volumes:
       - /opt/sitecare/backup-sources:/backup-sources:ro
 
@@ -93,6 +94,7 @@ services:
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
     networks:
       - sitecare_internal
+      - sitecare_egress
 
   automation-worker:
     build:
@@ -111,6 +113,7 @@ services:
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
     networks:
       - sitecare_internal
+      - sitecare_egress
 
 volumes:
   sitecare-postgres-data:
@@ -118,5 +121,7 @@ volumes:
 networks:
   sitecare_internal:
     internal: true
+  sitecare_egress:
+    driver: bridge
   traefik_proxy:
     external: true

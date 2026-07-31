@@ -13,6 +13,8 @@ export type BackupDestinationMode = 'master' | 'override'
 export type HostingConnectionType = 'local-vps' | 'ssh-sftp' | 'sftp-only' | 'database-credentials' | 'hosting-api' | 'manual-unsupported'
 export type RestoreCapability = 'full' | 'partial' | 'backup-only' | 'unsupported'
 export type RestorePlanStatus = 'draft' | 'preflight-passed' | 'preflight-failed' | 'cancelled'
+export type BackupRetentionState = 'retained' | 'expiration-due' | 'deletion-approved' | 'deleted' | 'deletion-failed'
+export type HostingConnectionStatus = 'not-tested' | 'ready' | 'failed' | 'quarantined'
 
 export interface Site {
   id: string
@@ -233,6 +235,9 @@ export interface BackupPolicy {
   retention: BackupRetention
   restoreEnabled: boolean
   restoreRequiresConfirmation: boolean
+  retentionMonths: number
+  nextDueAt: string | null
+  lastScheduledPeriod: string | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -247,6 +252,18 @@ export interface HostingConnection {
   databasePort: number | null
   databaseName: string | null
   databaseUsername: string | null
+  remoteHost: string | null
+  remotePort: number | null
+  remoteUsername: string | null
+  remoteRootPath: string | null
+  authenticationType: 'none' | 'ssh-private-key'
+  credentialConfigured: boolean
+  credentialVersion: number
+  hostKey: string | null
+  connectionStatus: HostingConnectionStatus
+  lastTestedAt: string | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
   providerLabel: string | null
   notes: string | null
   createdAt: string
@@ -272,6 +289,10 @@ export interface BackupDestination {
   configuration: Record<string, string>
   credentialConfigured: boolean
   executable: boolean
+  lastTestedAt: string | null
+  lastConnectionStatus: 'connected' | 'failed' | 'revoked' | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
   createdAt: string
   updatedAt: string
 }
@@ -300,6 +321,12 @@ export interface BackupArtifact {
   completedAt: string | null
   expiresAt: string | null
   retentionCategory: BackupFrequency | 'manual'
+  clientFolder: string | null
+  packagePrefix: string | null
+  schedulePeriod: string | null
+  retentionState: BackupRetentionState
+  expiredAt: string | null
+  deletedAt: string | null
   manifestPath: string | null
   manifest: BackupManifest | null
   checksumVerifiedAt: string | null
@@ -324,14 +351,14 @@ export interface BackupJob {
 }
 
 export interface BackupManifestArtifact {
-  type: 'files' | 'database' | 'manifest' | 'checksums'
+  type: 'files' | 'database' | 'manifest' | 'checksums' | 'readme'
   archiveName: string
   sizeBytes: number
   checksumSha256: string
 }
 
 export interface BackupManifest {
-  backupVersion: 1
+  backupVersion: 2
   siteId: string
   siteDomain: string
   backupId: string
@@ -344,6 +371,27 @@ export interface BackupManifest {
   archiveNames: string[]
   storageProvider: 'dropbox'
   storagePath: string
+  clientFolder: string
+  expiresAt: string
+  restoreInstructions: string
+}
+
+export interface BackupArtifactObject {
+  id: string
+  backupId: string
+  destinationId: string
+  artifactType: BackupManifestArtifact['type']
+  objectPath: string
+  archiveName: string
+  sizeBytes: number
+  checksumSha256: string
+  uploadStatus: 'uploaded' | 'verified' | 'failed' | 'deleted'
+  uploadedAt: string | null
+  verifiedAt: string | null
+  deletedAt: string | null
+  errorMessage: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface RestorePlan {
@@ -357,6 +405,14 @@ export interface RestorePlan {
   preflight: Record<string, unknown>
   warnings: string[]
   confirmationRequired: boolean
+  checklist: Array<{ key: string, label: string, completed: boolean }>
+  technicianNotes: string | null
+  targetHostLabel: string | null
+  downloadVerifiedAt: string | null
+  restorationStartedAt: string | null
+  restorationCompletedAt: string | null
+  completedBy: string | null
+  outcome: string | null
   createdBy: string
   createdAt: string
   updatedAt: string

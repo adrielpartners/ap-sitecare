@@ -64,8 +64,8 @@ export class BackupArtifactBuilder {
     private readonly gzipExecutable = '/usr/bin/gzip'
   ) {}
 
-  async createFilesArchive(wordpressPath: string, workDirectory: string): Promise<BuiltBackupArtifact> {
-    const archiveName = 'wordpress-files.tar.gz'
+  async createFilesArchive(wordpressPath: string, workDirectory: string, packagePrefix = ''): Promise<BuiltBackupArtifact> {
+    const archiveName = packageName(packagePrefix, 'wordpress-files.tar.gz')
     const archivePath = join(workDirectory, archiveName)
     const args = [
       '-czf', archivePath,
@@ -74,12 +74,14 @@ export class BackupArtifactBuilder {
       '.'
     ]
     await this.processRunner.run(this.tarExecutable, args)
-    return this.describe('files', archivePath)
+    const artifact = await this.describe('files', archivePath)
+    await this.processRunner.run(this.tarExecutable, ['-tzf', archivePath])
+    return artifact
   }
 
-  async createDatabaseArchive(configuration: DatabaseBackupConfiguration, workDirectory: string): Promise<BuiltBackupArtifact> {
+  async createDatabaseArchive(configuration: DatabaseBackupConfiguration, workDirectory: string, packagePrefix = ''): Promise<BuiltBackupArtifact> {
     const credentialsPath = join(workDirectory, 'mysql-client.cnf')
-    const sqlPath = join(workDirectory, 'wordpress-database.sql')
+    const sqlPath = join(workDirectory, packageName(packagePrefix, 'wordpress-database.sql'))
     await writeFile(credentialsPath, [
       '[client]',
       `host="${escapeOption(configuration.host)}"`,
@@ -104,18 +106,31 @@ export class BackupArtifactBuilder {
       ])
       await ensureNonEmptyFile(sqlPath, 'Database dump was empty.')
       await this.processRunner.run(this.gzipExecutable, ['-f', sqlPath])
+      await this.processRunner.run(this.gzipExecutable, ['-t', `${sqlPath}.gz`])
       return this.describe('database', `${sqlPath}.gz`)
     } finally {
       await writeFile(credentialsPath, '', { mode: 0o600 }).catch(() => undefined)
     }
   }
 
+  async createDatabaseArchiveFromSql(sqlPath: string): Promise<BuiltBackupArtifact> {
+    await ensureNonEmptyFile(sqlPath, 'Remote WordPress database export was empty.')
+    await this.processRunner.run(this.gzipExecutable, ['-f', sqlPath])
+    await this.processRunner.run(this.gzipExecutable, ['-t', `${sqlPath}.gz`])
+    return this.describe('database', `${sqlPath}.gz`)
+  }
+
   async writeManifestAndChecksums(
     workDirectory: string,
     manifest: Omit<BackupManifest, 'includedArtifacts' | 'archiveNames'>,
-    artifacts: BuiltBackupArtifact[]
+    artifacts: BuiltBackupArtifact[],
+    packagePrefix = ''
   ): Promise<{ manifest: BackupManifest, files: BuiltBackupArtifact[] }> {
-    const includedArtifacts: BackupManifestArtifact[] = artifacts.map(artifact => ({
+    const readmePath = join(workDirectory, packageName(packagePrefix, 'RESTORE.md'))
+    await writeFile(readmePath, restoreReadme(manifest, artifacts), { mode: 0o600 })
+    const describedReadme = await this.describe('readme', readmePath)
+    const portableArtifacts = [...artifacts, describedReadme]
+    const includedArtifacts: BackupManifestArtifact[] = portableArtifacts.map(artifact => ({
       type: artifact.type,
       archiveName: artifact.archiveName,
       sizeBytes: artifact.sizeBytes,
@@ -124,19 +139,19 @@ export class BackupArtifactBuilder {
     const completeManifest: BackupManifest = {
       ...manifest,
       includedArtifacts,
-      archiveNames: artifacts.map(artifact => artifact.archiveName)
+      archiveNames: portableArtifacts.map(artifact => artifact.archiveName)
     }
-    const manifestPath = join(workDirectory, 'manifest.json')
+    const manifestPath = join(workDirectory, packageName(packagePrefix, 'manifest.json'))
     await writeFile(manifestPath, `${JSON.stringify(completeManifest, null, 2)}\n`, { mode: 0o600 })
     const describedManifest = await this.describe('manifest', manifestPath)
-    const checksumPath = join(workDirectory, 'checksum.sha256')
-    const checksumLines = [...artifacts, describedManifest]
+    const checksumPath = join(workDirectory, packageName(packagePrefix, 'checksum.sha256'))
+    const checksumLines = [...portableArtifacts, describedManifest]
       .map(artifact => `${artifact.checksumSha256}  ${artifact.archiveName}`)
       .join('\n')
     await writeFile(checksumPath, `${checksumLines}\n`, { mode: 0o600 })
     const describedChecksums = await this.describe('checksums', checksumPath)
     await this.verifyChecksums(workDirectory, checksumPath)
-    return { manifest: completeManifest, files: [...artifacts, describedManifest, describedChecksums] }
+    return { manifest: completeManifest, files: [...portableArtifacts, describedManifest, describedChecksums] }
   }
 
   async verifyChecksums(workDirectory: string, checksumPath: string): Promise<void> {
@@ -179,4 +194,31 @@ function escapeOption(value: string): string {
     .replace(/"/g, '\\"')
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r')
+}
+
+function packageName(prefix: string, suffix: string): string {
+  const safePrefix = prefix.trim().replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-')
+  return safePrefix ? `${safePrefix}_${suffix}` : suffix
+}
+
+function restoreReadme(
+  manifest: Omit<BackupManifest, 'includedArtifacts' | 'archiveNames'>,
+  artifacts: BuiltBackupArtifact[]
+): string {
+  const files = artifacts.find(artifact => artifact.type === 'files')?.archiveName ?? 'Not included'
+  const database = artifacts.find(artifact => artifact.type === 'database')?.archiveName ?? 'Not included'
+  return `# SiteCare portable WordPress backup\n\n` +
+    `Website: ${manifest.siteDomain}\n\n` +
+    `Backup ID: ${manifest.backupId}\n\n` +
+    `Created: ${manifest.backupTimestamp}\n\n` +
+    `Files archive: ${files}\n\n` +
+    `Database archive: ${database}\n\n` +
+    `## Supervised restoration\n\n` +
+    `1. Verify every file against the SHA-256 checksum file.\n` +
+    `2. Extract the WordPress files archive into the target web root.\n` +
+    `3. Decompress the SQL archive and import it with the target host's database tooling.\n` +
+    `4. Update wp-config.php and site URLs only when required by the target host.\n` +
+    `5. Confirm the homepage, WordPress admin, plugins, themes, media, SSL, and permalinks.\n` +
+    `6. Record the technician, timestamps, target host, and outcome in SiteCare.\n\n` +
+    `SiteCare does not perform unattended restore execution.\n`
 }

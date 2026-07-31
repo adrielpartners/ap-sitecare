@@ -1279,6 +1279,164 @@ const migrations: Migration[] = [
         ON cloudflare_security_evidence(site_id, control_key, source, observed_at DESC)
         WHERE superseded_at IS NULL;
     `
+  },
+  {
+    id: 12,
+    name: 'add_sitecare_pro_portable_backup_operations',
+    sql: `
+      ALTER TABLE backup_policies
+        ADD COLUMN retention_months INTEGER NOT NULL DEFAULT 24
+          CHECK (retention_months BETWEEN 1 AND 120),
+        ADD COLUMN next_due_at TIMESTAMPTZ,
+        ADD COLUMN last_scheduled_period TEXT;
+
+      UPDATE backup_policies
+      SET frequency = 'monthly',
+          files_enabled = TRUE,
+          database_enabled = TRUE,
+          keep_daily = 0,
+          keep_weekly = 0,
+          keep_monthly = 24,
+          retention_months = 24,
+          restore_requires_confirmation = TRUE;
+
+      UPDATE site_backup_destination_settings SET allow_multiple = FALSE;
+      DELETE FROM site_backup_destination_assignments assignment
+      WHERE EXISTS (
+        SELECT 1
+        FROM site_backup_destination_assignments earlier
+        WHERE earlier.site_id = assignment.site_id
+          AND earlier.priority < assignment.priority
+      );
+
+      ALTER TABLE hosting_connections
+        ADD COLUMN remote_host TEXT,
+        ADD COLUMN remote_port INTEGER CHECK (remote_port IS NULL OR remote_port BETWEEN 1 AND 65535),
+        ADD COLUMN remote_username TEXT,
+        ADD COLUMN remote_root_path TEXT,
+        ADD COLUMN authentication_type TEXT NOT NULL DEFAULT 'none'
+          CHECK (authentication_type IN ('none', 'ssh-private-key')),
+        ADD COLUMN credential_ciphertext TEXT,
+        ADD COLUMN credential_version INTEGER NOT NULL DEFAULT 0 CHECK (credential_version >= 0),
+        ADD COLUMN host_key TEXT,
+        ADD COLUMN connection_status TEXT NOT NULL DEFAULT 'not-tested'
+          CHECK (connection_status IN ('not-tested', 'ready', 'failed', 'quarantined')),
+        ADD COLUMN last_tested_at TIMESTAMPTZ,
+        ADD COLUMN last_error_code TEXT,
+        ADD COLUMN last_error_message TEXT;
+
+      UPDATE hosting_connections
+      SET connection_status = CASE
+        WHEN connection_type = 'local-vps' THEN 'quarantined'
+        ELSE 'not-tested'
+      END,
+      last_error_code = CASE
+        WHEN connection_type = 'local-vps' THEN 'legacy-local-source'
+        ELSE NULL
+      END,
+      last_error_message = CASE
+        WHEN connection_type = 'local-vps' THEN 'Legacy local paths require an explicit worker mount and are not valid Hostinger shared-hosting sources.'
+        ELSE NULL
+      END;
+
+      CREATE TABLE backup_client_folders (
+        client_account_id TEXT PRIMARY KEY,
+        folder_name TEXT NOT NULL UNIQUE,
+        original_client_name TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (client_account_id) REFERENCES client_accounts(id) ON DELETE RESTRICT,
+        CHECK (LENGTH(TRIM(folder_name)) > 0)
+      );
+
+      ALTER TABLE backup_artifacts
+        ADD COLUMN client_folder TEXT,
+        ADD COLUMN package_prefix TEXT,
+        ADD COLUMN schedule_period TEXT,
+        ADD COLUMN retention_state TEXT NOT NULL DEFAULT 'retained'
+          CHECK (retention_state IN ('retained', 'expiration-due', 'deletion-approved', 'deleted', 'deletion-failed')),
+        ADD COLUMN expired_at TIMESTAMPTZ,
+        ADD COLUMN deleted_at TIMESTAMPTZ;
+
+      CREATE UNIQUE INDEX backup_artifacts_scheduled_period
+        ON backup_artifacts(site_id, schedule_period)
+        WHERE backup_type = 'scheduled' AND schedule_period IS NOT NULL;
+
+      CREATE INDEX backup_artifacts_retention_due
+        ON backup_artifacts(expires_at ASC)
+        WHERE status = 'completed' AND retention_state = 'retained' AND expires_at IS NOT NULL;
+
+      CREATE TABLE backup_artifact_objects (
+        id TEXT PRIMARY KEY,
+        backup_id TEXT NOT NULL,
+        destination_id TEXT NOT NULL,
+        artifact_type TEXT NOT NULL
+          CHECK (artifact_type IN ('files', 'database', 'manifest', 'checksums', 'readme')),
+        object_path TEXT NOT NULL,
+        archive_name TEXT NOT NULL,
+        size_bytes BIGINT NOT NULL CHECK (size_bytes >= 0),
+        checksum_sha256 TEXT NOT NULL,
+        upload_status TEXT NOT NULL
+          CHECK (upload_status IN ('uploaded', 'verified', 'failed', 'deleted')),
+        uploaded_at TIMESTAMPTZ,
+        verified_at TIMESTAMPTZ,
+        deleted_at TIMESTAMPTZ,
+        error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (backup_id) REFERENCES backup_artifacts(id) ON DELETE CASCADE,
+        FOREIGN KEY (destination_id) REFERENCES backup_destinations(id) ON DELETE RESTRICT,
+        UNIQUE (backup_id, destination_id, object_path)
+      );
+
+      CREATE INDEX backup_artifact_objects_backup_destination
+        ON backup_artifact_objects(backup_id, destination_id, artifact_type);
+
+      CREATE TABLE backup_retention_runs (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL
+          CHECK (status IN ('dry-run', 'approved', 'completed', 'failed')),
+        candidate_count INTEGER NOT NULL DEFAULT 0 CHECK (candidate_count >= 0),
+        candidate_backup_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        requested_by TEXT NOT NULL,
+        approved_by TEXT,
+        error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        approved_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ
+      );
+
+      ALTER TABLE backup_destinations
+        ADD COLUMN last_tested_at TIMESTAMPTZ,
+        ADD COLUMN last_connection_status TEXT
+          CHECK (last_connection_status IS NULL OR last_connection_status IN ('connected', 'failed', 'revoked')),
+        ADD COLUMN last_error_code TEXT,
+        ADD COLUMN last_error_message TEXT;
+
+      CREATE TABLE backup_destination_oauth_states (
+        state_hash TEXT PRIMARY KEY,
+        destination_id TEXT NOT NULL,
+        initiated_by TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        consumed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (destination_id) REFERENCES backup_destinations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX backup_destination_oauth_states_expiry
+        ON backup_destination_oauth_states(expires_at ASC)
+        WHERE consumed_at IS NULL;
+
+      ALTER TABLE restore_plans
+        ADD COLUMN checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ADD COLUMN technician_notes TEXT,
+        ADD COLUMN target_host_label TEXT,
+        ADD COLUMN download_verified_at TIMESTAMPTZ,
+        ADD COLUMN restoration_started_at TIMESTAMPTZ,
+        ADD COLUMN restoration_completed_at TIMESTAMPTZ,
+        ADD COLUMN completed_by TEXT,
+        ADD COLUMN outcome TEXT;
+    `
   }
 ]
 

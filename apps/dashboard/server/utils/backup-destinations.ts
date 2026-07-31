@@ -7,6 +7,11 @@ export function getBackupDestinationService(event?: H3Event): BackupDestinationS
   return new BackupDestinationService({
     credentialEncryptionKey: config.credentialEncryptionKey,
     dropboxAccessToken: config.integrations.dropboxAccessToken,
+    dropboxRefreshToken: config.integrations.dropboxRefreshToken,
+    dropboxAppKey: config.integrations.dropboxAppKey,
+    dropboxAppSecret: config.integrations.dropboxAppSecret,
+    dropboxRedirectUri: config.integrations.dropboxRedirectUri,
+    sitecareBaseUrl: config.sitecareBaseUrl,
     dropboxBackupRoot: config.integrations.dropboxBackupRoot,
     dropboxAccountLabel: config.backups.dropboxAccountLabel,
     dropboxEnabled: String(config.backups.dropboxEnabled) !== 'false'

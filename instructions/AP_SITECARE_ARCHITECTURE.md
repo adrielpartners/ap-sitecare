@@ -1031,167 +1031,123 @@ behavior render explicit coming-soon pages.
 
 ---
 
-# 23. Remote Backup and Restore Planning Foundation
+# 23. SiteCare Pro Long-Term Backup and Supervised Restore
 
-Backup policy and restore planning are owned exclusively by the AP SiteCare
-Dashboard. The WordPress plugin has no backup scheduling, retention, storage,
-connection, or restore-decision responsibilities.
+SiteCare owns only SiteCare Pro long-term backups. Hostinger owns routine daily
+backups and its restoration flow. The Dashboard owns policy, entitlements,
+scheduling, storage, evidence, notifications, retention, and supervised
+restore records; the specialized backup worker performs heavy acquisition,
+packaging, verification, and upload.
 
-## Data Ownership
+## Policy and Lifecycle
 
-Migration 4 adds:
+- the immutable Pro default is one full files-and-database backup each month
+- retention is 24 months from artifact creation
+- one effective independent destination is executable per site
+- a daily general-automation evaluation queues a due monthly backup and uses a
+  `(site_id, schedule_period)` database constraint for deduplication
+- the worker reevaluates `long-term-backups` immediately before execution
+- downgrade, cancellation, suspension, and site disablement stop new work
+  through central entitlement state but never shorten existing artifact expiry
+- manual backup remains available to entitled Pro sites
 
-- `backup_policies`
-- `hosting_connections`
-- `backup_artifacts`
-- `backup_jobs`
-- `restore_plans`
+Policy/connection saves, artifact/job/destination creation, job claims, and
+completion/failure finalization are transactional. Jobs use PostgreSQL row
+locking, leases, heartbeats, stale recovery, and new-artifact retries.
 
-Migration 5 adds encrypted Local VPS database connection fields, atomic job
-claim/heartbeat/attempt fields, and artifact manifest/checksum/upload
-verification evidence.
+## Source Boundary
 
-Migration 6 adds:
+The production shared-hosting source is Hostinger SSH/SFTP with a durable SSH
+private key encrypted by `NUXT_CREDENTIAL_ENCRYPTION_KEY`. Per-site records
+contain host, port, username, remote WordPress root, credential version,
+learned/pinned host key, test state, and secret-safe failure evidence.
 
-- `backup_destinations`
-- `site_backup_destination_settings`
-- `site_backup_destination_assignments`
-- `backup_job_destinations`
+Connection testing requires readable `wp-config.php` and WP-CLI. Execution:
 
-Backup destinations are centrally managed dashboard records. Sites inherit the
-enabled central destination pool by default, may select site-specific
-overrides, and may explicitly opt into multiple destinations. Destination IDs
-are snapshotted onto queued jobs so later settings changes do not redirect
-already queued work.
+1. downloads the readable WordPress tree recursively with fixed OpenSSH SFTP
+2. rejects unsafe paths and symlinks
+3. exports SQL with the fixed remote command `wp db export - --quiet`
+4. never accepts user-supplied commands
 
-## Service Flow
+Legacy Local VPS connections are set to `quarantined` by migration 12 and work
+only when an explicit read-only worker mount satisfies the existing allowlist.
+Plugin-reported direct database credentials remain an encrypted transitional
+database-only source. Once a tested SSH/SFTP source is `ready`, plugin check-ins
+do not replace it or ingest a new database password.
 
-```text
-Dashboard UI
-→ Protected Backup API
-→ BackupService
-→ BackupRepository + Provider/Connection Adapters
-→ PostgreSQL + AuditService
-```
+## Portable Package and Evidence
 
-## Provider and Connection Adapters
+Every package uses ordinary WordPress-compatible artifacts:
 
-Dropbox is the first executable storage-provider adapter. The original
-environment-configured Dropbox connection remains available as a
-runtime-managed destination. Additional destination credentials may be entered
-through the protected dashboard and are encrypted at rest with
-`NUXT_CREDENTIAL_ENCRYPTION_KEY`. Credentials are never returned through APIs,
-stored in policy/artifact/job records, or included in audit metadata.
+- `hostname_UTC-timestamp_backup-id_wordpress-files.tar.gz`
+- `hostname_UTC-timestamp_backup-id_wordpress-database.sql.gz`
+- `hostname_UTC-timestamp_backup-id_manifest.json`
+- `hostname_UTC-timestamp_backup-id_checksum.sha256`
+- `hostname_UTC-timestamp_backup-id_RESTORE.md`
 
-Google Drive and Amazon/S3-compatible destinations may be configured and
-assigned, but remain explicitly non-executable until their adapters are
-implemented and verified.
+Tar readability, gzip integrity, and every SHA-256 entry are checked locally
+before upload. Each remote object stores destination ID, exact path, archive
+name, size, checksum, upload state, and verification timestamp. Partial upload
+evidence and failed artifacts are retained.
 
-Local VPS is the first hosting-connection foundation. Local WordPress paths
-must exist and resolve inside one of the comma-separated directories configured
-by:
+## Dropbox Destination
 
-```text
-NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES
-NUXT_BACKUPS_DROPBOX_ENABLED
-NUXT_BACKUPS_DROPBOX_TOKEN_STRATEGY
-```
+Dropbox is the first executable adapter. New Dashboard-managed connections use
+OAuth authorization-code flow with `token_access_type=offline`; the encrypted
+refresh token automatically renews short-lived access. The original runtime
+access-token configuration remains compatible during cutover.
 
-Dropbox account label, token strategy, enabled state, and base folder are
-runtime-backed provider configuration. The token itself remains secret runtime
-configuration. OAuth is represented as a token strategy foundation; an OAuth
-authorization flow is not implemented yet.
-
-Local paths must be mounted read-only into both the dashboard and backup-worker
-containers.
-
-SSH/SFTP, SFTP-only, database credential, hosting API, and manual connection
-types are modeled but report unsupported until an execution adapter is
-implemented and verified.
-
-## Execution Boundary
-
-The approved Local VPS + Dropbox worker can:
-
-- configure and audit backup policies
-- calculate restore capability
-- queue manual-backup jobs
-- atomically claim and execute one queued job at a time
-- create gzip-compressed file archives and database dumps
-- create and locally verify manifests and SHA-256 checksums
-- upload and verify Dropbox objects
-- inspect recorded backup evidence and client-safe manifests
-- create and audit restore preflight plans
-
-The worker cannot:
-
-- automatically delete expired artifacts
-- execute a restore
-- run user-supplied shell commands
-- write to arbitrary filesystem paths
-- execute through MCP, agents, SSH/SFTP, or hosting APIs
-
-All restore plans require confirmation, but no confirmation or execution route
-exists yet.
-
-## Plugin-Detected Backup Source
-
-The WordPress reporter includes backup-source discovery in signed plugin
-check-ins:
-
-- WordPress path from `ABSPATH`
-- database host, port, name, username, and password from WordPress constants
-- server/provider label hints
-
-The dashboard stores the database password only in the encrypted
-`hosting_connections.database_password_ciphertext` field using
-`NUXT_CREDENTIAL_ENCRYPTION_KEY`. Check-in history stores only redacted
-backup-source metadata and never persists the plaintext database password in
-`site_check_ins.payload_json`.
-
-Plugin-discovered paths describe the WordPress server's filesystem. File
-backup execution still requires the dashboard/worker container to see that
-path under the configured read-only backup-source mount.
-
-## Protected Backup APIs
+The configurable default root is `/SiteCare Backups`. A client folder is
+created once from the client name and does not change when the display name
+changes. New artifact directories are:
 
 ```text
-GET  /api/backups
-GET  /api/backups/:id
-GET  /api/backups/:id/manifest
-POST /api/backups/:id/verify
-POST /api/backups/:id/retry
-POST /api/backup-storage/dropbox/test
-
-GET  /api/backup-destinations
-POST /api/backup-destinations
-PUT  /api/backup-destinations/:id
-POST /api/backup-destinations/:id/test
-
-GET  /api/sites/:id/backups
-PUT  /api/sites/:id/backups/policy
-POST /api/sites/:id/backups/manual
-POST /api/sites/:id/backups/connection-test
-PUT  /api/sites/:id/backup-destinations
-
-GET  /api/sites/:id/restore-plans
-POST /api/sites/:id/restore-plans
+/SiteCare Backups/Client Name/YYYY/MM/{backup-id}
 ```
 
-Backup endpoints use explicit `{ ok, data }` and `{ ok, error }` envelopes.
+Changing a root affects only new artifacts because existing objects retain
+their exact path. Google Drive and S3-compatible records remain explicitly
+non-executable future adapters.
 
-## Backup Worker
+## Status, Notification, Retention, and Restore
+
+Site Detail shows Hostinger daily-backup evidence separately from SiteCare's
+latest successful long-term backup and recent failures. Success and failure
+messages are generated by the Dashboard and fan out through the backup
+notification category to multiple site recipients.
+
+The daily retention workflow creates an audited dry-run and marks due artifacts
+`expiration-due`. It does not delete remote objects until a separate production
+approval enables deletion.
+
+A supervised restore plan checks completed state, local checksum verification,
+remote upload verification, files, SQL, and restoration README. Authorized
+technicians can create four-hour Dropbox download links and record checklist,
+target host, notes, start/completion timestamps, operator, and outcome. No
+unattended restore execution exists. Hostinger restoration remains an external
+management link.
+
+## Data and APIs
+
+Migration 12 extends the earlier backup tables and adds:
+
+- `backup_client_folders`
+- `backup_artifact_objects`
+- `backup_retention_runs`
+- `backup_destination_oauth_states`
+
+Protected Phase 7 routes add:
 
 ```text
-npm run backup-worker
-npm run backup-worker:continuous
+POST /api/backup-destinations/:id/oauth/start
+GET  /api/backup-destinations/oauth/callback
+GET  /api/backups/:id/download-links
+PUT  /api/sites/:id/restore-plans/:planId
 ```
 
-The worker uses fixed `/usr/bin/tar`, `/usr/bin/mysqldump`, and
-`/usr/bin/gzip` executables with argument arrays and no shell. Database
-passwords are encrypted at rest with `NUXT_CREDENTIAL_ENCRYPTION_KEY`, written
-only to a protected temporary MySQL option file, and never returned or logged.
-See `BACKUP_WORKER_OPERATIONS.md` for deployment requirements.
+The existing backup, destination, manual queue, verification, retry, connection
+test, and restore-preflight routes remain. See `docs/BACKUP_DESTINATIONS.md` and
+`BACKUP_WORKER_OPERATIONS.md` for deployment and acceptance procedures.
 
 ---
 

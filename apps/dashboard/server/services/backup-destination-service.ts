@@ -1,16 +1,22 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import type { BackupDestination, BackupDestinationMode, BackupDestinationProvider, SiteBackupDestinationSettings } from '../domain/types'
 import { BackupDestinationRepository } from '../repositories/backup-destination-repository'
 import { decryptSecret, encryptSecret } from '../utils/credential-crypto'
 import { AuditService } from './audit-service'
 import { SiteService } from './site-service'
 import { DropboxStorageProvider } from '../backups/dropbox-storage-provider'
+import { DropboxOAuthClient } from '../integrations/dropbox-oauth-client'
 
 const providers: BackupDestinationProvider[] = ['dropbox', 'google-drive', 's3-compatible']
 
 export interface BackupDestinationRuntimeSettings {
   credentialEncryptionKey: string
   dropboxAccessToken: string
+  dropboxRefreshToken?: string
+  dropboxAppKey?: string
+  dropboxAppSecret?: string
+  dropboxRedirectUri?: string
+  sitecareBaseUrl?: string
   dropboxBackupRoot: string
   dropboxAccountLabel: string
   dropboxEnabled: boolean
@@ -57,6 +63,10 @@ export class BackupDestinationService {
         input.credential || (existing && await this.repository.getCredentialCiphertext(existing.id))
       ),
       executable: input.provider === 'dropbox',
+      lastTestedAt: existing?.lastTestedAt ?? null,
+      lastConnectionStatus: existing?.lastConnectionStatus ?? null,
+      lastErrorCode: existing?.lastErrorCode ?? null,
+      lastErrorMessage: existing?.lastErrorMessage ?? null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     }
@@ -85,6 +95,14 @@ export class BackupDestinationService {
           message: `${destination.name} is saved, but its execution adapter is not implemented yet.`,
           checkedAt: new Date().toISOString()
         }
+    const testedAt = result.checkedAt
+    await this.repository.recordConnectionResult(
+      destination.id,
+      result.connected ? 'connected' : 'failed',
+      result.connected ? null : 'connection-test-failed',
+      result.connected ? null : result.message,
+      testedAt
+    )
     await this.audit.record({
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -117,7 +135,9 @@ export class BackupDestinationService {
     const destinations = await this.list()
     if (uniqueIds.some(id => !destinations.some(destination => destination.id === id))) throw new Error('A selected backup destination was not found.')
     if (mode === 'override' && !uniqueIds.length) throw new Error('Select at least one site-specific backup destination.')
-    if (!allowMultiple && uniqueIds.length > 1) throw new Error('Enable multiple destinations before selecting more than one destination.')
+    if (allowMultiple || uniqueIds.length > 1) {
+      throw new Error('SiteCare Pro currently supports exactly one independent off-site backup destination per site.')
+    }
     await this.repository.saveSiteSettings(
       siteId,
       mode,
@@ -147,11 +167,15 @@ export class BackupDestinationService {
     const selected = settings.mode === 'override'
       ? settings.destinationIds.map(id => destinations.find(destination => destination.id === id)).filter(Boolean) as BackupDestination[]
       : destinations.filter(destination => destination.inMasterPool)
-    return settings.allowMultiple ? selected : selected.slice(0, 1)
+    return selected.slice(0, 1)
   }
 
   async credential(destination: BackupDestination): Promise<string> {
-    if (destination.credentialSource === 'runtime') return this.settings.dropboxAccessToken
+    if (destination.credentialSource === 'runtime') {
+      return destination.configuration.authMode === 'oauth-refresh-token'
+        ? this.settings.dropboxRefreshToken ?? ''
+        : this.settings.dropboxAccessToken
+    }
     const ciphertext = await this.repository.getCredentialCiphertext(destination.id)
     if (!ciphertext) throw new Error(`${destination.name} does not have a configured credential.`)
     return decryptSecret(ciphertext, this.settings.credentialEncryptionKey)
@@ -159,17 +183,84 @@ export class BackupDestinationService {
 
   async dropbox(destination: BackupDestination): Promise<DropboxStorageProvider> {
     if (destination.provider !== 'dropbox') throw new Error(`${destination.name} does not have an executable backup adapter yet.`)
+    const credential = await this.credential(destination)
+    const oauth = destination.configuration.authMode === 'oauth-refresh-token'
+      ? {
+          appKey: this.settings.dropboxAppKey ?? '',
+          appSecret: this.settings.dropboxAppSecret ?? '',
+          refreshToken: credential
+        }
+      : undefined
     return new DropboxStorageProvider(
-      await this.credential(destination),
+      oauth ? '' : credential,
       destination.configuration.basePath ?? '',
       destination.name,
       destination.enabled,
-      destination.credentialSource === 'runtime' ? 'runtime-access-token' : 'oauth'
+      oauth ? 'oauth' : 'runtime-access-token',
+      fetch,
+      oauth
     )
   }
 
+  async beginDropboxOAuth(destinationId: string, actorIdentifier: string): Promise<{ authorizationUrl: string }> {
+    const destination = await this.repository.get(destinationId)
+    if (!destination || destination.provider !== 'dropbox') throw new Error('Dropbox destination not found.')
+    if (destination.credentialSource === 'runtime') throw new Error('Runtime Dropbox credentials must be changed through deployment settings.')
+    const state = randomBytes(32).toString('base64url')
+    const now = new Date()
+    await this.repository.createOAuthState({
+      stateHash: hashState(state),
+      destinationId,
+      initiatedBy: actorIdentifier,
+      expiresAt: new Date(now.getTime() + 10 * 60_000).toISOString(),
+      createdAt: now.toISOString()
+    })
+    const client = this.oauthClient()
+    await this.audit.record({
+      actorType: 'dashboard-user',
+      actorIdentifier,
+      eventType: 'backup.destination.oauth-started',
+      metadata: { destinationId, provider: 'dropbox' }
+    })
+    return { authorizationUrl: client.authorizationUrl(state) }
+  }
+
+  async completeDropboxOAuth(code: string, state: string): Promise<BackupDestination> {
+    if (!code.trim() || !state.trim()) throw new Error('Dropbox authorization response is incomplete.')
+    const consumedAt = new Date().toISOString()
+    const pending = await this.repository.consumeOAuthState(hashState(state), consumedAt)
+    if (!pending) throw new Error('Dropbox authorization state is invalid or expired.')
+    const destination = await this.repository.get(pending.destinationId)
+    if (!destination || destination.provider !== 'dropbox' || destination.credentialSource === 'runtime') {
+      throw new Error('Dropbox destination is no longer available for authorization.')
+    }
+    const credential = await this.oauthClient().exchangeCode(code)
+    const connected: BackupDestination = {
+      ...destination,
+      configuration: {
+        ...destination.configuration,
+        authMode: 'oauth-refresh-token',
+        ...(credential.accountId ? { accountId: credential.accountId } : {})
+      },
+      credentialConfigured: true,
+      lastTestedAt: null,
+      lastConnectionStatus: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      updatedAt: consumedAt
+    }
+    await this.repository.save(connected, encryptSecret(credential.refreshToken, this.settings.credentialEncryptionKey))
+    await this.audit.record({
+      actorType: 'dashboard-user',
+      actorIdentifier: pending.initiatedBy,
+      eventType: 'backup.destination.oauth-connected',
+      metadata: { destinationId: destination.id, provider: 'dropbox' }
+    })
+    return connected
+  }
+
   private async ensureRuntimeDropbox(): Promise<void> {
-    if (!this.settings.dropboxAccessToken || !this.settings.dropboxBackupRoot) return
+    if ((!this.settings.dropboxAccessToken && !this.settings.dropboxRefreshToken) || !this.settings.dropboxBackupRoot) return
     const existing = await this.repository.get('runtime-dropbox')
     const now = new Date().toISOString()
     await this.repository.save({
@@ -179,9 +270,16 @@ export class BackupDestinationService {
       enabled: this.settings.dropboxEnabled,
       inMasterPool: existing?.inMasterPool ?? true,
       credentialSource: 'runtime',
-      configuration: { basePath: this.settings.dropboxBackupRoot },
+      configuration: {
+        basePath: this.settings.dropboxBackupRoot,
+        authMode: this.settings.dropboxRefreshToken ? 'oauth-refresh-token' : 'access-token'
+      },
       credentialConfigured: true,
       executable: true,
+      lastTestedAt: existing?.lastTestedAt ?? null,
+      lastConnectionStatus: existing?.lastConnectionStatus ?? null,
+      lastErrorCode: existing?.lastErrorCode ?? null,
+      lastErrorMessage: existing?.lastErrorMessage ?? null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     }, null)
@@ -192,7 +290,12 @@ export class BackupDestinationService {
     if (!providers.includes(input.provider)) throw new Error('Unsupported backup destination provider.')
     const configuration = this.cleanConfiguration(input.provider, input.configuration)
     if (input.provider === 'dropbox' && !configuration.basePath) throw new Error('Dropbox base path is required.')
-    if (input.provider === 'dropbox' && !input.id && !input.credential?.trim()) throw new Error('Dropbox access token is required.')
+    if (input.provider === 'dropbox' && configuration.authMode
+      && !['access-token', 'oauth-refresh-token'].includes(configuration.authMode)) {
+      throw new Error('Unsupported Dropbox authorization mode.')
+    }
+    if (input.provider === 'dropbox' && !input.id && !input.credential?.trim()
+      && configuration.authMode !== 'oauth-refresh-token') throw new Error('Dropbox access token is required, or choose OAuth and connect after saving.')
     if (input.provider === 'google-drive' && !configuration.folderId) throw new Error('Google Drive folder ID is required.')
     if (input.provider === 's3-compatible' && (!configuration.bucket || !configuration.region || !configuration.accessKeyId)) {
       throw new Error('Amazon/S3 bucket, region, and access key ID are required.')
@@ -201,7 +304,7 @@ export class BackupDestinationService {
 
   private cleanConfiguration(provider: BackupDestinationProvider, input: Record<string, unknown>): Record<string, string> {
     const allowed = provider === 'dropbox'
-      ? ['basePath']
+      ? ['basePath', 'authMode', 'accountId']
       : provider === 'google-drive' ? ['folderId'] : ['bucket', 'region', 'endpoint', 'basePath', 'accessKeyId']
     return Object.fromEntries(allowed.flatMap((key) => {
       const value = input[key]
@@ -210,4 +313,18 @@ export class BackupDestinationService {
       return [[key, value.trim()]]
     }))
   }
+
+  private oauthClient(): DropboxOAuthClient {
+    const redirectUri = this.settings.dropboxRedirectUri
+      || `${(this.settings.sitecareBaseUrl || 'http://localhost:3000').replace(/\/$/, '')}/api/backup-destinations/oauth/callback`
+    return new DropboxOAuthClient(
+      this.settings.dropboxAppKey ?? '',
+      this.settings.dropboxAppSecret ?? '',
+      redirectUri
+    )
+  }
+}
+
+function hashState(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
 }

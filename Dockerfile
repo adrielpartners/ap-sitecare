@@ -3,7 +3,7 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends build-essential default-mysql-client gzip python3 tar \
+  && apt-get install -y --no-install-recommends build-essential default-mysql-client gzip openssh-client python3 tar \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
@@ -23,6 +23,10 @@ ENV NUXT_DATABASE_URL=postgresql://sitecare:sitecare@postgres:5432/sitecare
 CMD ["npm", "run", "backup-worker:continuous", "--workspace=@ap-sitecare/dashboard"]
 
 FROM node:22-bookworm-slim AS runtime
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssh-client \
+  && rm -rf /var/lib/apt/lists/*
 
 ENV HOST=0.0.0.0
 ENV NODE_ENV=production
