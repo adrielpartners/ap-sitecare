@@ -1,6 +1,5 @@
 import { useDatabase } from '../utils/database'
 
-export function checkDatabaseConnection(): void {
-  useDatabase().prepare('SELECT 1').get()
+export async function checkDatabaseConnection(): Promise<void> {
+  await useDatabase().query('SELECT 1')
 }
-

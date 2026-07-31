@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     const siteId = getRouterParam(event, 'id')
     if (!siteId) throw createError({ statusCode: 400, statusMessage: 'Site ID is required.' })
     const body = await readBody<Record<string, unknown>>(event)
-    const site = new SiteService().update(siteId, {
+    const site = await new SiteService().update(siteId, {
       name: typeof body.name === 'string' ? body.name : undefined,
       url: typeof body.url === 'string' ? body.url : undefined,
       hostingProvider: optionalBodyString(body, 'hostingProvider'),

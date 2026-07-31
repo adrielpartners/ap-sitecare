@@ -20,7 +20,14 @@ final class ReporterService
 
     public function check_in(): array
     {
-        return $this->request('/api/plugin/check-in', $this->collector->collect());
+        $response = $this->request('/api/plugin/check-in', $this->collector->collect());
+        if (isset($response['connection']['rotation']) && is_array($response['connection']['rotation'])) {
+            $this->settings->apply_rotation($response['connection']['rotation']);
+        }
+        if (isset($response['acceptedActivityIds']) && is_array($response['acceptedActivityIds'])) {
+            $this->settings->acknowledge_update_activities($response['acceptedActivityIds']);
+        }
+        return $response;
     }
 
     private function request(string $path, array $payload): array
@@ -30,11 +37,13 @@ final class ReporterService
             throw new \RuntimeException('Dashboard URL, Site ID, and Site Secret are required.');
         }
 
-        return $this->client->post(
+        return $this->client->post_with_fallback(
             $settings['dashboard_url'],
             $path,
             $settings['site_id'],
             $settings['site_secret'],
+            $settings['previous_site_secret'],
+            $settings['previous_site_secret_valid_until'],
             $payload
         );
     }

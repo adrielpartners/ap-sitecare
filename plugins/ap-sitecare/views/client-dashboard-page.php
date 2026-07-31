@@ -116,21 +116,6 @@ $value_or_unknown = static function ($value): string {
                 </section>
             <?php endif; ?>
 
-            <?php if ($settings['show_service_time'] && ($view_data['plan_label'] !== '' || $view_data['service_time'] !== null)) : ?>
-                <section class="apsc-card">
-                    <div class="apsc-section-heading"><div><p class="apsc-eyebrow"><?php echo esc_html__('Your plan', 'ap-sitecare'); ?></p><h2><?php echo esc_html($view_data['plan_label'] !== '' ? $view_data['plan_label'] : __('Service Time', 'ap-sitecare')); ?></h2></div></div>
-                    <?php if ($view_data['service_time'] === null) : ?>
-                        <div class="apsc-empty"><strong><?php echo esc_html__('Service-time details are not available yet.', 'ap-sitecare'); ?></strong><p><?php echo esc_html__('This section is ready to display plan usage when connected data becomes available.', 'ap-sitecare'); ?></p></div>
-                    <?php else : ?>
-                        <dl class="apsc-metric-list">
-                            <div><dt><?php echo esc_html__('Monthly service time', 'ap-sitecare'); ?></dt><dd><?php echo esc_html($value_or_unknown($view_data['service_time']['monthlyTime'] ?? null)); ?></dd></div>
-                            <div><dt><?php echo esc_html__('Used time', 'ap-sitecare'); ?></dt><dd><?php echo esc_html($value_or_unknown($view_data['service_time']['usedTime'] ?? null)); ?></dd></div>
-                            <div><dt><?php echo esc_html__('Remaining time', 'ap-sitecare'); ?></dt><dd><?php echo esc_html($value_or_unknown($view_data['service_time']['remainingTime'] ?? null)); ?></dd></div>
-                            <div><dt><?php echo esc_html__('Accumulated time', 'ap-sitecare'); ?></dt><dd><?php echo esc_html($value_or_unknown($view_data['service_time']['accumulatedTime'] ?? null)); ?></dd></div>
-                        </dl>
-                    <?php endif; ?>
-                </section>
-            <?php endif; ?>
         </aside>
     </div>
 

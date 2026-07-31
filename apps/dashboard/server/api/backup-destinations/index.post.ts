@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<Record<string, unknown>>(event)
     return {
       ok: true,
-      data: getBackupDestinationService(event).save(parseDestination(body), getDashboardActor(event))
+      data: await getBackupDestinationService(event).save(parseDestination(body), getDashboardActor(event))
     }
   } catch (error) {
     return backupApiError(event, error)

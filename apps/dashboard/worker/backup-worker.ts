@@ -9,8 +9,8 @@ import { BackupDestinationRepository } from '../server/repositories/backup-desti
 import { BackupDestinationService } from '../server/services/backup-destination-service'
 import { SiteService } from '../server/services/site-service'
 
-const databasePath = process.env.NUXT_DATABASE_PATH || './data/sitecare.sqlite'
-const database = createDatabase(databasePath)
+const databaseUrl = process.env.NUXT_DATABASE_URL || 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'
+const database = createDatabase(databaseUrl, { applicationName: 'ap-sitecare-backup-worker' })
 const settings = {
   allowedLocalBaseDirectories: split(process.env.NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES),
   credentialEncryptionKey: process.env.NUXT_CREDENTIAL_ENCRYPTION_KEY || '',
@@ -36,12 +36,23 @@ const worker = new BackupWorkerService(
   destinationService
 )
 const continuous = process.argv.includes('--continuous')
+let stopping = false
 
-do {
-  const result = await worker.runNext()
-  if (!continuous) break
-  if (!result) await delay(5000)
-} while (continuous)
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    stopping = true
+  })
+}
+
+try {
+  do {
+    const result = await worker.runNext()
+    if (!continuous || stopping) break
+    if (!result) await delay(5000)
+  } while (!stopping)
+} finally {
+  await database.close()
+}
 
 function split(value: string | undefined): string[] {
   return (value || '').split(',').map(item => item.trim()).filter(Boolean)

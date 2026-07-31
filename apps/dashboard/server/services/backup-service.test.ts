@@ -7,13 +7,17 @@ import { LocalVpsConnection } from '../backups/local-vps-connection'
 import { AuditRepository } from '../repositories/audit-repository'
 import { BackupRepository } from '../repositories/backup-repository'
 import { SiteRepository } from '../repositories/site-repository'
-import { createDatabase } from '../utils/database'
+import { createTestDatabase, destroyTestDatabase } from '../testing/postgres-test-database'
 import { AuditService } from './audit-service'
 import { BackupService } from './backup-service'
 import { SiteService } from './site-service'
 
-function createFixture() {
-  const database = createDatabase(':memory:')
+const entitledForLongTermBackups = {
+  async assertCapability() { return {} }
+}
+
+async function createFixture() {
+  const database = await createTestDatabase()
   const backupRepository = new BackupRepository(database)
   const auditRepository = new AuditRepository(database)
   const auditService = new AuditService(auditRepository)
@@ -29,9 +33,9 @@ function createFixture() {
     dropboxTokenStrategy: 'runtime-access-token',
     allowedLocalBaseDirectories: [join(root, 'sites')],
     credentialEncryptionKey: 'test-encryption-key'
-  }, backupRepository, siteService, auditService)
-  const site = siteService.create({ name: 'Backup Site', url: 'https://example.com' })
-  return { auditRepository, backupRepository, service, site, root, wordpressPath }
+  }, backupRepository, siteService, auditService, undefined, entitledForLongTermBackups)
+  const site = await siteService.create({ name: 'Backup Site', url: 'https://example.com' })
+  return { auditRepository, backupRepository, database, service, site, root, wordpressPath }
 }
 
 describe('Remote backup foundation', () => {
@@ -45,9 +49,9 @@ describe('Remote backup foundation', () => {
     assert.throws(() => adapter.validatePath(outside), /outside the configured allowed base directories/)
   })
 
-  it('calculates full local restore capability and audits policy changes', () => {
-    const { auditRepository, service, site, wordpressPath } = createFixture()
-    const result = service.updatePolicy(site.id, {
+  it('calculates full local restore capability and audits policy changes', async () => {
+    const { auditRepository, database, service, site, wordpressPath } = await createFixture()
+    const result = await service.updatePolicy(site.id, {
       enabled: true,
       frequency: 'daily',
       filesEnabled: true,
@@ -72,12 +76,13 @@ describe('Remote backup foundation', () => {
     assert.equal(result.connectionAssessment.restoreCapability, 'full')
     assert.equal(JSON.stringify(result).includes('database-secret'), false)
     assert.equal(result.policy.restoreRequiresConfirmation, true)
-    assert.equal(auditRepository.listForSite(site.id).some(event => event.eventType === 'backup.policy.updated'), true)
+    assert.equal((await auditRepository.listForSite(site.id)).some(event => event.eventType === 'backup.policy.updated'), true)
+    await destroyTestDatabase(database)
   })
 
-  it('queues backup work for the separate worker', () => {
-    const { service, site, wordpressPath } = createFixture()
-    service.updatePolicy(site.id, {
+  it('queues backup work for the separate worker', async () => {
+    const { database, service, site, wordpressPath } = await createFixture()
+    await service.updatePolicy(site.id, {
       enabled: true,
       frequency: 'daily',
       filesEnabled: true,
@@ -94,20 +99,21 @@ describe('Remote backup foundation', () => {
       databaseConfigured: false
     }, 'operator@example.com')
 
-    const result = service.planManualBackup(site.id, 'operator@example.com')
+    const result = await service.planManualBackup(site.id, 'operator@example.com')
     assert.equal(result.artifact.status, 'queued')
     assert.equal(result.job.runner, 'background-worker')
     assert.match(result.message, /separate background worker/)
 
-    const restore = service.prepareRestore(site.id, result.artifact.id, 'operator@example.com')
+    const restore = await service.prepareRestore(site.id, result.artifact.id, 'operator@example.com')
     assert.equal(restore.executionAvailable, false)
     assert.equal(restore.plan.status, 'preflight-failed')
     assert.equal(restore.plan.confirmationRequired, true)
+    await destroyTestDatabase(database)
   })
 
-  it('queues a database-only manual backup from plugin-detected credentials without a saved policy', () => {
-    const { service, site } = createFixture()
-    service.recordDetectedBackupSource(site.id, {
+  it('queues a database-only manual backup from plugin-detected credentials without a saved policy', async () => {
+    const { database, service, site } = await createFixture()
+    await service.recordDetectedBackupSource(site.id, {
       wordpressPath: null,
       databaseHost: '127.0.0.1',
       databasePort: 3306,
@@ -118,15 +124,16 @@ describe('Remote backup foundation', () => {
       detectedAt: new Date().toISOString()
     })
 
-    const result = service.planManualBackup(site.id, 'operator@example.com')
+    const result = await service.planManualBackup(site.id, 'operator@example.com')
     assert.equal(result.artifact.status, 'queued')
     assert.equal(result.artifact.filesIncluded, false)
     assert.equal(result.artifact.databaseIncluded, true)
+    await destroyTestDatabase(database)
   })
 
-  it('falls back to database-only manual backup when file access is selected but not worker-readable', () => {
-    const { backupRepository, service, site } = createFixture()
-    service.recordDetectedBackupSource(site.id, {
+  it('falls back to database-only manual backup when file access is selected but not worker-readable', async () => {
+    const { backupRepository, database, service, site } = await createFixture()
+    await service.recordDetectedBackupSource(site.id, {
       wordpressPath: '/home/example/public_html',
       databaseHost: '127.0.0.1',
       databasePort: 3306,
@@ -137,7 +144,7 @@ describe('Remote backup foundation', () => {
       detectedAt: new Date().toISOString()
     })
     const now = new Date().toISOString()
-    backupRepository.savePolicy({
+    await backupRepository.savePolicy({
       siteId: site.id,
       enabled: true,
       frequency: 'daily',
@@ -152,18 +159,20 @@ describe('Remote backup foundation', () => {
       updatedAt: now
     })
 
-    const result = service.planManualBackup(site.id, 'operator@example.com')
+    const result = await service.planManualBackup(site.id, 'operator@example.com')
     assert.equal(result.artifact.filesIncluded, false)
     assert.equal(result.artifact.databaseIncluded, true)
     assert.match(result.message, /Database backup job queued/)
+    await destroyTestDatabase(database)
   })
 
   it('rejects symbolic links in the backup source tree', async () => {
-    const { root, wordpressPath } = createFixture()
+    const { database, root, wordpressPath } = await createFixture()
     const outside = join(root, 'outside')
     mkdirSync(outside)
     symlinkSync(outside, join(wordpressPath, 'linked-outside'))
     const adapter = new LocalVpsConnection([join(root, 'sites')])
     await assert.rejects(adapter.validateTreeHasNoSymlinks(wordpressPath), /Symbolic links are not allowed/)
+    await destroyTestDatabase(database)
   })
 })

@@ -1,12 +1,28 @@
 import type { H3Event } from 'h3'
+import type { EmailProviderName } from '../email/notification-types'
 
 export interface RuntimeSettings {
   auth: {
-    developmentBypass: boolean
-    developmentEmail: string
+    secureCookies: boolean
+    eventHashKey: string
+    sessionDays: number
+  }
+  sitecareBaseUrl: string
+  email: {
+    provider: EmailProviderName
+    brevoApiKey: string
+    fromAddress: string
+    fromName: string
+    replyTo: string
+    webhookBearerToken: string
   }
   integrations: {
     cloudflareApiToken: string
+    cloudflareApiBaseUrl: string
+    cloudflareWebhookSecret: string
+    cloudflareAccountId: string
+    cloudflareWebhookDestinationId: string
+    cloudflareNotificationPolicyId: string
     dropboxAccessToken: string
     dropboxBackupRoot: string
     hostingerApiBaseUrl: string
@@ -19,7 +35,7 @@ export interface RuntimeSettings {
     dropboxTokenStrategy: 'runtime-access-token' | 'oauth'
   }
   credentialEncryptionKey: string
-  databasePath: string
+  databaseUrl: string
 }
 
 export function getRuntimeSettings(event?: H3Event): RuntimeSettings {

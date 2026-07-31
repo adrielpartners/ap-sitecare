@@ -1,13 +1,49 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sitecare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_USER: ${POSTGRES_USER:-sitecare}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sitecare} -d ${POSTGRES_DB:-sitecare}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:${AP_SITECARE_POSTGRES_PORT:-5432}:5432"
+    restart: unless-stopped
+    volumes:
+      - sitecare-postgres-data:/var/lib/postgresql/data
+
   dashboard:
     build:
       context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      NUXT_AUTH_DEVELOPMENT_BYPASS: "false"
+      NUXT_SITECARE_BASE_URL: ${NUXT_SITECARE_BASE_URL:-http://localhost:3000}
+      NUXT_AUTH_EVENT_HASH_KEY: ${NUXT_AUTH_EVENT_HASH_KEY:-}
+      NUXT_AUTH_SECURE_COOKIES: ${NUXT_AUTH_SECURE_COOKIES:-false}
       NUXT_CREDENTIAL_ENCRYPTION_KEY: ${NUXT_CREDENTIAL_ENCRYPTION_KEY:-}
-      NUXT_DATABASE_PATH: /data/sitecare.sqlite
+      NUXT_DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://sitecare:change-me@postgres:5432/sitecare}
+      NUXT_INTEGRATIONS_CLOUDFLARE_API_TOKEN: ${NUXT_INTEGRATIONS_CLOUDFLARE_API_TOKEN:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_API_BASE_URL: ${NUXT_INTEGRATIONS_CLOUDFLARE_API_BASE_URL:-https://api.cloudflare.com/client/v4}
+      NUXT_INTEGRATIONS_CLOUDFLARE_ACCOUNT_ID: ${NUXT_INTEGRATIONS_CLOUDFLARE_ACCOUNT_ID:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_SECRET: ${NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_SECRET:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_DESTINATION_ID: ${NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_DESTINATION_ID:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_NOTIFICATION_POLICY_ID: ${NUXT_INTEGRATIONS_CLOUDFLARE_NOTIFICATION_POLICY_ID:-}
       NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN: ${NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN:-}
       NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT: ${NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT:-}
+      NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL: ${NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL:-https://developers.hostinger.com}
+      NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN: ${NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN:-}
+      NUXT_EMAIL_PROVIDER: ${NUXT_EMAIL_PROVIDER:-brevo}
+      NUXT_EMAIL_BREVO_API_KEY: ${NUXT_EMAIL_BREVO_API_KEY:-}
+      NUXT_EMAIL_FROM_ADDRESS: ${NUXT_EMAIL_FROM_ADDRESS:-}
+      NUXT_EMAIL_FROM_NAME: ${NUXT_EMAIL_FROM_NAME:-SiteCare}
+      NUXT_EMAIL_REPLY_TO: ${NUXT_EMAIL_REPLY_TO:-}
+      NUXT_EMAIL_WEBHOOK_BEARER_TOKEN: ${NUXT_EMAIL_WEBHOOK_BEARER_TOKEN:-}
       NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: ${NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES:-/backup-sources}
       NUXT_BACKUPS_DROPBOX_ACCOUNT_LABEL: ${NUXT_BACKUPS_DROPBOX_ACCOUNT_LABEL:-}
       NUXT_BACKUPS_DROPBOX_ENABLED: ${NUXT_BACKUPS_DROPBOX_ENABLED:-true}
@@ -28,16 +64,18 @@ services:
       - "3000:3000"
     restart: unless-stopped
     volumes:
-      - sitecare-data:/data
       - ${AP_SITECARE_BACKUP_HOST_ROOT:-./backup-sources}:/backup-sources:ro
 
   backup-worker:
     build:
       context: .
       target: worker
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       NUXT_CREDENTIAL_ENCRYPTION_KEY: ${NUXT_CREDENTIAL_ENCRYPTION_KEY:-}
-      NUXT_DATABASE_PATH: /data/sitecare.sqlite
+      NUXT_DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://sitecare:change-me@postgres:5432/sitecare}
       NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN: ${NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN:-}
       NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT: ${NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT:-}
       NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: ${NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES:-/backup-sources}
@@ -48,8 +86,51 @@ services:
       NUXT_BACKUPS_STALE_AFTER_MINUTES: ${NUXT_BACKUPS_STALE_AFTER_MINUTES:-60}
     restart: unless-stopped
     volumes:
-      - sitecare-data:/data
       - ${AP_SITECARE_BACKUP_HOST_ROOT:-./backup-sources}:/backup-sources:ro
 
+  email-worker:
+    build:
+      context: .
+      target: worker
+    command: ["npm", "run", "email-worker:continuous", "--workspace=@ap-sitecare/dashboard"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NUXT_DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://sitecare:change-me@postgres:5432/sitecare}
+      NUXT_CREDENTIAL_ENCRYPTION_KEY: ${NUXT_CREDENTIAL_ENCRYPTION_KEY:-}
+      NUXT_EMAIL_PROVIDER: ${NUXT_EMAIL_PROVIDER:-brevo}
+      NUXT_EMAIL_BREVO_API_KEY: ${NUXT_EMAIL_BREVO_API_KEY:-}
+      NUXT_EMAIL_FROM_ADDRESS: ${NUXT_EMAIL_FROM_ADDRESS:-}
+      NUXT_EMAIL_FROM_NAME: ${NUXT_EMAIL_FROM_NAME:-SiteCare}
+      NUXT_EMAIL_REPLY_TO: ${NUXT_EMAIL_REPLY_TO:-}
+      NUXT_EMAIL_WEBHOOK_BEARER_TOKEN: ${NUXT_EMAIL_WEBHOOK_BEARER_TOKEN:-}
+    restart: unless-stopped
+
+  automation-worker:
+    build:
+      context: .
+      target: worker
+    command: ["npm", "run", "automation-worker:continuous", "--workspace=@ap-sitecare/dashboard"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NUXT_DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://sitecare:change-me@postgres:5432/sitecare}
+      NUXT_CREDENTIAL_ENCRYPTION_KEY: ${NUXT_CREDENTIAL_ENCRYPTION_KEY:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_API_TOKEN: ${NUXT_INTEGRATIONS_CLOUDFLARE_API_TOKEN:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_API_BASE_URL: ${NUXT_INTEGRATIONS_CLOUDFLARE_API_BASE_URL:-https://api.cloudflare.com/client/v4}
+      NUXT_INTEGRATIONS_CLOUDFLARE_ACCOUNT_ID: ${NUXT_INTEGRATIONS_CLOUDFLARE_ACCOUNT_ID:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_SECRET: ${NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_SECRET:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_DESTINATION_ID: ${NUXT_INTEGRATIONS_CLOUDFLARE_WEBHOOK_DESTINATION_ID:-}
+      NUXT_INTEGRATIONS_CLOUDFLARE_NOTIFICATION_POLICY_ID: ${NUXT_INTEGRATIONS_CLOUDFLARE_NOTIFICATION_POLICY_ID:-}
+      NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL: ${NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL:-https://developers.hostinger.com}
+      NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN: ${NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN:-}
+      NUXT_AUTOMATION_LEASE_SECONDS: ${NUXT_AUTOMATION_LEASE_SECONDS:-120}
+      NUXT_AUTOMATION_HEARTBEAT_SECONDS: ${NUXT_AUTOMATION_HEARTBEAT_SECONDS:-30}
+      NUXT_AUTOMATION_RETRY_BASE_SECONDS: ${NUXT_AUTOMATION_RETRY_BASE_SECONDS:-30}
+      NUXT_AUTOMATION_POLL_SECONDS: ${NUXT_AUTOMATION_POLL_SECONDS:-5}
+    restart: unless-stopped
+
 volumes:
-  sitecare-data:
+  sitecare-postgres-data:

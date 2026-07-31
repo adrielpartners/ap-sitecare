@@ -1,12 +1,19 @@
 import { useDatabase } from '../utils/database'
 
-export function getDataFoundationStatus(): { appliedMigrations: number, tables: string[] } {
+export async function getDataFoundationStatus(): Promise<{ appliedMigrations: number, tables: string[] }> {
   const database = useDatabase()
-  const tables = database.prepare(`
-    SELECT name FROM sqlite_master
-    WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-    ORDER BY name
-  `).all().map(row => (row as { name: string }).name)
-  const migrationRow = database.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }
-  return { appliedMigrations: migrationRow.count, tables }
+  const [tableResult, migrationResult] = await Promise.all([
+    database.query<{ table_name: string }>(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = current_schema()
+        AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `),
+    database.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM schema_migrations')
+  ])
+  return {
+    appliedMigrations: Number(migrationResult.rows[0]?.count ?? 0),
+    tables: tableResult.rows.map(row => row.table_name)
+  }
 }

@@ -1,5 +1,5 @@
 import { getIntegrationService } from '../../utils/integrations'
 
-export default defineEventHandler((event) => {
-  return { data: getIntegrationService(event).configuration() }
+export default defineEventHandler(async (event) => {
+  return { data: await getIntegrationService(event).configuration() }
 })

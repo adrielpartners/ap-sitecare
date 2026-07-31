@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { BackupService } from '../services/backup-service'
+import { requireDashboardSiteAccess } from './auth'
 import { getRuntimeSettings } from './config'
 
 export function getBackupService(event?: H3Event): BackupService {
@@ -16,4 +17,11 @@ export function getBackupService(event?: H3Event): BackupService {
       .filter(Boolean),
     credentialEncryptionKey: config.credentialEncryptionKey
   })
+}
+
+export async function requireBackupAccess(event: H3Event, backupId: string): Promise<BackupService> {
+  const service = getBackupService(event)
+  const details = await service.getBackupDetails(backupId)
+  requireDashboardSiteAccess(event, details.artifact.siteId)
+  return service
 }

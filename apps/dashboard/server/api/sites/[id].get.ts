@@ -3,7 +3,7 @@ import { SiteRegistrationService } from '../../services/site-registration-servic
 import { handleApiError } from '../../utils/api'
 import { getRuntimeSettings } from '../../utils/config'
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   try {
     const siteId = getRouterParam(event, 'id')
     if (!siteId) throw createError({ statusCode: 400, statusMessage: 'Site ID is required.' })
@@ -13,7 +13,7 @@ export default defineEventHandler((event) => {
       undefined,
       new CredentialService(config.credentialEncryptionKey)
     )
-    return { ok: true, data: service.getDetail(siteId) }
+    return { ok: true, data: await service.getDetail(siteId) }
   } catch (error) {
     handleApiError(error)
   }

@@ -18,7 +18,7 @@ RUN npm run build --workspace=@ap-sitecare/dashboard
 FROM build AS worker
 
 ENV NODE_ENV=production
-ENV NUXT_DATABASE_PATH=/data/sitecare.sqlite
+ENV NUXT_DATABASE_URL=postgresql://sitecare:sitecare@postgres:5432/sitecare
 
 CMD ["npm", "run", "backup-worker:continuous", "--workspace=@ap-sitecare/dashboard"]
 
@@ -26,15 +26,13 @@ FROM node:22-bookworm-slim AS runtime
 
 ENV HOST=0.0.0.0
 ENV NODE_ENV=production
-ENV NUXT_DATABASE_PATH=/data/sitecare.sqlite
+ENV NUXT_DATABASE_URL=postgresql://sitecare:sitecare@postgres:5432/sitecare
 ENV PORT=3000
 
 WORKDIR /app
 
 COPY --from=build /app/apps/dashboard/.output .output
 COPY --from=build /app/node_modules node_modules
-
-RUN mkdir -p /data
 
 EXPOSE 3000
 

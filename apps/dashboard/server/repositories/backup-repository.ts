@@ -1,39 +1,52 @@
-import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
-import type { BackupArtifact, BackupJob, BackupManifest, BackupPolicy, HostingConnection, RestorePlan } from '../domain/types'
-import { useDatabase } from '../utils/database'
+import type {
+  BackupArtifact,
+  BackupJob,
+  BackupManifest,
+  BackupPolicy,
+  HostingConnection,
+  RestorePlan
+} from '../domain/types'
+import {
+  useDatabase,
+  type QueryExecutor,
+  type TransactionalQueryExecutor
+} from '../utils/database'
 
-const bool = (value: number): boolean => value === 1
-const numberBool = (value: boolean): number => value ? 1 : 0
+type DatabaseRow = Record<string, any>
 
-function mapPolicy(row: any): BackupPolicy {
+function jsonValue<Value>(value: unknown): Value {
+  return (typeof value === 'string' ? JSON.parse(value) : value) as Value
+}
+
+function mapPolicy(row: DatabaseRow): BackupPolicy {
   return {
     siteId: row.site_id,
-    enabled: bool(row.enabled),
+    enabled: row.enabled,
     frequency: row.frequency,
-    filesEnabled: bool(row.files_enabled),
-    databaseEnabled: bool(row.database_enabled),
+    filesEnabled: row.files_enabled,
+    databaseEnabled: row.database_enabled,
     storageProvider: row.storage_provider,
     retention: {
       keepDaily: row.keep_daily,
       keepWeekly: row.keep_weekly,
       keepMonthly: row.keep_monthly,
-      autoDeleteExpired: bool(row.auto_delete_expired)
+      autoDeleteExpired: row.auto_delete_expired
     },
-    restoreEnabled: bool(row.restore_enabled),
-    restoreRequiresConfirmation: bool(row.restore_requires_confirmation),
+    restoreEnabled: row.restore_enabled,
+    restoreRequiresConfirmation: row.restore_requires_confirmation,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
 }
 
-function mapConnection(row: any): HostingConnection {
+function mapConnection(row: DatabaseRow): HostingConnection {
   return {
     siteId: row.site_id,
     connectionType: row.connection_type,
     localPath: row.local_path,
-    databaseConfigured: bool(row.database_configured),
+    databaseConfigured: row.database_configured,
     databaseHost: row.database_host,
     databasePort: row.database_port,
     databaseName: row.database_name,
@@ -45,14 +58,14 @@ function mapConnection(row: any): HostingConnection {
   }
 }
 
-function mapArtifact(row: any): BackupArtifact {
+function mapArtifact(row: DatabaseRow): BackupArtifact {
   return {
     id: row.id,
     siteId: row.site_id,
     backupType: row.backup_type,
     frequency: row.frequency,
-    filesIncluded: bool(row.files_included),
-    databaseIncluded: bool(row.database_included),
+    filesIncluded: row.files_included,
+    databaseIncluded: row.database_included,
     storageProvider: row.storage_provider,
     storagePath: row.storage_path,
     status: row.status,
@@ -63,14 +76,14 @@ function mapArtifact(row: any): BackupArtifact {
     expiresAt: row.expires_at,
     retentionCategory: row.retention_category,
     manifestPath: row.manifest_path,
-    manifest: row.manifest_json ? JSON.parse(row.manifest_json) as BackupManifest : null,
+    manifest: row.manifest_json ? jsonValue<BackupManifest>(row.manifest_json) : null,
     checksumVerifiedAt: row.checksum_verified_at,
     uploadVerifiedAt: row.upload_verified_at,
     errorMessage: row.error_message
   }
 }
 
-function mapJob(row: any): BackupJob {
+function mapJob(row: DatabaseRow): BackupJob {
   return {
     id: row.id,
     siteId: row.site_id,
@@ -88,18 +101,18 @@ function mapJob(row: any): BackupJob {
   }
 }
 
-function mapRestorePlan(row: any): RestorePlan {
+function mapRestorePlan(row: DatabaseRow): RestorePlan {
   return {
     id: row.id,
     siteId: row.site_id,
     backupId: row.backup_id,
     status: row.status,
-    restoreFiles: bool(row.restore_files),
-    restoreDatabase: bool(row.restore_database),
+    restoreFiles: row.restore_files,
+    restoreDatabase: row.restore_database,
     capability: row.capability,
-    preflight: JSON.parse(row.preflight_json),
-    warnings: JSON.parse(row.warnings_json),
-    confirmationRequired: bool(row.confirmation_required),
+    preflight: jsonValue<Record<string, unknown>>(row.preflight_json),
+    warnings: jsonValue<string[]>(row.warnings_json),
+    confirmationRequired: row.confirmation_required,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -107,254 +120,372 @@ function mapRestorePlan(row: any): RestorePlan {
 }
 
 export class BackupRepository {
-  constructor(private readonly database: Database.Database = useDatabase()) {}
+  constructor(private readonly database: TransactionalQueryExecutor = useDatabase()) {}
 
-  getDatabase(): Database.Database {
+  getDatabase(): TransactionalQueryExecutor {
     return this.database
   }
 
-  getPolicy(siteId: string): BackupPolicy | null {
-    const row = this.database.prepare('SELECT * FROM backup_policies WHERE site_id = ?').get(siteId)
-    return row ? mapPolicy(row) : null
+  async getPolicy(siteId: string): Promise<BackupPolicy | null> {
+    const result = await this.database.query<DatabaseRow>(
+      'SELECT * FROM backup_policies WHERE site_id = $1',
+      [siteId]
+    )
+    return result.rows[0] ? mapPolicy(result.rows[0]) : null
   }
 
-  listPolicies(): BackupPolicy[] {
-    return (this.database.prepare('SELECT * FROM backup_policies ORDER BY updated_at DESC').all() as any[]).map(mapPolicy)
+  async listPolicies(): Promise<BackupPolicy[]> {
+    const result = await this.database.query<DatabaseRow>(
+      'SELECT * FROM backup_policies ORDER BY updated_at DESC'
+    )
+    return result.rows.map(mapPolicy)
   }
 
-  savePolicy(policy: BackupPolicy): BackupPolicy {
-    this.database.prepare(`
+  async savePolicy(policy: BackupPolicy): Promise<BackupPolicy> {
+    await this.database.query(`
       INSERT INTO backup_policies (
         site_id, enabled, frequency, files_enabled, database_enabled, storage_provider,
         keep_daily, keep_weekly, keep_monthly, auto_delete_expired, restore_enabled,
         restore_requires_confirmation, notes, created_at, updated_at
       ) VALUES (
-        @siteId, @enabled, @frequency, @filesEnabled, @databaseEnabled, @storageProvider,
-        @keepDaily, @keepWeekly, @keepMonthly, @autoDeleteExpired, @restoreEnabled,
-        @restoreRequiresConfirmation, @notes, @createdAt, @updatedAt
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
       )
       ON CONFLICT(site_id) DO UPDATE SET
-        enabled = excluded.enabled, frequency = excluded.frequency,
-        files_enabled = excluded.files_enabled, database_enabled = excluded.database_enabled,
-        storage_provider = excluded.storage_provider, keep_daily = excluded.keep_daily,
-        keep_weekly = excluded.keep_weekly, keep_monthly = excluded.keep_monthly,
-        auto_delete_expired = excluded.auto_delete_expired, restore_enabled = excluded.restore_enabled,
+        enabled = excluded.enabled,
+        frequency = excluded.frequency,
+        files_enabled = excluded.files_enabled,
+        database_enabled = excluded.database_enabled,
+        storage_provider = excluded.storage_provider,
+        keep_daily = excluded.keep_daily,
+        keep_weekly = excluded.keep_weekly,
+        keep_monthly = excluded.keep_monthly,
+        auto_delete_expired = excluded.auto_delete_expired,
+        restore_enabled = excluded.restore_enabled,
         restore_requires_confirmation = excluded.restore_requires_confirmation,
-        notes = excluded.notes, updated_at = excluded.updated_at
-    `).run({
-      ...policy,
-      enabled: numberBool(policy.enabled),
-      filesEnabled: numberBool(policy.filesEnabled),
-      databaseEnabled: numberBool(policy.databaseEnabled),
-      keepDaily: policy.retention.keepDaily,
-      keepWeekly: policy.retention.keepWeekly,
-      keepMonthly: policy.retention.keepMonthly,
-      autoDeleteExpired: numberBool(policy.retention.autoDeleteExpired),
-      restoreEnabled: numberBool(policy.restoreEnabled),
-      restoreRequiresConfirmation: numberBool(policy.restoreRequiresConfirmation)
-    })
+        notes = excluded.notes,
+        updated_at = excluded.updated_at
+    `, [
+      policy.siteId, policy.enabled, policy.frequency, policy.filesEnabled,
+      policy.databaseEnabled, policy.storageProvider, policy.retention.keepDaily,
+      policy.retention.keepWeekly, policy.retention.keepMonthly,
+      policy.retention.autoDeleteExpired, policy.restoreEnabled,
+      policy.restoreRequiresConfirmation, policy.notes, policy.createdAt,
+      policy.updatedAt
+    ])
     return policy
   }
 
-  getConnection(siteId: string): HostingConnection | null {
-    const row = this.database.prepare('SELECT * FROM hosting_connections WHERE site_id = ?').get(siteId)
-    return row ? mapConnection(row) : null
+  async getConnection(siteId: string): Promise<HostingConnection | null> {
+    const result = await this.database.query<DatabaseRow>(
+      'SELECT * FROM hosting_connections WHERE site_id = $1',
+      [siteId]
+    )
+    return result.rows[0] ? mapConnection(result.rows[0]) : null
   }
 
-  getDatabasePasswordCiphertext(siteId: string): string | null {
-    const row = this.database.prepare(`
-      SELECT database_password_ciphertext FROM hosting_connections WHERE site_id = ?
-    `).get(siteId) as { database_password_ciphertext: string | null } | undefined
-    return row?.database_password_ciphertext ?? null
+  async getDatabasePasswordCiphertext(siteId: string): Promise<string | null> {
+    const result = await this.database.query<{ database_password_ciphertext: string | null }>(`
+      SELECT database_password_ciphertext
+      FROM hosting_connections
+      WHERE site_id = $1
+    `, [siteId])
+    return result.rows[0]?.database_password_ciphertext ?? null
   }
 
-  saveConnection(connection: HostingConnection, databasePasswordCiphertext: string | null): HostingConnection {
-    this.database.prepare(`
+  async saveConnection(
+    connection: HostingConnection,
+    databasePasswordCiphertext: string | null
+  ): Promise<HostingConnection> {
+    await this.database.query(`
       INSERT INTO hosting_connections (
-        site_id, connection_type, local_path, database_configured, database_host, database_port,
-        database_name, database_username, database_password_ciphertext, provider_label, notes, created_at, updated_at
+        site_id, connection_type, local_path, database_configured, database_host,
+        database_port, database_name, database_username,
+        database_password_ciphertext, provider_label, notes, created_at, updated_at
       ) VALUES (
-        @siteId, @connectionType, @localPath, @databaseConfigured, @databaseHost, @databasePort,
-        @databaseName, @databaseUsername, @databasePasswordCiphertext, @providerLabel, @notes, @createdAt, @updatedAt
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
       )
       ON CONFLICT(site_id) DO UPDATE SET
-        connection_type = excluded.connection_type, local_path = excluded.local_path,
-        database_configured = excluded.database_configured, database_host = excluded.database_host,
-        database_port = excluded.database_port, database_name = excluded.database_name,
+        connection_type = excluded.connection_type,
+        local_path = excluded.local_path,
+        database_configured = excluded.database_configured,
+        database_host = excluded.database_host,
+        database_port = excluded.database_port,
+        database_name = excluded.database_name,
         database_username = excluded.database_username,
         database_password_ciphertext = excluded.database_password_ciphertext,
         provider_label = excluded.provider_label,
-        notes = excluded.notes, updated_at = excluded.updated_at
-    `).run({ ...connection, databaseConfigured: numberBool(connection.databaseConfigured), databasePasswordCiphertext })
+        notes = excluded.notes,
+        updated_at = excluded.updated_at
+    `, [
+      connection.siteId, connection.connectionType, connection.localPath,
+      connection.databaseConfigured, connection.databaseHost,
+      connection.databasePort, connection.databaseName,
+      connection.databaseUsername, databasePasswordCiphertext,
+      connection.providerLabel, connection.notes, connection.createdAt,
+      connection.updatedAt
+    ])
     return connection
   }
 
-  createArtifact(artifact: BackupArtifact): BackupArtifact {
-    this.database.prepare(`
+  async createArtifact(artifact: BackupArtifact): Promise<BackupArtifact> {
+    await this.database.query(`
       INSERT INTO backup_artifacts (
-        id, site_id, backup_type, frequency, files_included, database_included, storage_provider,
-        storage_path, status, size_bytes, checksum, started_at, completed_at, expires_at,
-        retention_category, manifest_path, error_message
+        id, site_id, backup_type, frequency, files_included, database_included,
+        storage_provider, storage_path, status, size_bytes, checksum, started_at,
+        completed_at, expires_at, retention_category, manifest_path, error_message
       ) VALUES (
-        @id, @siteId, @backupType, @frequency, @filesIncluded, @databaseIncluded, @storageProvider,
-        @storagePath, @status, @sizeBytes, @checksum, @startedAt, @completedAt, @expiresAt,
-        @retentionCategory, @manifestPath, @errorMessage
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
       )
-    `).run({
-      ...artifact,
-      filesIncluded: numberBool(artifact.filesIncluded),
-      databaseIncluded: numberBool(artifact.databaseIncluded)
-    })
+    `, [
+      artifact.id, artifact.siteId, artifact.backupType, artifact.frequency,
+      artifact.filesIncluded, artifact.databaseIncluded, artifact.storageProvider,
+      artifact.storagePath, artifact.status, artifact.sizeBytes, artifact.checksum,
+      artifact.startedAt, artifact.completedAt, artifact.expiresAt,
+      artifact.retentionCategory, artifact.manifestPath, artifact.errorMessage
+    ])
     return artifact
   }
 
-  updateArtifact(artifact: BackupArtifact): BackupArtifact {
-    this.database.prepare(`
+  async updateArtifact(artifact: BackupArtifact): Promise<BackupArtifact> {
+    await this.database.query(`
       UPDATE backup_artifacts SET
-        files_included = @filesIncluded, database_included = @databaseIncluded,
-        storage_path = @storagePath, status = @status, size_bytes = @sizeBytes,
-        checksum = @checksum, completed_at = @completedAt, manifest_path = @manifestPath,
-        manifest_json = @manifestJson, checksum_verified_at = @checksumVerifiedAt,
-        upload_verified_at = @uploadVerifiedAt, error_message = @errorMessage
-      WHERE id = @id
-    `).run({
-      ...artifact,
-      filesIncluded: numberBool(artifact.filesIncluded),
-      databaseIncluded: numberBool(artifact.databaseIncluded),
-      manifestJson: artifact.manifest ? JSON.stringify(artifact.manifest) : null
-    })
+        files_included = $2,
+        database_included = $3,
+        storage_path = $4,
+        status = $5,
+        size_bytes = $6,
+        checksum = $7,
+        completed_at = $8,
+        manifest_path = $9,
+        manifest_json = $10::jsonb,
+        checksum_verified_at = $11,
+        upload_verified_at = $12,
+        error_message = $13
+      WHERE id = $1
+    `, [
+      artifact.id, artifact.filesIncluded, artifact.databaseIncluded,
+      artifact.storagePath, artifact.status, artifact.sizeBytes, artifact.checksum,
+      artifact.completedAt, artifact.manifestPath,
+      artifact.manifest ? JSON.stringify(artifact.manifest) : null,
+      artifact.checksumVerifiedAt, artifact.uploadVerifiedAt,
+      artifact.errorMessage
+    ])
     return artifact
   }
 
-  getArtifact(id: string): BackupArtifact | null {
-    const row = this.database.prepare('SELECT * FROM backup_artifacts WHERE id = ?').get(id)
-    return row ? mapArtifact(row) : null
+  async getArtifact(id: string): Promise<BackupArtifact | null> {
+    const result = await this.database.query<DatabaseRow>(
+      'SELECT * FROM backup_artifacts WHERE id = $1',
+      [id]
+    )
+    return result.rows[0] ? mapArtifact(result.rows[0]) : null
   }
 
-  getJobForBackup(backupId: string): BackupJob | null {
-    const row = this.database.prepare('SELECT * FROM backup_jobs WHERE backup_id = ?').get(backupId)
-    return row ? mapJob(row) : null
+  async getJobForBackup(backupId: string): Promise<BackupJob | null> {
+    const result = await this.database.query<DatabaseRow>(
+      'SELECT * FROM backup_jobs WHERE backup_id = $1',
+      [backupId]
+    )
+    return result.rows[0] ? mapJob(result.rows[0]) : null
   }
 
-  getJob(id: string): BackupJob | null {
-    const row = this.database.prepare('SELECT * FROM backup_jobs WHERE id = ?').get(id)
-    return row ? mapJob(row) : null
+  async getJob(id: string): Promise<BackupJob | null> {
+    const result = await this.database.query<DatabaseRow>(
+      'SELECT * FROM backup_jobs WHERE id = $1',
+      [id]
+    )
+    return result.rows[0] ? mapJob(result.rows[0]) : null
   }
 
-  listArtifacts(siteId?: string): BackupArtifact[] {
-    const rows = siteId
-      ? this.database.prepare('SELECT * FROM backup_artifacts WHERE site_id = ? ORDER BY started_at DESC').all(siteId)
-      : this.database.prepare('SELECT * FROM backup_artifacts ORDER BY started_at DESC').all()
-    return (rows as any[]).map(mapArtifact)
+  async listArtifacts(siteId?: string): Promise<BackupArtifact[]> {
+    const result = siteId
+      ? await this.database.query<DatabaseRow>(
+          'SELECT * FROM backup_artifacts WHERE site_id = $1 ORDER BY started_at DESC',
+          [siteId]
+        )
+      : await this.database.query<DatabaseRow>(
+          'SELECT * FROM backup_artifacts ORDER BY started_at DESC'
+        )
+    return result.rows.map(mapArtifact)
   }
 
-  createJob(job: BackupJob): BackupJob {
-    this.database.prepare(`
+  async createJob(job: BackupJob): Promise<BackupJob> {
+    await this.database.query(`
       INSERT INTO backup_jobs (
-        id, site_id, backup_id, status, runner, requested_by, created_at, started_at, completed_at, error_message
-      ) VALUES (
-        @id, @siteId, @backupId, @status, @runner, @requestedBy, @createdAt, @startedAt, @completedAt, @errorMessage
-      )
-    `).run(job)
+        id, site_id, backup_id, status, runner, requested_by, created_at,
+        started_at, completed_at, error_message
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+      job.id, job.siteId, job.backupId, job.status, job.runner,
+      job.requestedBy, job.createdAt, job.startedAt, job.completedAt,
+      job.errorMessage
+    ])
     return job
   }
 
-  saveJobDestinations(jobId: string, destinationIds: string[]): void {
-    const insert = this.database.prepare(`
-      INSERT INTO backup_job_destinations (job_id, destination_id, priority) VALUES (?, ?, ?)
-    `)
-    this.database.transaction(() => destinationIds.forEach((destinationId, priority) => insert.run(jobId, destinationId, priority)))()
-  }
-
-  getJobDestinationIds(jobId: string): string[] {
-    return (this.database.prepare(`
-      SELECT destination_id FROM backup_job_destinations WHERE job_id = ? ORDER BY priority ASC
-    `).all(jobId) as Array<{ destination_id: string }>).map(row => row.destination_id)
-  }
-
-  failStaleJobs(staleBefore: string, now: string): BackupJob[] {
-    const stale = this.database.prepare(`
-      SELECT * FROM backup_jobs WHERE status = 'running' AND heartbeat_at IS NOT NULL AND heartbeat_at < ?
-    `).all(staleBefore) as any[]
-    if (!stale.length) return []
-    const transaction = this.database.transaction(() => {
-      for (const row of stale) {
-        this.database.prepare(`
-          UPDATE backup_jobs SET status = 'failed', completed_at = ?, error_message = ?, claim_token = NULL
-          WHERE id = ? AND status = 'running'
-        `).run(now, 'Worker heartbeat expired before completion.', row.id)
-        this.database.prepare(`
-          UPDATE backup_artifacts SET status = 'failed', completed_at = ?, error_message = ?
-          WHERE id = ? AND status = 'running'
-        `).run(now, 'Worker heartbeat expired before completion.', row.backup_id)
+  async saveJobDestinations(jobId: string, destinationIds: string[]): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      for (const [priority, destinationId] of destinationIds.entries()) {
+        await transaction.query(`
+          INSERT INTO backup_job_destinations (job_id, destination_id, priority)
+          VALUES ($1, $2, $3)
+        `, [jobId, destinationId, priority])
       }
     })
-    transaction()
-    return stale.map(row => mapJob({ ...row, status: 'failed', completed_at: now, error_message: 'Worker heartbeat expired before completion.' }))
   }
 
-  claimNextQueuedJob(now: string): (BackupJob & { claimToken: string }) | null {
-    const claim = this.database.transaction(() => {
+  async getJobDestinationIds(jobId: string): Promise<string[]> {
+    const result = await this.database.query<{ destination_id: string }>(`
+      SELECT destination_id
+      FROM backup_job_destinations
+      WHERE job_id = $1
+      ORDER BY priority ASC
+    `, [jobId])
+    return result.rows.map(row => row.destination_id)
+  }
+
+  async failStaleJobs(staleBefore: string, now: string): Promise<BackupJob[]> {
+    return this.database.transaction(async (transaction) => {
+      const staleResult = await transaction.query<DatabaseRow>(`
+        SELECT *
+        FROM backup_jobs
+        WHERE status = 'running'
+          AND heartbeat_at IS NOT NULL
+          AND heartbeat_at < $1
+        FOR UPDATE
+      `, [staleBefore])
+      const stale = staleResult.rows
+      if (!stale.length) return []
+
+      const message = 'Worker heartbeat expired before completion.'
+      const jobIds = stale.map(row => row.id)
+      const backupIds = stale.map(row => row.backup_id)
+      await transaction.query(`
+        UPDATE backup_jobs
+        SET status = 'failed',
+            completed_at = $2,
+            error_message = $3,
+            claim_token = NULL
+        WHERE id = ANY($1::text[])
+      `, [jobIds, now, message])
+      await transaction.query(`
+        UPDATE backup_artifacts
+        SET status = 'failed',
+            completed_at = $2,
+            error_message = $3
+        WHERE id = ANY($1::text[])
+          AND status = 'running'
+      `, [backupIds, now, message])
+
+      return stale.map(row => mapJob({
+        ...row,
+        status: 'failed',
+        completed_at: now,
+        error_message: message
+      }))
+    })
+  }
+
+  async claimNextQueuedJob(now: string): Promise<(BackupJob & { claimToken: string }) | null> {
+    return this.database.transaction(async (transaction) => {
+      const queued = await transaction.query<{ id: string }>(`
+        SELECT id
+        FROM backup_jobs
+        WHERE status = 'queued'
+        ORDER BY created_at ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      `)
+      const id = queued.rows[0]?.id
+      if (!id) return null
+
       const claimToken = randomUUID()
-      const claimed = this.database.prepare(`
+      const claimed = await transaction.query<DatabaseRow>(`
         UPDATE backup_jobs SET
-          status = 'running', runner = 'background-worker', started_at = ?,
-          claimed_at = ?, heartbeat_at = ?, claim_token = ?, attempt_count = attempt_count + 1,
+          status = 'running',
+          runner = 'background-worker',
+          started_at = $2,
+          claimed_at = $2,
+          heartbeat_at = $2,
+          claim_token = $3,
+          attempt_count = attempt_count + 1,
           error_message = NULL
-        WHERE id = (
-          SELECT id FROM backup_jobs WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1
-        ) AND status = 'queued'
+        WHERE id = $1
+          AND status = 'queued'
         RETURNING *
-      `).get(now, now, now, claimToken)
-      if (!claimed) return null
-      const job = mapJob(claimed)
-      this.database.prepare(`
-        UPDATE backup_artifacts SET status = 'running', started_at = ?, error_message = NULL
-        WHERE id = (SELECT backup_id FROM backup_jobs WHERE id = ?)
-      `).run(now, job.id)
+      `, [id, now, claimToken])
+      if (!claimed.rows[0]) return null
+
+      const job = mapJob(claimed.rows[0])
+      await transaction.query(`
+        UPDATE backup_artifacts
+        SET status = 'running', started_at = $2, error_message = NULL
+        WHERE id = $1
+      `, [job.backupId, now])
       return { ...job, claimToken }
     })
-    return claim()
   }
 
-  heartbeatJob(jobId: string, claimToken: string, now: string): void {
-    this.database.prepare(`
-      UPDATE backup_jobs SET heartbeat_at = ? WHERE id = ? AND status = 'running' AND claim_token = ?
-    `).run(now, jobId, claimToken)
+  async heartbeatJob(jobId: string, claimToken: string, now: string): Promise<void> {
+    await this.database.query(`
+      UPDATE backup_jobs
+      SET heartbeat_at = $3
+      WHERE id = $1
+        AND status = 'running'
+        AND claim_token = $2
+    `, [jobId, claimToken, now])
   }
 
-  finishJob(jobId: string, claimToken: string, status: 'completed' | 'failed', errorMessage: string | null, now: string): void {
-    const result = this.database.prepare(`
-      UPDATE backup_jobs SET status = ?, completed_at = ?, heartbeat_at = ?, error_message = ?, claim_token = NULL
-      WHERE id = ? AND status = 'running' AND claim_token = ?
-    `).run(status, now, now, errorMessage, jobId, claimToken)
-    if (result.changes !== 1) throw new Error('Backup job claim is no longer valid.')
+  async finishJob(
+    jobId: string,
+    claimToken: string,
+    status: 'completed' | 'failed',
+    errorMessage: string | null,
+    now: string
+  ): Promise<void> {
+    const result = await this.database.query(`
+      UPDATE backup_jobs
+      SET status = $3,
+          completed_at = $4,
+          heartbeat_at = $4,
+          error_message = $5,
+          claim_token = NULL
+      WHERE id = $1
+        AND status = 'running'
+        AND claim_token = $2
+    `, [jobId, claimToken, status, now, errorMessage])
+    if (result.rowCount !== 1) throw new Error('Backup job claim is no longer valid.')
   }
 
-  createRestorePlan(plan: RestorePlan): RestorePlan {
-    this.database.prepare(`
+  async createRestorePlan(plan: RestorePlan): Promise<RestorePlan> {
+    await this.database.query(`
       INSERT INTO restore_plans (
-        id, site_id, backup_id, status, restore_files, restore_database, capability,
-        preflight_json, warnings_json, confirmation_required, created_by, created_at, updated_at
+        id, site_id, backup_id, status, restore_files, restore_database,
+        capability, preflight_json, warnings_json, confirmation_required,
+        created_by, created_at, updated_at
       ) VALUES (
-        @id, @siteId, @backupId, @status, @restoreFiles, @restoreDatabase, @capability,
-        @preflightJson, @warningsJson, @confirmationRequired, @createdBy, @createdAt, @updatedAt
+        $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, $13
       )
-    `).run({
-      ...plan,
-      restoreFiles: numberBool(plan.restoreFiles),
-      restoreDatabase: numberBool(plan.restoreDatabase),
-      preflightJson: JSON.stringify(plan.preflight),
-      warningsJson: JSON.stringify(plan.warnings),
-      confirmationRequired: numberBool(plan.confirmationRequired)
-    })
+    `, [
+      plan.id, plan.siteId, plan.backupId, plan.status, plan.restoreFiles,
+      plan.restoreDatabase, plan.capability, JSON.stringify(plan.preflight),
+      JSON.stringify(plan.warnings), plan.confirmationRequired, plan.createdBy,
+      plan.createdAt, plan.updatedAt
+    ])
     return plan
   }
 
-  listRestorePlans(siteId?: string): RestorePlan[] {
-    const rows = siteId
-      ? this.database.prepare('SELECT * FROM restore_plans WHERE site_id = ? ORDER BY created_at DESC').all(siteId)
-      : this.database.prepare('SELECT * FROM restore_plans ORDER BY created_at DESC').all()
-    return (rows as any[]).map(mapRestorePlan)
+  async listRestorePlans(siteId?: string): Promise<RestorePlan[]> {
+    const result = siteId
+      ? await this.database.query<DatabaseRow>(
+          'SELECT * FROM restore_plans WHERE site_id = $1 ORDER BY created_at DESC',
+          [siteId]
+        )
+      : await this.database.query<DatabaseRow>(
+          'SELECT * FROM restore_plans ORDER BY created_at DESC'
+        )
+    return result.rows.map(mapRestorePlan)
   }
 }
+
+export type BackupTransactionExecutor = QueryExecutor

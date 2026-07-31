@@ -13,7 +13,7 @@ export interface RecordAuditEventInput {
 export class AuditService {
   constructor(private readonly auditRepository = new AuditRepository()) {}
 
-  record(input: RecordAuditEventInput): AuditEvent {
+  async record(input: RecordAuditEventInput): Promise<AuditEvent> {
     return this.auditRepository.create({
       id: randomUUID(),
       siteId: input.siteId ?? null,
@@ -25,11 +25,13 @@ export class AuditService {
     })
   }
 
-  list(limit?: number): AuditEvent[] {
-    return this.auditRepository.list(limit)
+  async list(limit?: number, siteIds: string[] | null = null): Promise<AuditEvent[]> {
+    return siteIds === null
+      ? this.auditRepository.list(limit)
+      : this.auditRepository.listScoped(siteIds, limit)
   }
 
-  listForSite(siteId: string): AuditEvent[] {
+  async listForSite(siteId: string): Promise<AuditEvent[]> {
     return this.auditRepository.listForSite(siteId)
   }
 }

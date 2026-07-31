@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     }
     return {
       ok: true,
-      data: getBackupDestinationService(event).saveSiteSettings(
+      data: await getBackupDestinationService(event).saveSiteSettings(
         getRouterParam(event, 'id') ?? '',
         body.mode,
         body.allowMultiple,

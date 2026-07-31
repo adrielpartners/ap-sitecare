@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     if (typeof body.backupId !== 'string' || !body.backupId) throw new Error('backupId is required.')
     return {
       ok: true,
-      data: getBackupService(event).prepareRestore(
+      data: await getBackupService(event).prepareRestore(
         getRouterParam(event, 'id') ?? '',
         body.backupId,
         getDashboardActor(event)

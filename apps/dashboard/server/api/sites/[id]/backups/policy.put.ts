@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<Record<string, unknown>>(event)
     return {
       ok: true,
-      data: getBackupService(event).updatePolicy(
+      data: await getBackupService(event).updatePolicy(
         getRouterParam(event, 'id') ?? '',
         parseBackupPolicyBody(body),
         getDashboardActor(event)

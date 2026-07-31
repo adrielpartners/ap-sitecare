@@ -6,7 +6,7 @@ import { SiteService } from './site-service'
 export interface SiteDetail {
   site: Site
   activeCredential: SafeSiteCredential | null
-  health: ReturnType<HealthService['getSummary']>
+  health: Awaited<ReturnType<HealthService['getSummary']>>
 }
 
 export class SiteRegistrationService {
@@ -16,20 +16,24 @@ export class SiteRegistrationService {
     private readonly credentialService?: CredentialService
   ) {}
 
-  getDetail(siteId: string): SiteDetail {
+  async getDetail(siteId: string): Promise<SiteDetail> {
     return {
-      site: this.siteService.get(siteId),
-      activeCredential: this.credentialService?.getActiveSummary(siteId) ?? null,
-      health: this.healthService.getSummary(siteId)
+      site: await this.siteService.get(siteId),
+      activeCredential: this.credentialService
+        ? await this.credentialService.getActiveSummary(siteId)
+        : null,
+      health: await this.healthService.getSummary(siteId)
     }
   }
 
-  testConnection(siteId: string): {
+  async testConnection(siteId: string): Promise<{
     status: 'connected' | 'awaiting-check-in' | 'credentials-required'
     message: string
-  } {
-    this.siteService.get(siteId)
-    const credential = this.credentialService?.getActiveSummary(siteId)
+  }> {
+    await this.siteService.get(siteId)
+    const credential = this.credentialService
+      ? await this.credentialService.getActiveSummary(siteId)
+      : null
     if (!credential) {
       return {
         status: 'credentials-required',
@@ -37,7 +41,7 @@ export class SiteRegistrationService {
       }
     }
 
-    if (!this.healthService.getLatestSnapshot(siteId)) {
+    if (!await this.healthService.getLatestSnapshot(siteId)) {
       return {
         status: 'awaiting-check-in',
         message: 'Credentials are ready. Install the reporter plugin and send the first check-in.'

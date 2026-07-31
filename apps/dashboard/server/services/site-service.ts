@@ -40,12 +40,12 @@ export class SiteService {
     private readonly auditService = new AuditService()
   ) {}
 
-  create(input: CreateSiteInput): Site {
+  async create(input: CreateSiteInput): Promise<Site> {
     const name = input.name.trim()
     if (!name) throw new Error('Site name is required.')
 
     const now = new Date().toISOString()
-    const site = this.siteRepository.create({
+    const site = await this.siteRepository.create({
       id: randomUUID(),
       name,
       url: normalizeSiteUrl(input.url),
@@ -59,7 +59,7 @@ export class SiteService {
       disabledAt: null
     })
 
-    this.auditService.record({
+    await this.auditService.record({
       siteId: site.id,
       actorType: 'dashboard-user',
       actorIdentifier: input.actorIdentifier,
@@ -69,19 +69,19 @@ export class SiteService {
     return site
   }
 
-  get(id: string): Site {
-    const site = this.siteRepository.findById(id)
+  async get(id: string): Promise<Site> {
+    const site = await this.siteRepository.findById(id)
     if (!site) throw new Error('Site not found.')
     return site
   }
 
-  list(): Site[] {
-    return this.siteRepository.list()
+  async list(siteIds: string[] | null = null): Promise<Site[]> {
+    return siteIds === null ? this.siteRepository.list() : this.siteRepository.listByIds(siteIds)
   }
 
-  update(id: string, input: UpdateSiteInput, actorIdentifier?: string): Site {
-    const site = this.get(id)
-    const updated = this.siteRepository.update({
+  async update(id: string, input: UpdateSiteInput, actorIdentifier?: string): Promise<Site> {
+    const site = await this.get(id)
+    const updated = await this.siteRepository.update({
       ...site,
       name: input.name?.trim() || site.name,
       url: input.url ? normalizeSiteUrl(input.url) : site.url,
@@ -91,7 +91,7 @@ export class SiteService {
       notes: input.notes === undefined ? site.notes : normalizeOptional(input.notes),
       updatedAt: new Date().toISOString()
     })
-    this.auditService.record({
+    await this.auditService.record({
       siteId: site.id,
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -100,16 +100,16 @@ export class SiteService {
     return updated
   }
 
-  disable(id: string, actorIdentifier?: string): Site {
-    const site = this.get(id)
+  async disable(id: string, actorIdentifier?: string): Promise<Site> {
+    const site = await this.get(id)
     const now = new Date().toISOString()
-    const disabled = this.siteRepository.update({
+    const disabled = await this.siteRepository.update({
       ...site,
       status: 'disabled',
       disabledAt: now,
       updatedAt: now
     })
-    this.auditService.record({
+    await this.auditService.record({
       siteId: site.id,
       actorType: 'dashboard-user',
       actorIdentifier,

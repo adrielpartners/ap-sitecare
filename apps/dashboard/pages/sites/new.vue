@@ -1,22 +1,31 @@
 <script setup lang="ts">
+const api = useSiteCareApi()
 const name = ref('')
 const url = ref('')
 const hostingProvider = ref('')
 const backupStrategy = ref('')
 const riskLevel = ref('standard')
 const notes = ref('')
+const clientAccountId = ref('')
+const planId = ref('sitecare-core')
 const errorMessage = ref('')
 const saving = ref(false)
+const { data: clientResponse } = await useFetch<any>('/api/admin/clients')
+const { data: planResponse } = await useFetch<any>('/api/admin/service-plans')
+const clients = computed(() => (clientResponse.value?.data ?? []).filter((client: any) => !client.isPlaceholder))
+const plans = computed(() => planResponse.value?.data ?? [])
 
 async function registerSite() {
   errorMessage.value = ''
   saving.value = true
   try {
-    const response = await $fetch('/api/sites', {
+    const response = await api<any>('/api/sites', {
       method: 'POST',
       body: {
         name: name.value,
         url: url.value,
+        clientAccountId: clientAccountId.value,
+        planId: planId.value,
         hostingProvider: hostingProvider.value,
         backupStrategy: backupStrategy.value,
         riskLevel: riskLevel.value,
@@ -37,7 +46,7 @@ async function registerSite() {
     <header class="page-heading">
       <p class="eyebrow">Site registration</p>
       <h1>Add a managed site</h1>
-      <p>Create the inventory record first. Credentials can be issued from the site detail page.</p>
+      <p>Every site must begin with a client owner and SiteCare plan. Credentials can be issued from the site detail page.</p>
     </header>
 
     <AppPanel title="Site details" description="Use the public canonical URL for the WordPress website.">
@@ -50,6 +59,25 @@ async function registerSite() {
           placeholder="https://example.com"
           type="url"
         />
+        <div class="grid">
+          <AppSelect
+            v-model="clientAccountId"
+            label="Client account"
+            name="client-account"
+            required
+            :options="[
+              { label: 'Choose a client', value: '' },
+              ...clients.map((client: any) => ({ label: client.name, value: client.id }))
+            ]"
+          />
+          <AppSelect
+            v-model="planId"
+            label="SiteCare plan"
+            name="service-plan"
+            required
+            :options="plans.map((plan: any) => ({ label: plan.name, value: plan.id }))"
+          />
+        </div>
         <div class="grid">
           <AppInput v-model="hostingProvider" label="Hosting provider" name="hosting-provider" placeholder="Hostinger" />
           <AppInput v-model="backupStrategy" label="Backup strategy" name="backup-strategy" placeholder="Daily host backup + Dropbox" />

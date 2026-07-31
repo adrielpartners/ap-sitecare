@@ -42,11 +42,11 @@ export class HealthService {
     private readonly auditService = new AuditService()
   ) {}
 
-  recordCheckIn(input: RecordCheckInInput): { checkIn: SiteCheckIn, snapshot: SiteHealthSnapshot } {
-    if (!this.siteRepository.findById(input.siteId)) throw new Error('Site not found.')
+  async recordCheckIn(input: RecordCheckInInput): Promise<{ checkIn: SiteCheckIn, snapshot: SiteHealthSnapshot }> {
+    if (!await this.siteRepository.findById(input.siteId)) throw new Error('Site not found.')
 
     const now = new Date().toISOString()
-    const checkIn = this.checkInRepository.createCheckIn({
+    const checkIn = await this.checkInRepository.createCheckIn({
       id: randomUUID(),
       siteId: input.siteId,
       receivedAt: now,
@@ -54,7 +54,7 @@ export class HealthService {
       requestTimestamp: input.requestTimestamp ?? null,
       payload: input.payload ?? {}
     })
-    const snapshot = this.checkInRepository.createSnapshot({
+    const snapshot = await this.checkInRepository.createSnapshot({
       id: randomUUID(),
       siteId: input.siteId,
       checkInId: checkIn.id,
@@ -66,7 +66,7 @@ export class HealthService {
       lastCronRunAt: input.lastCronRunAt ?? null,
       createdAt: now
     })
-    this.auditService.record({
+    await this.auditService.record({
       siteId: input.siteId,
       actorType: 'wordpress-plugin',
       eventType: 'check-in.received',
@@ -75,13 +75,13 @@ export class HealthService {
     return { checkIn, snapshot }
   }
 
-  getLatestSnapshot(siteId: string): SiteHealthSnapshot | null {
+  async getLatestSnapshot(siteId: string): Promise<SiteHealthSnapshot | null> {
     return this.checkInRepository.findLatestSnapshot(siteId)
   }
 
-  getSummary(siteId: string, now = new Date()): SiteHealthSummary {
-    if (!this.siteRepository.findById(siteId)) throw new Error('Site not found.')
-    const latest = this.getLatestSnapshot(siteId)
+  async getSummary(siteId: string, now = new Date()): Promise<SiteHealthSummary> {
+    if (!await this.siteRepository.findById(siteId)) throw new Error('Site not found.')
+    const latest = await this.getLatestSnapshot(siteId)
     if (!latest) return { siteId, status: 'unknown', reason: 'No check-in received', latest: null }
 
     const ageMs = now.getTime() - new Date(latest.createdAt).getTime()
@@ -99,17 +99,20 @@ export class HealthService {
     return { siteId, status: 'healthy', reason: 'Reporting normally with no updates', latest }
   }
 
-  listSummaries(now = new Date()): SiteHealthSummary[] {
-    return this.siteRepository.list().map(site => this.getSummary(site.id, now))
+  async listSummaries(now = new Date(), siteIds: string[] | null = null): Promise<SiteHealthSummary[]> {
+    const sites = siteIds === null
+      ? await this.siteRepository.list()
+      : await this.siteRepository.listByIds(siteIds)
+    return Promise.all(sites.map(site => this.getSummary(site.id, now)))
   }
 
-  listCheckIns(siteId: string): SiteCheckIn[] {
-    if (!this.siteRepository.findById(siteId)) throw new Error('Site not found.')
+  async listCheckIns(siteId: string): Promise<SiteCheckIn[]> {
+    if (!await this.siteRepository.findById(siteId)) throw new Error('Site not found.')
     return this.checkInRepository.listForSite(siteId)
   }
 }
 
-export function getSystemHealth(): SystemHealth {
-  checkDatabaseConnection()
+export async function getSystemHealth(): Promise<SystemHealth> {
+  await checkDatabaseConnection()
   return { database: 'connected', service: 'ap-sitecare-dashboard' }
 }

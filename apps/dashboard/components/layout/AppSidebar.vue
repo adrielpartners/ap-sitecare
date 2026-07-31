@@ -1,16 +1,32 @@
 <script setup lang="ts">
+const props = defineProps<{
+  role?: 'admin' | 'team-member' | 'client'
+}>()
 const route = useRoute()
-const items = [
+const operationalItems = [
   { label: 'Dashboard', to: '/' },
-  { label: 'Clients', to: '/clients' },
   { label: 'Sites', to: '/sites' },
   { label: 'Reports', to: '/reports' },
   { label: 'Security', to: '/security' },
   { label: 'Updates', to: '/updates' },
   { label: 'Backups', to: '/backups' },
-  { label: 'Alerts', to: '/alerts' },
-  { label: 'Settings', to: '/settings' }
+  { label: 'Alerts', to: '/alerts' }
 ]
+const items = computed(() => {
+  if (props.role === 'client') return [
+    { label: 'My SiteCare', to: '/portal' },
+    { label: 'Profile & sessions', to: '/profile' }
+  ]
+  const adminItems = props.role === 'admin'
+    ? [
+        { label: 'Clients', to: '/clients' },
+        { label: 'Users', to: '/users' },
+        { label: 'Automation', to: '/automation' },
+        { label: 'Settings', to: '/settings' }
+      ]
+    : []
+  return [...operationalItems, ...adminItems, { label: 'Profile & sessions', to: '/profile' }]
+})
 
 function isActive(to: string): boolean {
   return to === '/' ? route.path === '/' : route.path.startsWith(to)
@@ -33,7 +49,7 @@ function isActive(to: string): boolean {
         {{ item.label }}
       </NuxtLink>
     </nav>
-    <section class="app-sidebar__quick-actions">
+    <section v-if="role !== 'client'" class="app-sidebar__quick-actions">
       <p class="app-sidebar__label">Quick actions</p>
       <QuickActions />
     </section>

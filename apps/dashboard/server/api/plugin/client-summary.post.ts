@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   try {
     const request = await authenticatePluginRequest(event)
     return {
-      data: new PluginClientSummaryService().get(request.siteId)
+      data: await new PluginClientSummaryService().get(request.siteId)
     }
   } catch (error) {
     return handleApiError(error)

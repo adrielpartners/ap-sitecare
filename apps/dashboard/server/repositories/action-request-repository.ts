@@ -1,6 +1,5 @@
-import type Database from 'better-sqlite3'
 import type { ActionRequest, ActionRequestStatus } from '../domain/types'
-import { useDatabase } from '../utils/database'
+import { useDatabase, type QueryExecutor } from '../utils/database'
 
 interface ActionRequestRow {
   id: string
@@ -31,36 +30,56 @@ function mapRow(row: ActionRequestRow): ActionRequest {
 }
 
 export class ActionRequestRepository {
-  constructor(private readonly database: Database.Database = useDatabase()) {}
+  constructor(private readonly database: QueryExecutor = useDatabase()) {}
 
-  create(request: ActionRequest): ActionRequest {
-    this.database.prepare(`
+  async create(request: ActionRequest): Promise<ActionRequest> {
+    await this.database.query(`
       INSERT INTO action_requests (
         id, site_id, action_type, rationale, status, requested_by,
         reviewed_by, review_note, created_at, reviewed_at
-      ) VALUES (
-        @id, @siteId, @actionType, @rationale, @status, @requestedBy,
-        @reviewedBy, @reviewNote, @createdAt, @reviewedAt
-      )
-    `).run(request)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+      request.id, request.siteId, request.actionType, request.rationale,
+      request.status, request.requestedBy, request.reviewedBy,
+      request.reviewNote, request.createdAt, request.reviewedAt
+    ])
     return request
   }
 
-  findById(id: string): ActionRequest | null {
-    const row = this.database.prepare('SELECT * FROM action_requests WHERE id = ?').get(id) as ActionRequestRow | undefined
-    return row ? mapRow(row) : null
+  async findById(id: string): Promise<ActionRequest | null> {
+    const result = await this.database.query<ActionRequestRow>(
+      'SELECT * FROM action_requests WHERE id = $1',
+      [id]
+    )
+    return result.rows[0] ? mapRow(result.rows[0]) : null
   }
 
-  list(): ActionRequest[] {
-    return (this.database.prepare('SELECT * FROM action_requests ORDER BY created_at DESC').all() as ActionRequestRow[]).map(mapRow)
+  async list(): Promise<ActionRequest[]> {
+    const result = await this.database.query<ActionRequestRow>(
+      'SELECT * FROM action_requests ORDER BY created_at DESC'
+    )
+    return result.rows.map(mapRow)
   }
 
-  update(request: ActionRequest): ActionRequest {
-    this.database.prepare(`
+  async listScoped(siteIds: string[]): Promise<ActionRequest[]> {
+    if (siteIds.length === 0) return []
+    const result = await this.database.query<ActionRequestRow>(`
+      SELECT * FROM action_requests
+      WHERE site_id = ANY($1::text[])
+      ORDER BY created_at DESC
+    `, [siteIds])
+    return result.rows.map(mapRow)
+  }
+
+  async update(request: ActionRequest): Promise<ActionRequest> {
+    await this.database.query(`
       UPDATE action_requests
-      SET status = @status, reviewed_by = @reviewedBy, review_note = @reviewNote, reviewed_at = @reviewedAt
-      WHERE id = @id
-    `).run(request)
+      SET status = $2, reviewed_by = $3, review_note = $4, reviewed_at = $5
+      WHERE id = $1
+    `, [
+      request.id, request.status, request.reviewedBy,
+      request.reviewNote, request.reviewedAt
+    ])
     return request
   }
 }

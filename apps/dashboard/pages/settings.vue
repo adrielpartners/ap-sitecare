@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const api = useSiteCareApi()
 const { data: response, refresh } = await useFetch('/api/backup-destinations')
 const destinations = computed(() => response.value && 'data' in response.value ? response.value.data : [])
 const editingId = ref('')
@@ -7,7 +8,7 @@ const provider = ref('dropbox')
 const enabled = ref(true)
 const inMasterPool = ref(true)
 const credential = ref('')
-const basePath = ref('/AP-SiteCare')
+const basePath = ref('/SiteCare Backups')
 const folderId = ref('')
 const bucket = ref('')
 const region = ref('')
@@ -39,7 +40,7 @@ function resetForm() {
   enabled.value = true
   inMasterPool.value = true
   credential.value = ''
-  basePath.value = '/AP-SiteCare'
+  basePath.value = '/SiteCare Backups'
   folderId.value = ''
   bucket.value = ''
   region.value = ''
@@ -72,7 +73,7 @@ async function saveDestination() {
       : provider.value === 'google-drive'
         ? { folderId: folderId.value }
         : { bucket: bucket.value, region: region.value, endpoint: endpoint.value, basePath: basePath.value, accessKeyId: accessKeyId.value }
-    await $fetch(editingId.value ? `/api/backup-destinations/${editingId.value}` : '/api/backup-destinations', {
+    await api(editingId.value ? `/api/backup-destinations/${editingId.value}` : '/api/backup-destinations', {
       method: editingId.value ? 'PUT' : 'POST',
       body: {
         name: name.value,
@@ -98,7 +99,7 @@ async function testDestination(id: string) {
   notice.value = ''
   errorMessage.value = ''
   try {
-    const result = await $fetch(`/api/backup-destinations/${id}/test`, { method: 'POST' })
+    const result = await api<any>(`/api/backup-destinations/${id}/test`, { method: 'POST' })
     notice.value = 'data' in result ? result.data.message : 'Destination test completed.'
   } catch (error) {
     errorMessage.value = requestErrorMessage(error)
@@ -112,13 +113,15 @@ async function testDestination(id: string) {
   <div>
     <header class="page-heading">
       <p class="eyebrow">Settings</p>
-      <h1>Backup destinations</h1>
-      <p>Manage the central storage pool inherited by client sites unless they have a site-specific override.</p>
+      <h1>System settings</h1>
+      <p>Manage transactional email and the central backup storage pool used across SiteCare.</p>
     </header>
 
     <div class="stack">
       <p v-if="notice" class="settings-message settings-message--notice" role="status">{{ notice }}</p>
       <p v-if="errorMessage" class="settings-message settings-message--error" role="alert">{{ errorMessage }}</p>
+
+      <EmailDeliverySettings />
 
       <AppPanel title="Backup setup checklist" description="Secrets are entered here in the dashboard. SiteCare encrypts them before storing them.">
         <div class="grid">
@@ -184,7 +187,7 @@ async function testDestination(id: string) {
           </div>
 
           <div v-if="provider === 'dropbox'" class="grid">
-            <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" required description="A folder inside the Dropbox app's accessible root, for example /AP-SiteCare. For an App Folder-scoped app, do not repeat the app folder name here." />
+            <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" required description="A folder inside the Dropbox app's accessible root, defaulting to /SiteCare Backups. For an App Folder-scoped app, do not repeat the app folder name here." />
             <AppInput v-model="credential" label="Dropbox access token" name="dropbox-token" type="password" :required="!editingId" description="Generate this in the Dropbox App Console. Leave blank while editing to retain the saved token." />
           </div>
           <div v-else-if="provider === 'google-drive'" class="grid">

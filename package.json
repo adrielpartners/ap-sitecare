@@ -5,12 +5,23 @@
     "apps/*",
     "packages/*"
   ],
+  "overrides": {
+    "brace-expansion": "5.0.9"
+  },
+  "devDependencies": {
+    "nuxt": "3.21.10"
+  },
   "scripts": {
     "build": "npm run build --workspace=@ap-sitecare/dashboard",
     "dev": "npm run dev --workspace=@ap-sitecare/dashboard",
     "mcp": "npm run mcp --workspace=@ap-sitecare/dashboard",
     "backup-worker": "npm run backup-worker --workspace=@ap-sitecare/dashboard",
     "backup-worker:continuous": "npm run backup-worker:continuous --workspace=@ap-sitecare/dashboard",
+    "automation-worker": "npm run automation-worker --workspace=@ap-sitecare/dashboard",
+    "automation-worker:continuous": "npm run automation-worker:continuous --workspace=@ap-sitecare/dashboard",
+    "email-worker": "npm run email-worker --workspace=@ap-sitecare/dashboard",
+    "email-worker:continuous": "npm run email-worker:continuous --workspace=@ap-sitecare/dashboard",
+    "migrate:sqlite-to-postgres": "npm run migrate:sqlite-to-postgres --workspace=@ap-sitecare/dashboard --",
     "test": "npm run test --workspace=@ap-sitecare/dashboard",
     "typecheck": "npm run typecheck --workspace=@ap-sitecare/dashboard"
   }

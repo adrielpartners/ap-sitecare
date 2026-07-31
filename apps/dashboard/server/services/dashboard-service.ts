@@ -10,6 +10,7 @@ import { AuditService } from './audit-service'
 import { HealthService } from './health-service'
 import { ScheduledTaskService } from './scheduled-task-service'
 import { SiteService } from './site-service'
+import { CloudflareRepository } from '../repositories/cloudflare-repository'
 
 export interface DashboardOverview {
   aggregates: DashboardAggregates
@@ -43,7 +44,11 @@ const activityLabels: Record<string, string> = {
   'backup.verified': 'Backup verified',
   'backup.verification.failed': 'Backup verification failed',
   'restore.plan.created': 'Restore plan created',
-  'restore.preflight.failed': 'Restore preflight failed'
+  'restore.preflight.failed': 'Restore preflight failed',
+  'uptime.incident-confirmed': 'Downtime incident confirmed',
+  'uptime.incident-recovered': 'Website recovered',
+  'uptime.tls-alert-opened': 'TLS certificate alert opened',
+  'cloudflare.security-synchronized': 'Cloudflare Security Status synchronized'
 }
 
 function distribution(counts: Record<HealthStatus, number>, total: number): Record<HealthStatus, number> {
@@ -66,17 +71,32 @@ export class DashboardService {
     private readonly siteService = new SiteService(),
     private readonly healthService = new HealthService(),
     private readonly auditService = new AuditService(),
-    private readonly scheduledTaskService = new ScheduledTaskService()
+    private readonly scheduledTaskService = new ScheduledTaskService(),
+    private readonly cloudflareRepository = new CloudflareRepository()
   ) {}
 
-  getOverview(page = 1, pageSize = 5, search = '', now = new Date()): DashboardOverview {
+  async getOverview(
+    page = 1,
+    pageSize = 5,
+    search = '',
+    now = new Date(),
+    siteIds: string[] | null = null
+  ): Promise<DashboardOverview> {
     const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1
     const safePageSize = Number.isFinite(pageSize) ? Math.min(25, Math.max(1, Math.floor(pageSize))) : 5
     const query = search.trim().toLowerCase()
-    const sites = this.siteService.list().filter(site => site.status === 'active')
-    const summaries = new Map(this.healthService.listSummaries(now).map(summary => [summary.siteId, summary]))
+    const [allSites, healthSummaries, auditEvents] = await Promise.all([
+      this.siteService.list(siteIds),
+      this.healthService.listSummaries(now, siteIds),
+      this.auditService.list(8, siteIds)
+    ])
+    const sites = allSites.filter(site => site.status === 'active')
+    const summaries = new Map(healthSummaries.map(summary => [summary.siteId, summary]))
+    const cloudflare = new Map((await this.cloudflareRepository.listPortfolioStatus(sites.map(site => site.id)))
+      .map(status => [status.siteId, status]))
     const overviewSites = sites.map((site): ManagedSiteOverview => {
       const health = summaries.get(site.id)
+      const cloudflareStatus = cloudflare.get(site.id)
       const pendingUpdateCount = health?.latest
         ? health.latest.pluginUpdateCount + health.latest.themeUpdateCount
         : null
@@ -87,12 +107,18 @@ export class DashboardService {
         url: site.url,
         status: health?.status ?? 'unknown',
         statusReason: health?.reason ?? 'No health data available',
-        uptimeStatus: 'unknown',
+        uptimeStatus: cloudflareStatus?.uptimeStatus === 'healthy' ? 'healthy'
+          : cloudflareStatus?.uptimeStatus === 'incident' ? 'critical'
+            : ['first-failure', 'maintenance', 'provider-error'].includes(cloudflareStatus?.uptimeStatus ?? '') ? 'attention' : 'unknown',
         updateStatus: updateSignal(pendingUpdateCount),
         pendingUpdateCount,
-        securityStatus: 'unknown',
+        securityStatus: cloudflareStatus?.tlsAlertOpen ? 'critical'
+          : cloudflareStatus?.securityReview ? 'attention'
+            : cloudflareStatus?.securityActive ? 'healthy' : 'unknown',
         backupStatus: 'unknown',
-        sslStatus: 'unknown',
+        sslStatus: cloudflareStatus?.tlsAlertOpen ? 'critical'
+          : cloudflareStatus?.universalSslStatus === 'active' ? 'healthy'
+            : cloudflareStatus?.universalSslStatus && cloudflareStatus.universalSslStatus !== 'unavailable' ? 'attention' : 'unknown',
         lastCheckInAt: health?.latest?.createdAt ?? null
       }
     })
@@ -124,7 +150,7 @@ export class DashboardService {
         totalItems: filteredOverviewSites.length,
         totalPages
       },
-      recentActivity: this.auditService.list(8).map(event => ({
+      recentActivity: auditEvents.map(event => ({
         id: event.id,
         siteId: event.siteId,
         siteName: event.siteId ? siteNames.get(event.siteId) ?? null : null,

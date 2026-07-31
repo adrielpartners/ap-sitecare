@@ -3,7 +3,20 @@ import operationsLogo from '~/assets/images/Logo-SiteCare-Operations-Light-320x9
 
 defineProps<{
   email?: string
+  displayName?: string
 }>()
+
+const api = useSiteCareApi()
+const loggingOut = ref(false)
+
+async function logout(): Promise<void> {
+  loggingOut.value = true
+  try {
+    await api('/api/auth/logout', { method: 'POST' })
+  } finally {
+    await navigateTo('/login')
+  }
+}
 </script>
 
 <template>
@@ -19,10 +32,11 @@ defineProps<{
       <AppIconButton label="Notifications" to="/alerts">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>
       </AppIconButton>
-      <span v-if="email" class="app-header__identity">
-        <span class="app-header__avatar" aria-hidden="true">{{ email.slice(0, 1).toUpperCase() }}</span>
-        {{ email }}
-      </span>
+      <NuxtLink v-if="email" class="app-header__identity" to="/profile">
+        <span class="app-header__avatar" aria-hidden="true">{{ (displayName || email).slice(0, 1).toUpperCase() }}</span>
+        {{ displayName || email }}
+      </NuxtLink>
+      <AppButton v-if="email" variant="quiet" :loading="loggingOut" @click="logout">Sign out</AppButton>
     </div>
   </header>
 </template>
@@ -96,6 +110,7 @@ defineProps<{
   gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+  text-decoration: none;
 }
 
 .app-header__avatar {
@@ -132,6 +147,23 @@ defineProps<{
 
   .app-header__identity {
     display: none;
+  }
+}
+
+@media (max-width: 30rem) {
+  .app-header {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
+  }
+
+  .app-header__context {
+    gap: var(--space-2);
+  }
+
+  .app-header__status {
+    gap: var(--space-0);
+    padding-inline: var(--space-2);
+    font-size: 0;
   }
 }
 </style>

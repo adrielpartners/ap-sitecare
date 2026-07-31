@@ -21,7 +21,7 @@ The worker Docker target installs `default-mysql-client`, `tar`, and `gzip`.
 ## Required Environment
 
 ```text
-NUXT_DATABASE_PATH
+NUXT_DATABASE_URL
 NUXT_CREDENTIAL_ENCRYPTION_KEY
 NUXT_INTEGRATIONS_DROPBOX_ACCESS_TOKEN
 NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT
@@ -85,6 +85,8 @@ docker compose up -d dashboard backup-worker
 ## Job and Failure Behavior
 
 - Claims are atomic; two workers cannot claim the same queued job.
+- PostgreSQL row locking uses `FOR UPDATE SKIP LOCKED`, so multiple worker
+  processes can safely compete for queued jobs.
 - Running jobs heartbeat every 15 seconds.
 - A later worker marks expired heartbeats failed using
   `NUXT_BACKUPS_STALE_AFTER_MINUTES`.
@@ -92,7 +94,7 @@ docker compose up -d dashboard backup-worker
 - Temporary work uses an isolated mode-0700 directory and is removed in a
   `finally` cleanup path.
 - Source mounts are read-only. The worker writes only to its temporary
-  directory, SQLite job records, and Dropbox.
+  directory, PostgreSQL job records, and Dropbox.
 
 ## Operational Risks
 
@@ -102,6 +104,6 @@ docker compose up -d dashboard backup-worker
   checksums are uploaded for later restore/preflight verification.
 - Large sites require sufficient temporary disk space for archives and dumps.
 - Symlinks anywhere in the WordPress source tree cause the job to fail.
-- SQLite and its WAL files require durable shared storage and separate
-  infrastructure backup.
+- PostgreSQL requires independent infrastructure backups and tested restores;
+  its durable volume alone is not a backup.
 - Restore execution and retention deletion remain intentionally unavailable.

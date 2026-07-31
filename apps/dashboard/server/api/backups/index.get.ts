@@ -1,5 +1,6 @@
 import { getBackupService } from '../../utils/backups'
+import { requireAccessIdentity } from '../../utils/auth'
 
-export default defineEventHandler((event) => {
-  return { ok: true, data: getBackupService(event).listPolicies() }
+export default defineEventHandler(async (event) => {
+  return { ok: true, data: await getBackupService(event).listPolicies(requireAccessIdentity(event).accessibleSiteIds) }
 })

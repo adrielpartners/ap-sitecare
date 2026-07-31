@@ -3,14 +3,14 @@ import { describe, it } from 'node:test'
 import { AuditRepository } from '../repositories/audit-repository'
 import { BackupDestinationRepository } from '../repositories/backup-destination-repository'
 import { SiteRepository } from '../repositories/site-repository'
-import { createDatabase } from '../utils/database'
 import { DropboxStorageProvider } from '../backups/dropbox-storage-provider'
+import { createTestDatabase, destroyTestDatabase } from '../testing/postgres-test-database'
 import { AuditService } from './audit-service'
 import { BackupDestinationService } from './backup-destination-service'
 import { SiteService } from './site-service'
 
-function createFixture() {
-  const database = createDatabase(':memory:')
+async function createFixture() {
+  const database = await createTestDatabase()
   const audit = new AuditService(new AuditRepository(database))
   const sites = new SiteService(new SiteRepository(database), audit)
   const repository = new BackupDestinationRepository(database)
@@ -21,24 +21,25 @@ function createFixture() {
     dropboxAccountLabel: 'Primary Dropbox',
     dropboxEnabled: true
   }, repository, audit, sites)
-  const site = sites.create({ name: 'Destination Fixture', url: 'https://example.com' })
+  const site = await sites.create({ name: 'Destination Fixture', url: 'https://example.com' })
   return { audit, database, repository, service, site }
 }
 
 describe('Backup destination registry', () => {
-  it('exposes runtime Dropbox as the default master destination without exposing its token', () => {
-    const { service } = createFixture()
-    const destinations = service.list()
+  it('exposes runtime Dropbox as the default master destination without exposing its token', async () => {
+    const { database, service } = await createFixture()
+    const destinations = await service.list()
     assert.equal(destinations.length, 1)
     assert.equal(destinations[0]?.id, 'runtime-dropbox')
     assert.equal(destinations[0]?.inMasterPool, true)
     assert.equal(JSON.stringify(destinations).includes('runtime-secret-token'), false)
+    await destroyTestDatabase(database)
   })
 
-  it('encrypts saved credentials and resolves site-specific multiple destinations', () => {
-    const { database, service, site } = createFixture()
+  it('encrypts saved credentials and resolves site-specific multiple destinations', async () => {
+    const { database, service, site } = await createFixture()
     const secret = 'client-dropbox-secret'
-    const destination = service.save({
+    const destination = await service.save({
       name: 'Client Dropbox',
       provider: 'dropbox',
       enabled: true,
@@ -46,16 +47,20 @@ describe('Backup destination registry', () => {
       configuration: { basePath: '/Client-Backups' },
       credential: secret
     }, 'operator@example.com')
-    const settings = service.saveSiteSettings(site.id, 'override', true, ['runtime-dropbox', destination.id], 'operator@example.com')
+    const settings = await service.saveSiteSettings(site.id, 'override', true, ['runtime-dropbox', destination.id], 'operator@example.com')
     assert.equal(settings.effectiveDestinations.length, 2)
     assert.equal(JSON.stringify(settings).includes(secret), false)
-    const stored = database.prepare('SELECT credential_ciphertext FROM backup_destinations WHERE id = ?').get(destination.id) as { credential_ciphertext: string }
+    const stored = (await database.query<{ credential_ciphertext: string }>(
+      'SELECT credential_ciphertext FROM backup_destinations WHERE id = $1',
+      [destination.id]
+    )).rows[0]!
     assert.equal(stored.credential_ciphertext.includes(secret), false)
+    await destroyTestDatabase(database)
   })
 
-  it('requires the site-level multiple destination switch before accepting multiple overrides', () => {
-    const { service, site } = createFixture()
-    const second = service.save({
+  it('requires the site-level multiple destination switch before accepting multiple overrides', async () => {
+    const { database, service, site } = await createFixture()
+    const second = await service.save({
       name: 'Second Dropbox',
       provider: 'dropbox',
       enabled: true,
@@ -63,16 +68,17 @@ describe('Backup destination registry', () => {
       configuration: { basePath: '/Second' },
       credential: 'second-secret'
     }, 'operator@example.com')
-    assert.throws(
-      () => service.saveSiteSettings(site.id, 'override', false, ['runtime-dropbox', second.id], 'operator@example.com'),
+    await assert.rejects(
+      service.saveSiteSettings(site.id, 'override', false, ['runtime-dropbox', second.id], 'operator@example.com'),
       /Enable multiple destinations/
     )
+    await destroyTestDatabase(database)
   })
 
-  it('requires a Dropbox access token when creating a dashboard-managed destination', () => {
-    const { service } = createFixture()
-    assert.throws(
-      () => service.save({
+  it('requires a Dropbox access token when creating a dashboard-managed destination', async () => {
+    const { database, service } = await createFixture()
+    await assert.rejects(
+      service.save({
         name: 'Missing Token Dropbox',
         provider: 'dropbox',
         enabled: true,
@@ -81,6 +87,7 @@ describe('Backup destination registry', () => {
       }, 'operator@example.com'),
       /Dropbox access token is required/
     )
+    await destroyTestDatabase(database)
   })
 
   it('tests the Dropbox metadata-read and content-write permissions used by backups', async () => {

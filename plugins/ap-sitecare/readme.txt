@@ -2,7 +2,7 @@
 Contributors: adrielpartners
 Requires at least: 6.0
 Requires PHP: 8.0
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 
 Securely reports WordPress operational health and provides a client-facing care summary inside WordPress Admin.
 
@@ -12,6 +12,21 @@ Securely reports WordPress operational health and provides a client-facing care 
 2. Open AP SiteCare > Settings.
 3. Enter the dashboard URL, Site ID, and Site Secret issued by AP SiteCare.
 4. Save settings and test the connection.
+
+Version 0.3 adds detailed core, theme, and plugin inventory, update activity
+reconciliation, a signed observation-only refresh endpoint, and automatic
+credential rotation with a fallback overlap. Existing Site ID and Site Secret
+settings remain compatible during upgrade.
+
+The plugin requires WordPress 6.0 or newer and PHP 8.0 or newer. Upgrade the
+Dashboard and run its PostgreSQL migration 10 before deploying plugin 0.3.0.
+Do not clear the existing connection settings during upgrade: the first
+successful check-in negotiates the new rotation lifecycle automatically.
+
+License and support status remain "unknown" when a plugin vendor does not
+publish safe metadata. Integrations may supply non-secret license status with
+the `apsc_plugin_license_status` filter. Never return license keys or account
+credentials through that filter.
 
 == Client Care View ==
 

@@ -68,7 +68,6 @@
                         'show_backups' => __('Show backups section', 'ap-sitecare'),
                         'show_updates' => __('Show updates section', 'ap-sitecare'),
                         'show_uptime' => __('Show uptime section', 'ap-sitecare'),
-                        'show_service_time' => __('Show service-time section when available', 'ap-sitecare'),
                     );
                     ?>
                     <?php foreach ($toggles as $key => $label) : ?>

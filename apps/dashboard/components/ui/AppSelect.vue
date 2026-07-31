@@ -1,12 +1,14 @@
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false })
 
-defineProps<{
+withDefaults(defineProps<{
   label: string
-  modelValue: string
+  modelValue?: string
   name: string
   options: Array<{ label: string, value: string }>
-}>()
+}>(), {
+  modelValue: ''
+})
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const inputId = useId()
@@ -23,7 +25,14 @@ const inputId = useId()
       :value="modelValue"
       @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
     >
-      <option v-for="option in options" :key="option.value" :value="option.value">{{ option.label }}</option>
+      <option
+        v-for="option in options"
+        :key="option.value"
+        :selected="option.value === modelValue"
+        :value="option.value"
+      >
+        {{ option.label }}
+      </option>
     </select>
   </div>
 </template>

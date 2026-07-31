@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody<Record<string, unknown>>(event)
     return {
       ok: true,
-      data: getBackupDestinationService(event).save({
+      data: await getBackupDestinationService(event).save({
         ...parseDestination(body),
         id: getRouterParam(event, 'id') ?? ''
       }, getDashboardActor(event))

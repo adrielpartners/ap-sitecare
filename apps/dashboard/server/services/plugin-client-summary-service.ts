@@ -36,11 +36,11 @@ export class PluginClientSummaryService {
     private readonly auditService = new AuditService()
   ) {}
 
-  get(siteId: string) {
-    const site = this.siteService.get(siteId)
-    const health = this.healthService.getSummary(siteId)
-    const recentActivity = this.auditService
-      .listForSite(siteId)
+  async get(siteId: string) {
+    const site = await this.siteService.get(siteId)
+    const health = await this.healthService.getSummary(siteId)
+    const recentActivity = (await this.auditService
+      .listForSite(siteId))
       .filter(event => Object.hasOwn(activityLabels, event.eventType))
       .slice(0, 8)
       .map(mapActivity)

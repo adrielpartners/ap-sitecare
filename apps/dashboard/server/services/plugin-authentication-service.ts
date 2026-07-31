@@ -7,6 +7,8 @@ const MAX_REQUEST_AGE_SECONDS = 300
 
 export interface AuthenticatedPluginRequest {
   siteId: string
+  credentialId: string
+  credentialState: 'active' | 'pending' | 'overlap'
   requestTimestamp: string
   rawBody: string
 }
@@ -47,7 +49,7 @@ export class PluginAuthenticationService {
     }, now)
   }
 
-  authenticateRequest(input: PluginRequestInput, now = Date.now()): AuthenticatedPluginRequest {
+  async authenticateRequest(input: PluginRequestInput, now = Date.now()): Promise<AuthenticatedPluginRequest> {
     const { siteId, timestamp, signature, rawBody } = input
 
     if (!siteId || !timestamp || !signature) {
@@ -59,19 +61,31 @@ export class PluginAuthenticationService {
       throw new PluginAuthenticationError(401, 'Plugin request timestamp is stale or invalid.')
     }
 
-    const site = this.siteService.get(siteId)
+    const site = await this.siteService.get(siteId)
     if (site.status !== 'active') {
       throw new PluginAuthenticationError(403, 'Site is disabled.')
     }
 
-    const expected = createPluginSignature(this.credentialService.getActiveSecret(siteId), timestamp, rawBody)
-    const expectedBuffer = Buffer.from(expected)
     const signatureBuffer = Buffer.from(signature)
-
-    if (expectedBuffer.length !== signatureBuffer.length || !timingSafeEqual(expectedBuffer, signatureBuffer)) {
+    const credentials = await this.credentialService.getAcceptedCredentials(siteId, new Date(now).toISOString())
+    const matched = credentials.find(({ secret }) => {
+      const expectedBuffer = Buffer.from(createPluginSignature(secret, timestamp, rawBody))
+      return expectedBuffer.length === signatureBuffer.length && timingSafeEqual(expectedBuffer, signatureBuffer)
+    })
+    if (!matched) {
       throw new PluginAuthenticationError(401, 'Plugin request signature is invalid.')
     }
-
-    return { siteId, requestTimestamp: timestamp, rawBody }
+    const acceptedAt = new Date(now).toISOString()
+    if (!await this.credentialService.claimSignedRequest(siteId, signature, acceptedAt)) {
+      throw new PluginAuthenticationError(409, 'Plugin request replay was rejected.')
+    }
+    await this.credentialService.recordAuthenticated(siteId, matched.credential.id, acceptedAt)
+    return {
+      siteId,
+      credentialId: matched.credential.id,
+      credentialState: matched.credential.state as 'active' | 'pending' | 'overlap',
+      requestTimestamp: timestamp,
+      rawBody
+    }
   }
 }

@@ -21,11 +21,13 @@ final class ClientCareService
             throw new \RuntimeException('Dashboard URL, Site ID, and Site Secret are required.');
         }
 
-        $response = $this->client->post(
+        $response = $this->client->post_with_fallback(
             $settings['dashboard_url'],
             '/api/plugin/client-summary',
             $settings['site_id'],
             $settings['site_secret'],
+            $settings['previous_site_secret'],
+            $settings['previous_site_secret_valid_until'],
             array()
         );
         $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : null;
@@ -78,9 +80,6 @@ final class ClientCareService
                 'last_checked_at' => $local['lastUpdateCheckAt'],
                 'active_theme' => $local['activeTheme'],
             ),
-            'service_time' => isset($remote['serviceTime']) && is_array($remote['serviceTime'])
-                ? $remote['serviceTime']
-                : null,
             'plan_label' => $settings['plan_label'],
             'cache_fetched_at' => $cached['fetched_at'] ?? null,
             'cache_is_stale' => !$cache_is_fresh,

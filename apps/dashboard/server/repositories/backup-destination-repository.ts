@@ -1,21 +1,26 @@
-import type Database from 'better-sqlite3'
 import type { BackupDestination, BackupDestinationMode, BackupDestinationProvider } from '../domain/types'
-import { useDatabase } from '../utils/database'
-
-const bool = (value: number): boolean => value === 1
-const numberBool = (value: boolean): number => value ? 1 : 0
+import { useDatabase, type TransactionalQueryExecutor } from '../utils/database'
 
 interface DestinationRow {
   id: string
   name: string
   provider: BackupDestinationProvider
-  enabled: number
-  in_master_pool: number
+  enabled: boolean
+  in_master_pool: boolean
   credential_source: 'encrypted' | 'runtime'
-  configuration_json: string
+  configuration_json: unknown
   credential_ciphertext: string | null
   created_at: string
   updated_at: string
+}
+
+function configuration(value: unknown): Record<string, string> {
+  const parsed = typeof value === 'string' ? JSON.parse(value) as unknown : value
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(parsed as Record<string, unknown>)
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  )
 }
 
 function mapDestination(row: DestinationRow): BackupDestination {
@@ -23,10 +28,10 @@ function mapDestination(row: DestinationRow): BackupDestination {
     id: row.id,
     name: row.name,
     provider: row.provider,
-    enabled: bool(row.enabled),
-    inMasterPool: bool(row.in_master_pool),
+    enabled: row.enabled,
+    inMasterPool: row.in_master_pool,
     credentialSource: row.credential_source,
-    configuration: JSON.parse(row.configuration_json) as Record<string, string>,
+    configuration: configuration(row.configuration_json),
     credentialConfigured: Boolean(row.credential_ciphertext) || row.credential_source === 'runtime',
     executable: row.provider === 'dropbox',
     createdAt: row.created_at,
@@ -35,73 +40,106 @@ function mapDestination(row: DestinationRow): BackupDestination {
 }
 
 export class BackupDestinationRepository {
-  constructor(private readonly database: Database.Database = useDatabase()) {}
+  constructor(private readonly database: TransactionalQueryExecutor = useDatabase()) {}
 
-  list(): BackupDestination[] {
-    return (this.database.prepare('SELECT * FROM backup_destinations ORDER BY in_master_pool DESC, name ASC').all() as DestinationRow[])
-      .map(mapDestination)
+  async list(): Promise<BackupDestination[]> {
+    const result = await this.database.query<DestinationRow>(
+      'SELECT * FROM backup_destinations ORDER BY in_master_pool DESC, name ASC'
+    )
+    return result.rows.map(mapDestination)
   }
 
-  get(id: string): BackupDestination | null {
-    const row = this.database.prepare('SELECT * FROM backup_destinations WHERE id = ?').get(id) as DestinationRow | undefined
-    return row ? mapDestination(row) : null
+  async get(id: string): Promise<BackupDestination | null> {
+    const result = await this.database.query<DestinationRow>(
+      'SELECT * FROM backup_destinations WHERE id = $1',
+      [id]
+    )
+    return result.rows[0] ? mapDestination(result.rows[0]) : null
   }
 
-  getCredentialCiphertext(id: string): string | null {
-    const row = this.database.prepare('SELECT credential_ciphertext FROM backup_destinations WHERE id = ?').get(id) as { credential_ciphertext: string | null } | undefined
-    return row?.credential_ciphertext ?? null
+  async getCredentialCiphertext(id: string): Promise<string | null> {
+    const result = await this.database.query<{ credential_ciphertext: string | null }>(
+      'SELECT credential_ciphertext FROM backup_destinations WHERE id = $1',
+      [id]
+    )
+    return result.rows[0]?.credential_ciphertext ?? null
   }
 
-  save(destination: BackupDestination, credentialCiphertext: string | null): BackupDestination {
-    this.database.prepare(`
+  async save(destination: BackupDestination, credentialCiphertext: string | null): Promise<BackupDestination> {
+    await this.database.query(`
       INSERT INTO backup_destinations (
-        id, name, provider, enabled, in_master_pool, credential_source, configuration_json,
-        credential_ciphertext, created_at, updated_at
-      ) VALUES (
-        @id, @name, @provider, @enabled, @inMasterPool, @credentialSource, @configurationJson,
-        @credentialCiphertext, @createdAt, @updatedAt
-      )
+        id, name, provider, enabled, in_master_pool, credential_source,
+        configuration_json, credential_ciphertext, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
       ON CONFLICT(id) DO UPDATE SET
-        name = excluded.name, provider = excluded.provider, enabled = excluded.enabled,
-        in_master_pool = excluded.in_master_pool, credential_source = excluded.credential_source,
+        name = excluded.name,
+        provider = excluded.provider,
+        enabled = excluded.enabled,
+        in_master_pool = excluded.in_master_pool,
+        credential_source = excluded.credential_source,
         configuration_json = excluded.configuration_json,
-        credential_ciphertext = excluded.credential_ciphertext, updated_at = excluded.updated_at
-    `).run({
-      ...destination,
-      enabled: numberBool(destination.enabled),
-      inMasterPool: numberBool(destination.inMasterPool),
-      configurationJson: JSON.stringify(destination.configuration),
-      credentialCiphertext
-    })
+        credential_ciphertext = excluded.credential_ciphertext,
+        updated_at = excluded.updated_at
+    `, [
+      destination.id, destination.name, destination.provider, destination.enabled,
+      destination.inMasterPool, destination.credentialSource,
+      JSON.stringify(destination.configuration), credentialCiphertext,
+      destination.createdAt, destination.updatedAt
+    ])
     return destination
   }
 
-  getSiteSettings(siteId: string): { mode: BackupDestinationMode, allowMultiple: boolean, destinationIds: string[] } {
-    const row = this.database.prepare('SELECT * FROM site_backup_destination_settings WHERE site_id = ?').get(siteId) as
-      { mode: BackupDestinationMode, allow_multiple: number } | undefined
-    const assignments = this.database.prepare(`
-      SELECT destination_id FROM site_backup_destination_assignments WHERE site_id = ? ORDER BY priority ASC
-    `).all(siteId) as Array<{ destination_id: string }>
+  async getSiteSettings(siteId: string): Promise<{
+    mode: BackupDestinationMode
+    allowMultiple: boolean
+    destinationIds: string[]
+  }> {
+    const [settings, assignments] = await Promise.all([
+      this.database.query<{ mode: BackupDestinationMode, allow_multiple: boolean }>(
+        'SELECT mode, allow_multiple FROM site_backup_destination_settings WHERE site_id = $1',
+        [siteId]
+      ),
+      this.database.query<{ destination_id: string }>(`
+        SELECT destination_id
+        FROM site_backup_destination_assignments
+        WHERE site_id = $1
+        ORDER BY priority ASC
+      `, [siteId])
+    ])
     return {
-      mode: row?.mode ?? 'master',
-      allowMultiple: row ? bool(row.allow_multiple) : false,
-      destinationIds: assignments.map(item => item.destination_id)
+      mode: settings.rows[0]?.mode ?? 'master',
+      allowMultiple: settings.rows[0]?.allow_multiple ?? false,
+      destinationIds: assignments.rows.map(item => item.destination_id)
     }
   }
 
-  saveSiteSettings(siteId: string, mode: BackupDestinationMode, allowMultiple: boolean, destinationIds: string[], now: string): void {
-    this.database.transaction(() => {
-      this.database.prepare(`
+  async saveSiteSettings(
+    siteId: string,
+    mode: BackupDestinationMode,
+    allowMultiple: boolean,
+    destinationIds: string[],
+    now: string
+  ): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      await transaction.query(`
         INSERT INTO site_backup_destination_settings (site_id, mode, allow_multiple, updated_at)
-        VALUES (?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT(site_id) DO UPDATE SET
-          mode = excluded.mode, allow_multiple = excluded.allow_multiple, updated_at = excluded.updated_at
-      `).run(siteId, mode, numberBool(allowMultiple), now)
-      this.database.prepare('DELETE FROM site_backup_destination_assignments WHERE site_id = ?').run(siteId)
-      const insert = this.database.prepare(`
-        INSERT INTO site_backup_destination_assignments (site_id, destination_id, priority) VALUES (?, ?, ?)
-      `)
-      destinationIds.forEach((destinationId, priority) => insert.run(siteId, destinationId, priority))
-    })()
+          mode = excluded.mode,
+          allow_multiple = excluded.allow_multiple,
+          updated_at = excluded.updated_at
+      `, [siteId, mode, allowMultiple, now])
+      await transaction.query(
+        'DELETE FROM site_backup_destination_assignments WHERE site_id = $1',
+        [siteId]
+      )
+      for (const [priority, destinationId] of destinationIds.entries()) {
+        await transaction.query(`
+          INSERT INTO site_backup_destination_assignments (
+            site_id, destination_id, priority
+          ) VALUES ($1, $2, $3)
+        `, [siteId, destinationId, priority])
+      }
+    })
   }
 }

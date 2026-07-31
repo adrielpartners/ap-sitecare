@@ -8,7 +8,7 @@ withDefaults(defineProps<{
   modelValue?: string
   name: string
   placeholder?: string
-  type?: 'text' | 'email' | 'password' | 'url' | 'search'
+  type?: 'text' | 'email' | 'password' | 'url' | 'search' | 'date' | 'datetime-local' | 'number'
 }>(), {
   description: undefined,
   error: undefined,

@@ -1,8 +1,18 @@
 import { calculateSnapshotStatus, HealthService } from './health-service'
 import type { DetectedBackupSourceInput } from './backup-service'
 import { BackupService } from './backup-service'
+import { EntitlementService } from './entitlement-service'
+import { CredentialService } from './credential-service'
+import { WordPressUpdateService } from './wordpress-update-service'
+
+interface UpdateMonitoringEntitlementGate {
+  assertCapability(siteId: string, capability: 'wordpress-update-monitoring'): Promise<unknown>
+}
 
 interface PluginCheckInPayload {
+  contractVersion: number
+  pluginVersion: string | null
+  wordpressHomeUrl: string | null
   wordpressVersion: string | null
   phpVersion: string | null
   pluginUpdateCount: number
@@ -22,44 +32,100 @@ function updateCount(value: unknown, key: string): number {
   return value as number
 }
 
+function contractVersion(value: unknown): number {
+  if (value === undefined || value === null) return 1
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 2) {
+    throw new Error('contractVersion must be a supported positive integer.')
+  }
+  return value as number
+}
+
 export class PluginReportingService {
   constructor(
     private readonly healthService = new HealthService(),
-    private readonly backupService: BackupService | null = null
+    private readonly backupService: BackupService | null = null,
+    private readonly entitlements: UpdateMonitoringEntitlementGate = new EntitlementService(),
+    private readonly updateService: WordPressUpdateService | null = null,
+    private readonly credentialService: CredentialService | null = null
   ) {}
 
   testConnection(siteId: string): { connected: true, siteId: string } {
     return { connected: true, siteId }
   }
 
-  recordCheckIn(siteId: string, requestTimestamp: string, payload: Record<string, unknown>) {
+  async recordCheckIn(siteId: string, requestTimestamp: string, payload: Record<string, unknown>) {
+    await this.entitlements.assertCapability(siteId, 'wordpress-update-monitoring')
+    const reportedContractVersion = contractVersion(payload.contractVersion)
+    const updateService = reportedContractVersion >= 2
+      ? this.updateService ?? new WordPressUpdateService()
+      : null
+    const updateReport = updateService?.normalize(payload, reportedContractVersion) ?? null
     const detectedBackupSource = this.normalizeBackupSource(payload.backupSource)
     let backupSourceError: string | null = null
     if (detectedBackupSource && this.backupService) {
       try {
-        this.backupService.recordDetectedBackupSource(siteId, detectedBackupSource)
+        await this.backupService.recordDetectedBackupSource(siteId, detectedBackupSource)
       } catch (error) {
         backupSourceError = error instanceof Error ? error.message : 'Backup source detection could not be saved.'
       }
     }
 
+    const pluginUpdateCount = updateReport
+      ? updateReport.inventory.filter(item => item.componentType === 'plugin' && item.availableVersion && item.availableVersion !== item.installedVersion).length
+      : updateCount(payload.pluginUpdateCount, 'pluginUpdateCount')
+    const themeUpdateCount = updateReport
+      ? updateReport.inventory.filter(item => item.componentType === 'theme' && item.availableVersion && item.availableVersion !== item.installedVersion).length
+      : updateCount(payload.themeUpdateCount, 'themeUpdateCount')
+    const coreUpdateCount = updateReport?.snapshot.coreAvailableVersion
+      && updateReport.snapshot.coreAvailableVersion !== updateReport.snapshot.coreInstalledVersion ? 1 : 0
     const normalized: PluginCheckInPayload = {
+      contractVersion: reportedContractVersion,
+      pluginVersion: optionalString(payload.pluginVersion, 'pluginVersion'),
+      wordpressHomeUrl: optionalString(payload.wordpressHomeUrl, 'wordpressHomeUrl'),
       wordpressVersion: optionalString(payload.wordpressVersion, 'wordpressVersion'),
       phpVersion: optionalString(payload.phpVersion, 'phpVersion'),
-      pluginUpdateCount: updateCount(payload.pluginUpdateCount, 'pluginUpdateCount'),
-      themeUpdateCount: updateCount(payload.themeUpdateCount, 'themeUpdateCount'),
+      pluginUpdateCount,
+      themeUpdateCount,
       lastCronRunAt: optionalString(payload.lastCronRunAt, 'lastCronRunAt'),
+      ...(updateReport ? {
+        updateSummary: {
+          checkedAt: updateReport.snapshot.checkedAt,
+          pendingUpdateCount: updateReport.snapshot.pendingUpdateCount,
+          activityCount: updateReport.activities.length
+        }
+      } : {}),
       ...(detectedBackupSource ? { backupSource: { ...this.redactBackupSource(detectedBackupSource), saveError: backupSourceError } } : {})
-    }
+    } as PluginCheckInPayload
 
-    return this.healthService.recordCheckIn({
+    const health = await this.healthService.recordCheckIn({
       siteId,
       source: 'wordpress-plugin',
       requestTimestamp,
       payload: normalized as unknown as Record<string, unknown>,
-      status: calculateSnapshotStatus(normalized.pluginUpdateCount, normalized.themeUpdateCount),
+      status: calculateSnapshotStatus(normalized.pluginUpdateCount + coreUpdateCount, normalized.themeUpdateCount),
       ...normalized
     })
+    const updates = updateReport
+      ? await updateService!.record(siteId, health.checkIn.id, updateReport, health.checkIn.receivedAt)
+      : null
+    const connection = this.credentialService
+      ? await this.credentialService.recordCheckIn(siteId, {
+          contractVersion: reportedContractVersion,
+          pluginVersion: normalized.pluginVersion,
+          wordpressHomeUrl: normalized.wordpressHomeUrl
+        }, health.checkIn.receivedAt)
+      : null
+    return {
+      ...health,
+      updates,
+      acceptedActivityIds: updates?.acceptedActivityIds ?? [],
+      connection: connection
+        ? {
+            contractVersion: connection.connection.contractVersion,
+            rotation: connection.rotation
+          }
+        : null
+    }
   }
 
   private normalizeBackupSource(value: unknown): DetectedBackupSourceInput | null {

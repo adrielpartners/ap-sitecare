@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3'
+import type { Pool, PoolClient } from 'pg'
 
 interface Migration {
   id: number
@@ -16,9 +16,9 @@ const migrations: Migration[] = [
         name TEXT NOT NULL,
         url TEXT NOT NULL UNIQUE,
         status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        disabled_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        disabled_at TIMESTAMPTZ
       );
 
       CREATE TABLE site_credentials (
@@ -26,8 +26,8 @@ const migrations: Migration[] = [
         site_id TEXT NOT NULL,
         secret_ciphertext TEXT NOT NULL,
         secret_hint TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        revoked_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        revoked_at TIMESTAMPTZ,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
 
@@ -38,10 +38,10 @@ const migrations: Migration[] = [
       CREATE TABLE site_check_ins (
         id TEXT PRIMARY KEY,
         site_id TEXT NOT NULL,
-        received_at TEXT NOT NULL,
+        received_at TIMESTAMPTZ NOT NULL,
         source TEXT NOT NULL DEFAULT 'wordpress-plugin',
-        request_timestamp TEXT,
-        payload_json TEXT NOT NULL DEFAULT '{}',
+        request_timestamp TIMESTAMPTZ,
+        payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
 
@@ -57,8 +57,8 @@ const migrations: Migration[] = [
         php_version TEXT,
         plugin_update_count INTEGER NOT NULL DEFAULT 0 CHECK (plugin_update_count >= 0),
         theme_update_count INTEGER NOT NULL DEFAULT 0 CHECK (theme_update_count >= 0),
-        last_cron_run_at TEXT,
-        created_at TEXT NOT NULL,
+        last_cron_run_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
         FOREIGN KEY (check_in_id) REFERENCES site_check_ins(id) ON DELETE CASCADE
       );
@@ -72,8 +72,8 @@ const migrations: Migration[] = [
         actor_type TEXT NOT NULL,
         actor_identifier TEXT,
         event_type TEXT NOT NULL,
-        metadata_json TEXT NOT NULL DEFAULT '{}',
-        created_at TEXT NOT NULL,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL
       );
 
@@ -109,8 +109,8 @@ const migrations: Migration[] = [
         requested_by TEXT NOT NULL,
         reviewed_by TEXT,
         review_note TEXT,
-        created_at TEXT NOT NULL,
-        reviewed_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        reviewed_at TIMESTAMPTZ,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
 
@@ -127,20 +127,20 @@ const migrations: Migration[] = [
     sql: `
       CREATE TABLE backup_policies (
         site_id TEXT PRIMARY KEY,
-        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
         frequency TEXT NOT NULL DEFAULT 'daily' CHECK (frequency IN ('daily', 'weekly', 'monthly')),
-        files_enabled INTEGER NOT NULL DEFAULT 1 CHECK (files_enabled IN (0, 1)),
-        database_enabled INTEGER NOT NULL DEFAULT 1 CHECK (database_enabled IN (0, 1)),
+        files_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        database_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         storage_provider TEXT NOT NULL DEFAULT 'dropbox',
         keep_daily INTEGER NOT NULL DEFAULT 7 CHECK (keep_daily >= 0),
         keep_weekly INTEGER NOT NULL DEFAULT 4 CHECK (keep_weekly >= 0),
         keep_monthly INTEGER NOT NULL DEFAULT 6 CHECK (keep_monthly >= 0),
-        auto_delete_expired INTEGER NOT NULL DEFAULT 0 CHECK (auto_delete_expired IN (0, 1)),
-        restore_enabled INTEGER NOT NULL DEFAULT 0 CHECK (restore_enabled IN (0, 1)),
-        restore_requires_confirmation INTEGER NOT NULL DEFAULT 1 CHECK (restore_requires_confirmation IN (0, 1)),
+        auto_delete_expired BOOLEAN NOT NULL DEFAULT FALSE,
+        restore_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        restore_requires_confirmation BOOLEAN NOT NULL DEFAULT TRUE,
         notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
 
@@ -148,11 +148,11 @@ const migrations: Migration[] = [
         site_id TEXT PRIMARY KEY,
         connection_type TEXT NOT NULL DEFAULT 'manual-unsupported',
         local_path TEXT,
-        database_configured INTEGER NOT NULL DEFAULT 0 CHECK (database_configured IN (0, 1)),
+        database_configured BOOLEAN NOT NULL DEFAULT FALSE,
         provider_label TEXT,
         notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
 
@@ -161,16 +161,16 @@ const migrations: Migration[] = [
         site_id TEXT NOT NULL,
         backup_type TEXT NOT NULL CHECK (backup_type IN ('scheduled', 'manual', 'pre-restore')),
         frequency TEXT NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'manual')),
-        files_included INTEGER NOT NULL CHECK (files_included IN (0, 1)),
-        database_included INTEGER NOT NULL CHECK (database_included IN (0, 1)),
+        files_included BOOLEAN NOT NULL,
+        database_included BOOLEAN NOT NULL,
         storage_provider TEXT NOT NULL,
         storage_path TEXT NOT NULL,
         status TEXT NOT NULL CHECK (status IN ('planned', 'queued', 'running', 'completed', 'failed', 'expired')),
-        size_bytes INTEGER,
+        size_bytes BIGINT,
         checksum TEXT,
-        started_at TEXT NOT NULL,
-        completed_at TEXT,
-        expires_at TEXT,
+        started_at TIMESTAMPTZ NOT NULL,
+        completed_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ,
         retention_category TEXT NOT NULL,
         manifest_path TEXT,
         error_message TEXT,
@@ -187,9 +187,9 @@ const migrations: Migration[] = [
         status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'completed', 'failed')),
         runner TEXT NOT NULL CHECK (runner IN ('manual-placeholder', 'background-worker')),
         requested_by TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        started_at TEXT,
-        completed_at TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
         error_message TEXT,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
         FOREIGN KEY (backup_id) REFERENCES backup_artifacts(id) ON DELETE CASCADE
@@ -200,15 +200,15 @@ const migrations: Migration[] = [
         site_id TEXT NOT NULL,
         backup_id TEXT NOT NULL,
         status TEXT NOT NULL CHECK (status IN ('draft', 'preflight-passed', 'preflight-failed', 'cancelled')),
-        restore_files INTEGER NOT NULL CHECK (restore_files IN (0, 1)),
-        restore_database INTEGER NOT NULL CHECK (restore_database IN (0, 1)),
+        restore_files BOOLEAN NOT NULL,
+        restore_database BOOLEAN NOT NULL,
         capability TEXT NOT NULL CHECK (capability IN ('full', 'partial', 'backup-only', 'unsupported')),
-        preflight_json TEXT NOT NULL DEFAULT '{}',
-        warnings_json TEXT NOT NULL DEFAULT '[]',
-        confirmation_required INTEGER NOT NULL DEFAULT 1 CHECK (confirmation_required IN (0, 1)),
+        preflight_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        warnings_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        confirmation_required BOOLEAN NOT NULL DEFAULT TRUE,
         created_by TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
         FOREIGN KEY (backup_id) REFERENCES backup_artifacts(id) ON DELETE CASCADE
       );
@@ -227,13 +227,13 @@ const migrations: Migration[] = [
       ALTER TABLE hosting_connections ADD COLUMN database_username TEXT;
       ALTER TABLE hosting_connections ADD COLUMN database_password_ciphertext TEXT;
 
-      ALTER TABLE backup_artifacts ADD COLUMN manifest_json TEXT;
-      ALTER TABLE backup_artifacts ADD COLUMN checksum_verified_at TEXT;
-      ALTER TABLE backup_artifacts ADD COLUMN upload_verified_at TEXT;
+      ALTER TABLE backup_artifacts ADD COLUMN manifest_json JSONB;
+      ALTER TABLE backup_artifacts ADD COLUMN checksum_verified_at TIMESTAMPTZ;
+      ALTER TABLE backup_artifacts ADD COLUMN upload_verified_at TIMESTAMPTZ;
 
       ALTER TABLE backup_jobs ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;
-      ALTER TABLE backup_jobs ADD COLUMN claimed_at TEXT;
-      ALTER TABLE backup_jobs ADD COLUMN heartbeat_at TEXT;
+      ALTER TABLE backup_jobs ADD COLUMN claimed_at TIMESTAMPTZ;
+      ALTER TABLE backup_jobs ADD COLUMN heartbeat_at TIMESTAMPTZ;
       ALTER TABLE backup_jobs ADD COLUMN claim_token TEXT;
 
       CREATE INDEX backup_jobs_status_created
@@ -248,20 +248,20 @@ const migrations: Migration[] = [
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         provider TEXT NOT NULL CHECK (provider IN ('dropbox', 'google-drive', 's3-compatible')),
-        enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-        in_master_pool INTEGER NOT NULL DEFAULT 0 CHECK (in_master_pool IN (0, 1)),
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        in_master_pool BOOLEAN NOT NULL DEFAULT FALSE,
         credential_source TEXT NOT NULL DEFAULT 'encrypted' CHECK (credential_source IN ('encrypted', 'runtime')),
-        configuration_json TEXT NOT NULL DEFAULT '{}',
+        configuration_json JSONB NOT NULL DEFAULT '{}'::jsonb,
         credential_ciphertext TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
       );
 
       CREATE TABLE site_backup_destination_settings (
         site_id TEXT PRIMARY KEY,
         mode TEXT NOT NULL DEFAULT 'master' CHECK (mode IN ('master', 'override')),
-        allow_multiple INTEGER NOT NULL DEFAULT 0 CHECK (allow_multiple IN (0, 1)),
-        updated_at TEXT NOT NULL,
+        allow_multiple BOOLEAN NOT NULL DEFAULT FALSE,
+        updated_at TIMESTAMPTZ NOT NULL,
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       );
 
@@ -289,33 +289,1032 @@ const migrations: Migration[] = [
       CREATE INDEX site_backup_destination_priority
         ON site_backup_destination_assignments(site_id, priority);
     `
+  },
+  {
+    id: 7,
+    name: 'add_application_identity_and_access',
+    sql: `
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+        mfa_required BOOLEAN NOT NULL DEFAULT FALSE,
+        mfa_enrolled_at TIMESTAMPTZ,
+        last_login_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        disabled_at TIMESTAMPTZ
+      );
+
+      CREATE UNIQUE INDEX users_email_unique ON users (LOWER(email));
+
+      CREATE TABLE user_password_credentials (
+        user_id TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        password_changed_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE client_accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      );
+
+      CREATE TABLE memberships (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('admin', 'team-member', 'client')),
+        client_account_id TEXT,
+        all_sites BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (client_account_id) REFERENCES client_accounts(id) ON DELETE CASCADE,
+        CHECK (
+          (role = 'client' AND client_account_id IS NOT NULL AND all_sites = FALSE)
+          OR
+          (role IN ('admin', 'team-member') AND client_account_id IS NULL)
+        )
+      );
+
+      CREATE UNIQUE INDEX memberships_staff_user_unique
+        ON memberships(user_id)
+        WHERE role IN ('admin', 'team-member');
+
+      CREATE UNIQUE INDEX memberships_client_user_account_unique
+        ON memberships(user_id, client_account_id)
+        WHERE role = 'client';
+
+      CREATE TABLE site_client_accounts (
+        site_id TEXT PRIMARY KEY,
+        client_account_id TEXT NOT NULL,
+        assigned_at TIMESTAMPTZ NOT NULL,
+        assigned_by TEXT NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (client_account_id) REFERENCES client_accounts(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX site_client_accounts_client
+        ON site_client_accounts(client_account_id, site_id);
+
+      CREATE TABLE membership_site_access (
+        membership_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (membership_id, site_id),
+        FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE auth_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        csrf_token_hash TEXT NOT NULL,
+        ip_hash TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        last_seen_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked_at TIMESTAMPTZ,
+        revoked_by TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX auth_sessions_user_active
+        ON auth_sessions(user_id, expires_at DESC)
+        WHERE revoked_at IS NULL;
+
+      CREATE TABLE invitations (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        display_name TEXT,
+        role TEXT NOT NULL CHECK (role IN ('admin', 'team-member', 'client')),
+        client_account_id TEXT,
+        all_sites BOOLEAN NOT NULL DEFAULT FALSE,
+        token_hash TEXT NOT NULL UNIQUE,
+        invited_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        accepted_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        FOREIGN KEY (client_account_id) REFERENCES client_accounts(id) ON DELETE CASCADE,
+        CHECK (
+          (role = 'client' AND client_account_id IS NOT NULL AND all_sites = FALSE)
+          OR
+          (role IN ('admin', 'team-member') AND client_account_id IS NULL)
+        )
+      );
+
+      CREATE INDEX invitations_email_created
+        ON invitations(LOWER(email), created_at DESC);
+
+      CREATE TABLE invitation_site_access (
+        invitation_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (invitation_id, site_id),
+        FOREIGN KEY (invitation_id) REFERENCES invitations(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE password_resets (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX password_resets_user_created
+        ON password_resets(user_id, created_at DESC);
+
+      CREATE TABLE authentication_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        email TEXT,
+        event_type TEXT NOT NULL,
+        ip_hash TEXT,
+        user_agent TEXT,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX authentication_events_email_created
+        ON authentication_events(LOWER(email), created_at DESC);
+
+      CREATE INDEX authentication_events_ip_created
+        ON authentication_events(ip_hash, created_at DESC);
+
+      CREATE TABLE user_mfa_factors (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        factor_type TEXT NOT NULL CHECK (factor_type IN ('totp')),
+        secret_ciphertext TEXT NOT NULL,
+        recovery_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL,
+        verified_at TIMESTAMPTZ,
+        disabled_at TIMESTAMPTZ,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE UNIQUE INDEX user_mfa_factors_active
+        ON user_mfa_factors(user_id, factor_type)
+        WHERE disabled_at IS NULL;
+
+      CREATE TABLE email_outbox (
+        id TEXT PRIMARY KEY,
+        message_type TEXT NOT NULL,
+        recipient_email TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        text_content TEXT NOT NULL,
+        html_content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
+        idempotency_key TEXT NOT NULL UNIQUE,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        available_at TIMESTAMPTZ NOT NULL,
+        claimed_at TIMESTAMPTZ,
+        sent_at TIMESTAMPTZ,
+        provider_message_id TEXT,
+        last_error TEXT,
+        created_at TIMESTAMPTZ NOT NULL
+      );
+
+      CREATE INDEX email_outbox_pending
+        ON email_outbox(status, available_at ASC);
+    `
+  },
+  {
+    id: 8,
+    name: 'add_clients_plans_entitlements_and_overrides',
+    sql: `
+      ALTER TABLE client_accounts
+        ADD COLUMN is_placeholder BOOLEAN NOT NULL DEFAULT FALSE;
+
+      INSERT INTO client_accounts (
+        id, name, status, created_at, updated_at, is_placeholder
+      )
+      SELECT
+        '00000000-0000-0000-0000-000000000003',
+        'Unassigned Sites — Review Required',
+        'active',
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        TRUE
+      WHERE EXISTS (
+        SELECT 1
+        FROM sites s
+        LEFT JOIN site_client_accounts sca ON sca.site_id = s.id
+        WHERE sca.site_id IS NULL
+      )
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO site_client_accounts (
+        site_id, client_account_id, assigned_at, assigned_by
+      )
+      SELECT
+        s.id,
+        '00000000-0000-0000-0000-000000000003',
+        CURRENT_TIMESTAMP,
+        'system:migration-8'
+      FROM sites s
+      LEFT JOIN site_client_accounts sca ON sca.site_id = s.id
+      WHERE sca.site_id IS NULL;
+
+      CREATE TABLE site_service_subscriptions (
+        site_id TEXT PRIMARY KEY,
+        plan_id TEXT NOT NULL
+          CHECK (plan_id IN ('sitecare-core', 'sitecare-plus', 'sitecare-pro')),
+        status TEXT NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'cancelled')),
+        service_started_at TIMESTAMPTZ NOT NULL,
+        annual_checkup_eligible_at TIMESTAMPTZ NOT NULL,
+        paid_through_at TIMESTAMPTZ,
+        cancelled_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        CHECK (
+          (status = 'active' AND cancelled_at IS NULL)
+          OR
+          (status = 'cancelled' AND cancelled_at IS NOT NULL)
+        )
+      );
+
+      CREATE TABLE site_plan_transitions (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        transition_type TEXT NOT NULL
+          CHECK (transition_type IN (
+            'initial-assignment', 'upgrade', 'downgrade', 'cancellation',
+            'suspension', 'reactivation'
+          )),
+        from_plan_id TEXT
+          CHECK (from_plan_id IS NULL OR from_plan_id IN ('sitecare-core', 'sitecare-plus', 'sitecare-pro')),
+        to_plan_id TEXT
+          CHECK (to_plan_id IS NULL OR to_plan_id IN ('sitecare-core', 'sitecare-plus', 'sitecare-pro')),
+        status TEXT NOT NULL
+          CHECK (status IN ('scheduled', 'applied', 'cancelled')),
+        reason TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        requested_at TIMESTAMPTZ NOT NULL,
+        effective_at TIMESTAMPTZ NOT NULL,
+        applied_at TIMESTAMPTZ,
+        cancelled_at TIMESTAMPTZ,
+        cancelled_by TEXT,
+        cancellation_reason TEXT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        CHECK (LENGTH(TRIM(reason)) > 0),
+        CHECK (
+          (status = 'scheduled' AND applied_at IS NULL AND cancelled_at IS NULL)
+          OR
+          (status = 'applied' AND applied_at IS NOT NULL AND cancelled_at IS NULL)
+          OR
+          (status = 'cancelled' AND cancelled_at IS NOT NULL)
+        )
+      );
+
+      CREATE UNIQUE INDEX site_plan_transitions_one_scheduled
+        ON site_plan_transitions(site_id)
+        WHERE status = 'scheduled';
+
+      CREATE INDEX site_plan_transitions_site_requested
+        ON site_plan_transitions(site_id, requested_at DESC);
+
+      CREATE TABLE site_entitlement_overrides (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        override_type TEXT NOT NULL
+          CHECK (override_type IN (
+            'service-exception', 'uptime-interval-minutes',
+            'uptime-alert-threshold', 'long-term-backup-frequency'
+          )),
+        capability TEXT,
+        value_json JSONB NOT NULL,
+        reason TEXT NOT NULL,
+        starts_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        expired_at TIMESTAMPTZ,
+        removed_at TIMESTAMPTZ,
+        removed_by TEXT,
+        removal_reason TEXT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        CHECK (LENGTH(TRIM(reason)) > 0),
+        CHECK (expires_at IS NULL OR expires_at > starts_at),
+        CHECK (expired_at IS NULL OR removed_at IS NULL)
+      );
+
+      CREATE INDEX site_entitlement_overrides_site_time
+        ON site_entitlement_overrides(site_id, starts_at, expires_at)
+        WHERE expired_at IS NULL AND removed_at IS NULL;
+
+      CREATE TABLE site_service_activation_intents (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        capability TEXT NOT NULL,
+        source_transition_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'acknowledged', 'cancelled')),
+        eligible_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        acknowledged_at TIMESTAMPTZ,
+        cancelled_at TIMESTAMPTZ,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_transition_id) REFERENCES site_plan_transitions(id) ON DELETE CASCADE,
+        UNIQUE (site_id, capability, source_transition_id)
+      );
+
+      CREATE INDEX site_service_activation_intents_pending
+        ON site_service_activation_intents(status, eligible_at ASC);
+
+      INSERT INTO site_service_subscriptions (
+        site_id, plan_id, status, service_started_at,
+        annual_checkup_eligible_at, paid_through_at, cancelled_at,
+        created_at, updated_at
+      )
+      SELECT
+        id,
+        'sitecare-core',
+        'active',
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        NULL,
+        NULL,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      FROM sites
+      ON CONFLICT (site_id) DO NOTHING;
+
+      INSERT INTO site_plan_transitions (
+        id, site_id, transition_type, from_plan_id, to_plan_id, status,
+        reason, requested_by, requested_at, effective_at, applied_at,
+        cancelled_at, cancelled_by, cancellation_reason
+      )
+      SELECT
+        'migration-8:' || id,
+        id,
+        'initial-assignment',
+        NULL,
+        'sitecare-core',
+        'applied',
+        'Initial SiteCare Core assignment during Phase 3 migration.',
+        'system:migration-8',
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP,
+        NULL,
+        NULL,
+        NULL
+      FROM sites
+      ON CONFLICT (id) DO NOTHING;
+    `
+  },
+  {
+    id: 9,
+    name: 'add_automation_jobs_schedules_and_transactional_notifications',
+    sql: `
+      CREATE TABLE automation_schedules (
+        id TEXT PRIMARY KEY,
+        site_id TEXT,
+        name TEXT NOT NULL,
+        job_type TEXT NOT NULL,
+        operation_key TEXT NOT NULL,
+        payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        interval_seconds INTEGER NOT NULL CHECK (interval_seconds >= 60),
+        max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 20),
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        next_run_at TIMESTAMPTZ NOT NULL,
+        last_enqueued_at TIMESTAMPTZ,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        CHECK (LENGTH(TRIM(name)) > 0),
+        CHECK (LENGTH(TRIM(job_type)) > 0),
+        CHECK (LENGTH(TRIM(operation_key)) > 0)
+      );
+
+      CREATE INDEX automation_schedules_due
+        ON automation_schedules(enabled, next_run_at ASC)
+        WHERE enabled = TRUE;
+
+      CREATE TABLE automation_jobs (
+        id TEXT PRIMARY KEY,
+        site_id TEXT,
+        schedule_id TEXT,
+        parent_job_id TEXT,
+        job_type TEXT NOT NULL,
+        operation_key TEXT NOT NULL,
+        status TEXT NOT NULL
+          CHECK (status IN (
+            'queued', 'preflight', 'running', 'verifying', 'succeeded',
+            'failed', 'needs-attention', 'cancelled'
+          )),
+        payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        result_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        requested_by_type TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 20),
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+        available_at TIMESTAMPTZ NOT NULL,
+        lease_token TEXT,
+        lease_owner TEXT,
+        lease_expires_at TIMESTAMPTZ,
+        heartbeat_at TIMESTAMPTZ,
+        cancellation_requested_at TIMESTAMPTZ,
+        error_code TEXT,
+        error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (schedule_id) REFERENCES automation_schedules(id) ON DELETE SET NULL,
+        FOREIGN KEY (parent_job_id) REFERENCES automation_jobs(id) ON DELETE SET NULL,
+        CHECK (LENGTH(TRIM(job_type)) > 0),
+        CHECK (LENGTH(TRIM(operation_key)) > 0),
+        CHECK (
+          (status IN ('preflight', 'running', 'verifying')
+            AND lease_token IS NOT NULL
+            AND lease_owner IS NOT NULL
+            AND lease_expires_at IS NOT NULL)
+          OR status NOT IN ('preflight', 'running', 'verifying')
+        )
+      );
+
+      CREATE INDEX automation_jobs_claimable
+        ON automation_jobs(status, available_at ASC, created_at ASC)
+        WHERE status = 'queued';
+
+      CREATE INDEX automation_jobs_site_created
+        ON automation_jobs(site_id, created_at DESC);
+
+      CREATE INDEX automation_jobs_active_lease
+        ON automation_jobs(lease_expires_at ASC)
+        WHERE status IN ('preflight', 'running', 'verifying');
+
+      CREATE TABLE automation_job_attempts (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        attempt_number INTEGER NOT NULL CHECK (attempt_number > 0),
+        worker_id TEXT NOT NULL,
+        status TEXT NOT NULL
+          CHECK (status IN (
+            'preflight', 'running', 'verifying', 'succeeded', 'failed',
+            'interrupted', 'cancelled'
+          )),
+        started_at TIMESTAMPTZ NOT NULL,
+        completed_at TIMESTAMPTZ,
+        error_code TEXT,
+        error_message TEXT,
+        output_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        FOREIGN KEY (job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE,
+        UNIQUE (job_id, attempt_number)
+      );
+
+      CREATE INDEX automation_job_attempts_job_started
+        ON automation_job_attempts(job_id, started_at DESC);
+
+      CREATE TABLE automation_operation_locks (
+        scope_key TEXT NOT NULL,
+        operation_key TEXT NOT NULL,
+        job_id TEXT NOT NULL,
+        lease_token TEXT NOT NULL,
+        lease_expires_at TIMESTAMPTZ NOT NULL,
+        acquired_at TIMESTAMPTZ NOT NULL,
+        heartbeat_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (scope_key, operation_key),
+        FOREIGN KEY (job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX automation_operation_locks_expiry
+        ON automation_operation_locks(lease_expires_at ASC);
+
+      ALTER TABLE email_outbox
+        DROP CONSTRAINT email_outbox_status_check;
+
+      ALTER TABLE email_outbox
+        ADD COLUMN site_id TEXT,
+        ADD COLUMN notification_category TEXT NOT NULL DEFAULT 'authentication',
+        ADD COLUMN provider TEXT NOT NULL DEFAULT 'brevo',
+        ADD COLUMN recipient_name TEXT,
+        ADD COLUMN template_key TEXT,
+        ADD COLUMN metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ADD COLUMN artifact_reference TEXT,
+        ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 5,
+        ADD COLUMN lease_token TEXT,
+        ADD COLUMN lease_expires_at TIMESTAMPTZ,
+        ADD COLUMN delivered_at TIMESTAMPTZ,
+        ADD COLUMN bounced_at TIMESTAMPTZ,
+        ADD COLUMN suppressed_at TIMESTAMPTZ,
+        ADD COLUMN completed_at TIMESTAMPTZ,
+        ADD COLUMN updated_at TIMESTAMPTZ;
+
+      UPDATE email_outbox SET updated_at = created_at WHERE updated_at IS NULL;
+
+      ALTER TABLE email_outbox
+        ALTER COLUMN updated_at SET NOT NULL,
+        ADD FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL,
+        ADD CHECK (notification_category IN (
+          'authentication', 'backup', 'uptime', 'updates', 'sitehealth',
+          'security', 'service', 'system'
+        )),
+        ADD CHECK (provider IN ('brevo', 'mailgun', 'postmark', 'sendgrid')),
+        ADD CHECK (max_attempts BETWEEN 1 AND 20),
+        ADD CHECK (status IN (
+          'pending', 'sending', 'sent', 'delivered', 'failed',
+          'bounced', 'suppressed', 'cancelled'
+        ));
+
+      DROP INDEX email_outbox_pending;
+      CREATE INDEX email_outbox_pending
+        ON email_outbox(status, available_at ASC, created_at ASC)
+        WHERE status IN ('pending', 'failed');
+
+      CREATE INDEX email_outbox_provider_message
+        ON email_outbox(provider, provider_message_id)
+        WHERE provider_message_id IS NOT NULL;
+
+      CREATE INDEX email_outbox_site_created
+        ON email_outbox(site_id, created_at DESC);
+
+      CREATE TABLE email_global_settings (
+        id TEXT PRIMARY KEY CHECK (id = 'global'),
+        selected_provider TEXT NOT NULL DEFAULT 'brevo'
+          CHECK (selected_provider IN ('brevo', 'mailgun', 'postmark', 'sendgrid')),
+        from_address TEXT NOT NULL,
+        from_name TEXT NOT NULL,
+        reply_to TEXT,
+        branding_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      );
+
+      CREATE TABLE email_provider_configurations (
+        provider TEXT PRIMARY KEY
+          CHECK (provider IN ('brevo', 'mailgun', 'postmark', 'sendgrid')),
+        api_key_ciphertext TEXT,
+        webhook_token_ciphertext TEXT,
+        configuration_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      );
+
+      CREATE TABLE site_notification_recipients (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        display_name TEXT,
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        UNIQUE (site_id, email),
+        CHECK (LENGTH(TRIM(email)) > 3)
+      );
+
+      CREATE TABLE site_notification_subscriptions (
+        recipient_id TEXT NOT NULL,
+        category TEXT NOT NULL
+          CHECK (category IN ('backup', 'uptime', 'updates', 'sitehealth', 'security', 'service')),
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (recipient_id, category),
+        FOREIGN KEY (recipient_id) REFERENCES site_notification_recipients(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE email_suppressions (
+        recipient_email TEXT PRIMARY KEY,
+        reason TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        lifted_at TIMESTAMPTZ,
+        lifted_by TEXT
+      );
+
+      CREATE TABLE email_delivery_events (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL
+          CHECK (provider IN ('brevo', 'mailgun', 'postmark', 'sendgrid')),
+        provider_event_id TEXT NOT NULL,
+        provider_message_id TEXT,
+        outbox_id TEXT,
+        recipient_email TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        occurred_at TIMESTAMPTZ NOT NULL,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (outbox_id) REFERENCES email_outbox(id) ON DELETE SET NULL,
+        UNIQUE (provider, provider_event_id)
+      );
+
+      CREATE INDEX email_delivery_events_message
+        ON email_delivery_events(provider, provider_message_id, occurred_at DESC);
+    `
+  },
+  {
+    id: 10,
+    name: 'add_wordpress_connection_updates_and_hostinger_portfolio',
+    sql: `
+      ALTER TABLE site_credentials
+        ADD COLUMN state TEXT NOT NULL DEFAULT 'active'
+          CHECK (state IN ('active', 'pending', 'overlap', 'revoked')),
+        ADD COLUMN valid_until TIMESTAMPTZ,
+        ADD COLUMN confirmed_at TIMESTAMPTZ,
+        ADD COLUMN last_used_at TIMESTAMPTZ,
+        ADD COLUMN supersedes_credential_id TEXT;
+
+      UPDATE site_credentials
+      SET state = CASE WHEN revoked_at IS NULL THEN 'active' ELSE 'revoked' END;
+
+      ALTER TABLE site_credentials
+        ADD FOREIGN KEY (supersedes_credential_id) REFERENCES site_credentials(id) ON DELETE SET NULL;
+
+      DROP INDEX site_credentials_active_site;
+      CREATE UNIQUE INDEX site_credentials_one_active_site
+        ON site_credentials(site_id)
+        WHERE state = 'active' AND revoked_at IS NULL;
+      CREATE UNIQUE INDEX site_credentials_one_pending_site
+        ON site_credentials(site_id)
+        WHERE state = 'pending' AND revoked_at IS NULL;
+      CREATE INDEX site_credentials_accepted_site
+        ON site_credentials(site_id, state, valid_until)
+        WHERE revoked_at IS NULL;
+
+      CREATE TABLE site_plugin_connections (
+        site_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'awaiting-check-in'
+          CHECK (status IN ('awaiting-check-in', 'connected', 'stale', 'revoked')),
+        contract_version INTEGER NOT NULL DEFAULT 1 CHECK (contract_version > 0),
+        plugin_version TEXT,
+        wordpress_home_url TEXT,
+        last_authenticated_at TIMESTAMPTZ,
+        last_check_in_at TIMESTAMPTZ,
+        last_rotation_started_at TIMESTAMPTZ,
+        last_rotation_completed_at TIMESTAMPTZ,
+        rotation_due_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE plugin_request_signatures (
+        site_id TEXT NOT NULL,
+        signature_hash TEXT NOT NULL,
+        accepted_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (site_id, signature_hash),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX plugin_request_signatures_expiry
+        ON plugin_request_signatures(expires_at);
+
+      INSERT INTO site_plugin_connections (
+        site_id, status, contract_version, last_authenticated_at,
+        last_check_in_at, rotation_due_at, created_at, updated_at
+      )
+      SELECT
+        sites.id,
+        CASE WHEN latest.received_at IS NULL THEN 'awaiting-check-in' ELSE 'connected' END,
+        1,
+        latest.received_at,
+        latest.received_at,
+        active.created_at + INTERVAL '180 days',
+        sites.created_at,
+        CURRENT_TIMESTAMP
+      FROM sites
+      LEFT JOIN LATERAL (
+        SELECT received_at
+        FROM site_check_ins
+        WHERE site_check_ins.site_id = sites.id
+        ORDER BY received_at DESC
+        LIMIT 1
+      ) latest ON TRUE
+      LEFT JOIN site_credentials active
+        ON active.site_id = sites.id AND active.revoked_at IS NULL
+      ON CONFLICT (site_id) DO NOTHING;
+
+      CREATE TABLE wordpress_update_snapshots (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        check_in_id TEXT NOT NULL UNIQUE,
+        contract_version INTEGER NOT NULL CHECK (contract_version > 0),
+        checked_at TIMESTAMPTZ NOT NULL,
+        received_at TIMESTAMPTZ NOT NULL,
+        core_installed_version TEXT NOT NULL,
+        core_available_version TEXT,
+        plugin_count INTEGER NOT NULL CHECK (plugin_count >= 0),
+        theme_count INTEGER NOT NULL CHECK (theme_count >= 0),
+        pending_update_count INTEGER NOT NULL CHECK (pending_update_count >= 0),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (check_in_id) REFERENCES site_check_ins(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX wordpress_update_snapshots_site_checked
+        ON wordpress_update_snapshots(site_id, checked_at DESC, received_at DESC);
+
+      CREATE TABLE wordpress_update_inventory_items (
+        snapshot_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        component_type TEXT NOT NULL CHECK (component_type IN ('core', 'plugin', 'theme')),
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        installed_version TEXT NOT NULL,
+        available_version TEXT,
+        active BOOLEAN NOT NULL DEFAULT FALSE,
+        auto_update_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        support_status TEXT NOT NULL DEFAULT 'unknown'
+          CHECK (support_status IN ('supported', 'possibly-abandoned', 'unknown')),
+        premium_license_status TEXT NOT NULL DEFAULT 'unknown'
+          CHECK (premium_license_status IN ('active', 'inactive', 'unknown', 'not-applicable')),
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        PRIMARY KEY (snapshot_id, component_type, slug),
+        FOREIGN KEY (snapshot_id) REFERENCES wordpress_update_snapshots(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX wordpress_update_inventory_site_component
+        ON wordpress_update_inventory_items(site_id, component_type, slug);
+
+      CREATE TABLE wordpress_update_activities (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        source_event_id TEXT NOT NULL,
+        component_type TEXT NOT NULL CHECK (component_type IN ('core', 'plugin', 'theme')),
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prior_version TEXT,
+        target_version TEXT,
+        resulting_version TEXT,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('succeeded', 'failed', 'observed')),
+        error_code TEXT,
+        error_message TEXT,
+        source TEXT NOT NULL CHECK (source IN ('wordpress-upgrader', 'wordpress-automatic-updater', 'inventory-reconciliation')),
+        recorded_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        UNIQUE (site_id, source_event_id)
+      );
+
+      CREATE INDEX wordpress_update_activities_site_completed
+        ON wordpress_update_activities(site_id, completed_at DESC);
+
+      CREATE TABLE hostinger_site_connections (
+        site_id TEXT PRIMARY KEY,
+        availability TEXT NOT NULL DEFAULT 'not-synchronized'
+          CHECK (availability IN ('available', 'not-found', 'not-configured', 'not-synchronized', 'provider-error')),
+        domain TEXT NOT NULL,
+        account_username TEXT,
+        website_order_id TEXT,
+        wordpress_installation_id TEXT,
+        website_enabled BOOLEAN,
+        wordpress_valid BOOLEAN,
+        root_directory TEXT,
+        management_url TEXT,
+        daily_backup_availability TEXT NOT NULL DEFAULT 'not-available'
+          CHECK (daily_backup_availability IN ('available', 'not-available')),
+        latest_daily_backup_at TIMESTAMPTZ,
+        daily_backup_message TEXT,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        last_synced_at TIMESTAMPTZ,
+        last_error_code TEXT,
+        last_error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX hostinger_site_connections_availability
+        ON hostinger_site_connections(availability, updated_at DESC);
+    `
+  },
+  {
+    id: 11,
+    name: 'add_cloudflare_uptime_incidents_and_security_evidence',
+    sql: `
+      CREATE TABLE cloudflare_site_connections (
+        site_id TEXT PRIMARY KEY,
+        zone_id TEXT,
+        zone_name TEXT,
+        account_id TEXT,
+        availability TEXT NOT NULL DEFAULT 'not-synchronized'
+          CHECK (availability IN ('available', 'not-found', 'not-configured', 'not-synchronized', 'provider-error')),
+        homepage_url TEXT NOT NULL,
+        health_check_id TEXT,
+        health_check_name TEXT,
+        health_check_status TEXT,
+        normal_interval_seconds INTEGER NOT NULL DEFAULT 300
+          CHECK (normal_interval_seconds BETWEEN 60 AND 86400),
+        alert_failure_threshold INTEGER NOT NULL DEFAULT 2
+          CHECK (alert_failure_threshold BETWEEN 1 AND 20),
+        capabilities_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        last_synced_at TIMESTAMPTZ,
+        last_error_code TEXT,
+        last_error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX cloudflare_site_connections_zone
+        ON cloudflare_site_connections(zone_id)
+        WHERE zone_id IS NOT NULL;
+
+      CREATE TABLE uptime_incidents (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        health_check_id TEXT,
+        status TEXT NOT NULL CHECK (status IN ('open', 'recovered')),
+        started_at TIMESTAMPTZ NOT NULL,
+        confirmed_at TIMESTAMPTZ NOT NULL,
+        recovered_at TIMESTAMPTZ,
+        duration_seconds INTEGER CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
+        failure_count INTEGER NOT NULL DEFAULT 2 CHECK (failure_count > 0),
+        initial_reason TEXT,
+        final_reason TEXT,
+        recovery_notes TEXT,
+        restored_backup_reference TEXT,
+        alert_queued_at TIMESTAMPTZ,
+        recovery_report_queued_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE UNIQUE INDEX uptime_incidents_one_open_site
+        ON uptime_incidents(site_id)
+        WHERE status = 'open';
+      CREATE INDEX uptime_incidents_site_started
+        ON uptime_incidents(site_id, started_at DESC);
+
+      CREATE TABLE uptime_monitor_state (
+        site_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'not-configured'
+          CHECK (status IN ('not-configured', 'disabled', 'healthy', 'first-failure', 'incident', 'maintenance', 'provider-error')),
+        consecutive_failures INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_failures >= 0),
+        first_failure_at TIMESTAMPTZ,
+        first_failure_provider_event_id TEXT,
+        last_failure_at TIMESTAMPTZ,
+        last_failure_reason TEXT,
+        last_success_at TIMESTAMPTZ,
+        current_interval_seconds INTEGER NOT NULL DEFAULT 300
+          CHECK (current_interval_seconds BETWEEN 60 AND 86400),
+        active_incident_id TEXT,
+        last_reconciled_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (active_incident_id) REFERENCES uptime_incidents(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE uptime_observations (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        incident_id TEXT,
+        provider_event_id TEXT,
+        source TEXT NOT NULL CHECK (source IN ('cloudflare-webhook', 'cloudflare-reconciliation')),
+        status TEXT NOT NULL CHECK (status IN ('healthy', 'unhealthy', 'tls-error', 'unknown', 'maintenance')),
+        reason TEXT,
+        excluded_from_downtime BOOLEAN NOT NULL DEFAULT FALSE,
+        observed_at TIMESTAMPTZ NOT NULL,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (incident_id) REFERENCES uptime_incidents(id) ON DELETE SET NULL,
+        UNIQUE (provider_event_id)
+      );
+
+      CREATE INDEX uptime_observations_site_observed
+        ON uptime_observations(site_id, observed_at DESC);
+      CREATE INDEX uptime_observations_retention
+        ON uptime_observations(observed_at ASC);
+
+      CREATE TABLE uptime_tls_alerts (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('open', 'resolved')),
+        opened_at TIMESTAMPTZ NOT NULL,
+        resolved_at TIMESTAMPTZ,
+        reason TEXT NOT NULL,
+        alert_queued_at TIMESTAMPTZ,
+        resolution_queued_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE UNIQUE INDEX uptime_tls_alerts_one_open_site
+        ON uptime_tls_alerts(site_id)
+        WHERE status = 'open';
+
+      CREATE TABLE uptime_maintenance_windows (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        starts_at TIMESTAMPTZ NOT NULL,
+        ends_at TIMESTAMPTZ NOT NULL,
+        reason TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        cancelled_at TIMESTAMPTZ,
+        cancelled_by TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        CHECK (ends_at > starts_at)
+      );
+
+      CREATE INDEX uptime_maintenance_windows_site_time
+        ON uptime_maintenance_windows(site_id, starts_at, ends_at);
+
+      CREATE TABLE cloudflare_security_syncs (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        zone_id TEXT,
+        checked_at TIMESTAMPTZ NOT NULL,
+        capability_summary_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        warning_count INTEGER NOT NULL DEFAULT 0 CHECK (warning_count >= 0),
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX cloudflare_security_syncs_site_checked
+        ON cloudflare_security_syncs(site_id, checked_at DESC);
+
+      CREATE TABLE cloudflare_security_evidence (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        sync_id TEXT,
+        control_key TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'pending', 'review', 'unavailable')),
+        source TEXT NOT NULL CHECK (source IN ('cloudflare-api', 'technician', 'informational')),
+        summary TEXT NOT NULL,
+        notes TEXT,
+        evidence_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        observed_at TIMESTAMPTZ NOT NULL,
+        actor_identifier TEXT,
+        superseded_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (sync_id) REFERENCES cloudflare_security_syncs(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX cloudflare_security_evidence_effective
+        ON cloudflare_security_evidence(site_id, control_key, source, observed_at DESC)
+        WHERE superseded_at IS NULL;
+    `
   }
 ]
 
-export function runMigrations(database: Database.Database): void {
-  database.exec(`
+async function applyPendingMigrations(client: PoolClient): Promise<void> {
+  await client.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
-      applied_at TEXT NOT NULL
-    );
+      applied_at TIMESTAMPTZ NOT NULL
+    )
   `)
 
-  const applied = database
-    .prepare('SELECT id FROM schema_migrations')
-    .all()
-    .map(row => (row as { id: number }).id)
-
-  const applyMigration = database.transaction((migration: Migration) => {
-    database.exec(migration.sql)
-    database
-      .prepare('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)')
-      .run(migration.id, migration.name, new Date().toISOString())
-  })
+  const result = await client.query<{ id: number }>('SELECT id FROM schema_migrations')
+  const applied = new Set(result.rows.map(row => row.id))
 
   for (const migration of migrations) {
-    if (!applied.includes(migration.id)) {
-      applyMigration(migration)
-    }
+    if (applied.has(migration.id)) continue
+    await client.query(migration.sql)
+    await client.query(
+      'INSERT INTO schema_migrations (id, name, applied_at) VALUES ($1, $2, $3)',
+      [migration.id, migration.name, new Date().toISOString()]
+    )
+  }
+}
+
+export async function runMigrations(pool: Pool): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('ap-sitecare-schema-migrations'))")
+    await applyPendingMigrations(client)
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
   }
 }

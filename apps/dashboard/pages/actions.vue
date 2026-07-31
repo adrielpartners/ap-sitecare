@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const api = useSiteCareApi()
 const { data: response, refresh } = await useFetch('/api/action-requests')
 const requests = computed(() => response.value?.data ?? [])
 const busy = ref(false)
@@ -8,7 +9,7 @@ async function review(id: string, decision: 'approve' | 'reject') {
   busy.value = true
   errorMessage.value = ''
   try {
-    await $fetch(`/api/action-requests/${id}/${decision}`, { method: 'POST', body: {} })
+    await api(`/api/action-requests/${id}/${decision}`, { method: 'POST', body: {} })
     await refresh()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'The request could not be reviewed.'

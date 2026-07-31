@@ -1,8 +1,12 @@
 <script setup lang="ts">
 const route = useRoute()
+const api = useSiteCareApi()
+const { data: sessionResponse } = await useFetch<any>('/api/session')
+const isAdmin = computed(() => sessionResponse.value?.user?.role === 'admin')
 const siteId = computed(() => String(route.params.id))
 const { data: response, refresh } = await useFetch(() => `/api/sites/${siteId.value}`)
 const { data: auditResponse } = await useFetch(() => `/api/sites/${siteId.value}/audit`)
+const { data: connectionResponse, refresh: refreshConnection } = await useFetch<any>(() => `/api/sites/${siteId.value}/connection`)
 const detail = computed(() => response.value?.data)
 const name = ref('')
 const url = ref('')
@@ -15,23 +19,31 @@ const notice = ref('')
 const errorMessage = ref('')
 const busy = ref(false)
 const auditEvents = computed(() => auditResponse.value?.data ?? [])
+const connectionDetail = computed(() => connectionResponse.value?.data)
 const integrationResults = ref<Record<string, { state: string, summary: string, checkedAt: string }>>({})
-const tabs = [
+const allTabs = [
   { id: 'overview', label: 'Overview' },
+  { id: 'service', label: 'Service Plan' },
+  { id: 'notifications', label: 'Notifications' },
   { id: 'reports', label: 'Reports' },
+  { id: 'updates', label: 'Updates' },
+  { id: 'uptime', label: 'Uptime' },
+  { id: 'security', label: 'Security Status' },
   { id: 'backups', label: 'Backups' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'credentials', label: 'Credentials' },
   { id: 'audit', label: 'Audit Log' }
 ] as const
-type SiteTabId = typeof tabs[number]['id']
-const activeTab = ref<SiteTabId>('overview')
+type SiteTabId = typeof allTabs[number]['id']
+const tabs = computed(() => allTabs.filter((tab: typeof allTabs[number]) => !['service', 'notifications'].includes(tab.id) || isAdmin.value))
+const requestedTab = String(route.query.tab ?? 'overview') as SiteTabId
+const activeTab = ref<SiteTabId>(tabs.value.some((tab: typeof allTabs[number]) => tab.id === requestedTab) ? requestedTab : 'overview')
 
 function setActiveTab(tabId: SiteTabId) {
   activeTab.value = tabId
 }
 
-watch(detail, (value) => {
+watch(detail, (value: any) => {
   if (value) {
     name.value = value.site.name
     url.value = value.site.url
@@ -44,7 +56,7 @@ watch(detail, (value) => {
 
 async function updateSite() {
   await runAction(async () => {
-    await $fetch(`/api/sites/${siteId.value}`, {
+    await api(`/api/sites/${siteId.value}`, {
       method: 'PATCH',
       body: {
         name: name.value,
@@ -62,7 +74,7 @@ async function updateSite() {
 
 async function disableSite() {
   await runAction(async () => {
-    await $fetch(`/api/sites/${siteId.value}/disable`, { method: 'POST' })
+    await api(`/api/sites/${siteId.value}/disable`, { method: 'POST' })
     notice.value = 'Site disabled.'
     await refresh()
   })
@@ -70,17 +82,28 @@ async function disableSite() {
 
 async function issueCredential() {
   await runAction(async () => {
-    const result = await $fetch(`/api/sites/${siteId.value}/credentials`, { method: 'POST' })
+    const result = await api<any>(`/api/sites/${siteId.value}/credentials`, { method: 'POST' })
     issuedSecret.value = result.data.secret
     notice.value = 'Credential issued. Save the secret now; it will not be shown again.'
     await refresh()
+    await refreshConnection()
   })
 }
 
 async function testConnection() {
   await runAction(async () => {
-    const result = await $fetch(`/api/sites/${siteId.value}/connection`)
-    notice.value = result.data.message
+    await refreshConnection()
+    notice.value = connectionDetail.value?.message ?? 'Connection status refreshed.'
+  })
+}
+
+async function revokeConnection() {
+  await runAction(async () => {
+    await api(`/api/sites/${siteId.value}/connection/revoke`, { method: 'POST' })
+    issuedSecret.value = ''
+    notice.value = 'The WordPress connection was revoked. Historical reports remain available.'
+    await refresh()
+    await refreshConnection()
   })
 }
 
@@ -127,8 +150,8 @@ async function runAction(action: () => Promise<void>) {
         </AppCard>
         <AppCard>
           <div class="stack stack--sm">
-            <AppBadge :tone="detail.activeCredential ? 'info' : 'warning'">
-              {{ detail.activeCredential ? 'Credential ready' : 'Credential needed' }}
+            <AppBadge :tone="connectionDetail?.status === 'connected' ? 'success' : detail.activeCredential ? 'info' : 'warning'">
+              {{ connectionDetail?.status ?? (detail.activeCredential ? 'Credential ready' : 'Credential needed') }}
             </AppBadge>
             <h2>Reporter access</h2>
             <p class="text-meta">
@@ -207,6 +230,34 @@ async function runAction(action: () => Promise<void>) {
       </section>
 
       <section
+        v-if="isAdmin && activeTab === 'service'"
+        id="site-panel-service"
+        role="tabpanel"
+        aria-labelledby="site-tab-service"
+      >
+        <header class="section-heading">
+          <p class="eyebrow">Service access</p>
+          <h2>Plan, lifecycle, and entitlements</h2>
+          <p>Manage the underlying SiteCare plan, paid-period transitions, and logged temporary exceptions.</p>
+        </header>
+        <SiteServicePlanSection :site-id="siteId" />
+      </section>
+
+      <section
+        v-if="isAdmin && activeTab === 'notifications'"
+        id="site-panel-notifications"
+        role="tabpanel"
+        aria-labelledby="site-tab-notifications"
+      >
+        <header class="section-heading">
+          <p class="eyebrow">Transactional email</p>
+          <h2>Recipients and message categories</h2>
+          <p>Choose who receives backup, uptime, update, SiteHealth, security, and service email for this site.</p>
+        </header>
+        <SiteNotificationRecipientsSection :site-id="siteId" />
+      </section>
+
+      <section
         v-show="activeTab === 'reports'"
         id="site-panel-reports"
         role="tabpanel"
@@ -228,6 +279,33 @@ async function runAction(action: () => Promise<void>) {
             description="Configure the WordPress reporter plugin and send a manual check-in."
           />
         </AppPanel>
+      </section>
+
+      <section
+        v-show="activeTab === 'updates'"
+        id="site-panel-updates"
+        role="tabpanel"
+        aria-labelledby="site-tab-updates"
+      >
+        <SiteUpdatesSection :site-id="siteId" />
+      </section>
+
+      <section
+        v-show="activeTab === 'uptime'"
+        id="site-panel-uptime"
+        role="tabpanel"
+        aria-labelledby="site-tab-uptime"
+      >
+        <SiteUptimeSection :site-id="siteId" :is-admin="isAdmin" />
+      </section>
+
+      <section
+        v-show="activeTab === 'security'"
+        id="site-panel-security"
+        role="tabpanel"
+        aria-labelledby="site-tab-security"
+      >
+        <SiteSecurityStatusSection :site-id="siteId" />
       </section>
 
       <section
@@ -277,7 +355,7 @@ async function runAction(action: () => Promise<void>) {
       >
         <AppPanel
           title="Site credentials"
-          description="The reporter plugin uses the site ID and shared secret to sign requests."
+          description="The connector rotates credentials automatically with a fallback overlap. Manual reconnect is reserved for recovery."
         >
           <div class="stack">
             <div>
@@ -285,13 +363,42 @@ async function runAction(action: () => Promise<void>) {
               <code>{{ detail.site.id }}</code>
             </div>
             <div v-if="issuedSecret" class="secret">
-              <p><strong>New site secret</strong></p>
+              <p><strong>Recovery site secret</strong></p>
               <code>{{ issuedSecret }}</code>
               <p class="text-meta">This secret is shown once. Store it in the reporter plugin now.</p>
             </div>
-            <AppButton :loading="busy" variant="secondary" @click="issueCredential">
-              {{ detail.activeCredential ? 'Rotate credential' : 'Generate credential' }}
-            </AppButton>
+            <div v-if="connectionDetail?.connection" class="grid">
+              <AppCard muted>
+                <p class="text-meta">Connector version</p>
+                <h2>{{ connectionDetail.connection.pluginVersion ?? 'Legacy contract' }}</h2>
+                <span class="text-meta">Contract v{{ connectionDetail.connection.contractVersion }}</span>
+              </AppCard>
+              <AppCard muted>
+                <p class="text-meta">Last authenticated</p>
+                <h2>{{ connectionDetail.connection.lastAuthenticatedAt ? new Date(connectionDetail.connection.lastAuthenticatedAt).toLocaleString() : 'Never' }}</h2>
+              </AppCard>
+              <AppCard muted>
+                <p class="text-meta">Next automatic rotation</p>
+                <h2>{{ connectionDetail.connection.rotationDueAt ? new Date(connectionDetail.connection.rotationDueAt).toLocaleDateString() : 'After first connection' }}</h2>
+              </AppCard>
+            </div>
+            <AppTable v-if="connectionDetail?.credentials?.length" caption="Credential lifecycle" :columns="['Issued', 'Hint', 'State', 'Last used', 'Valid until']">
+              <tr v-for="credential in connectionDetail.credentials" :key="credential.id">
+                <td>{{ new Date(credential.createdAt).toLocaleString() }}</td>
+                <td>••••••{{ credential.secretHint }}</td>
+                <td><AppBadge :tone="credential.state === 'active' ? 'success' : credential.state === 'pending' ? 'warning' : 'neutral'">{{ credential.state }}</AppBadge></td>
+                <td>{{ credential.lastUsedAt ? new Date(credential.lastUsedAt).toLocaleString() : 'Never' }}</td>
+                <td>{{ credential.validUntil ? new Date(credential.validUntil).toLocaleString() : '—' }}</td>
+              </tr>
+            </AppTable>
+            <div class="cluster">
+              <AppButton :loading="busy" variant="secondary" @click="issueCredential">
+                {{ detail.activeCredential ? 'Reconnect with a new secret' : 'Generate initial credential' }}
+              </AppButton>
+              <AppButton v-if="isAdmin && detail.activeCredential" :disabled="busy" variant="danger" @click="revokeConnection">
+                Revoke connection
+              </AppButton>
+            </div>
           </div>
         </AppPanel>
       </section>

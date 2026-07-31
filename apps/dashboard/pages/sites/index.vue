@@ -1,23 +1,31 @@
 <script setup lang="ts">
+interface ManagedSiteListItem {
+  id: string
+  name: string
+  url: string
+  hostingProvider: string | null
+  riskLevel: 'high' | 'standard' | 'low'
+}
+
 const search = ref('')
 const statusFilter = ref('all')
 const riskFilter = ref('all')
 const sort = ref('name')
 const { data: response, refresh } = await useFetch('/api/sites')
 const { data: healthResponse } = await useFetch('/api/site-health')
-const sites = computed(() => response.value?.data ?? [])
-const healthBySite = computed(() => new Map((healthResponse.value?.data ?? []).map(summary => [summary.siteId, summary])))
+const sites = computed<ManagedSiteListItem[]>(() => response.value?.data ?? [])
+const healthBySite = computed(() => new Map<string, any>((healthResponse.value?.data ?? []).map((summary: any) => [summary.siteId, summary])))
 const filteredSites = computed(() => {
   const query = search.value.trim().toLowerCase()
   if (!query) return sites.value
   return sites.value
-    .filter(site => !query
+    .filter((site: ManagedSiteListItem) => !query
       || site.name.toLowerCase().includes(query)
       || site.url.toLowerCase().includes(query)
       || site.hostingProvider?.toLowerCase().includes(query))
-    .filter(site => statusFilter.value === 'all' || healthBySite.value.get(site.id)?.status === statusFilter.value)
-    .filter(site => riskFilter.value === 'all' || site.riskLevel === riskFilter.value)
-    .sort((a, b) => sort.value === 'risk'
+    .filter((site: ManagedSiteListItem) => statusFilter.value === 'all' || healthBySite.value.get(site.id)?.status === statusFilter.value)
+    .filter((site: ManagedSiteListItem) => riskFilter.value === 'all' || site.riskLevel === riskFilter.value)
+    .sort((a: ManagedSiteListItem, b: ManagedSiteListItem) => sort.value === 'risk'
       ? ({ high: 0, standard: 1, low: 2 }[a.riskLevel] - { high: 0, standard: 1, low: 2 }[b.riskLevel])
       : a.name.localeCompare(b.name))
 })

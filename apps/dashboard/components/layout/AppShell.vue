@@ -1,14 +1,16 @@
 <script setup lang="ts">
 defineProps<{
   email?: string
+  displayName?: string
+  role?: 'admin' | 'team-member' | 'client'
 }>()
 </script>
 
 <template>
   <div class="app-shell">
-    <AppHeader :email="email" />
+    <AppHeader :email="email" :display-name="displayName" />
     <div class="app-shell__body">
-      <AppSidebar />
+      <AppSidebar :role="role" />
       <main class="app-shell__content">
         <slot />
       </main>

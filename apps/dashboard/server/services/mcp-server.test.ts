@@ -2,19 +2,20 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { LATEST_PROTOCOL_VERSION, McpProtocolServer } from '../../mcp/protocol-server'
 import { McpToolService } from '../../mcp/tool-service'
-import { createDatabase } from '../utils/database'
-import { SiteRepository } from '../repositories/site-repository'
-import { AuditRepository } from '../repositories/audit-repository'
-import { AuditService } from './audit-service'
-import { SiteService } from './site-service'
+import { createTestDatabase, destroyTestDatabase } from '../testing/postgres-test-database'
+import { ClientRegistryService } from './client-registry-service'
 
 describe('Phase 11 MCP layer', () => {
   it('allows an MCP client to list tools, inspect sites, and create a proposal', async () => {
-    const database = createDatabase(':memory:')
-    const sites = new SiteRepository(database)
-    const site = new SiteService(sites, new AuditService(new AuditRepository(database))).create({
+    const database = await createTestDatabase()
+    const registry = new ClientRegistryService(database)
+    const client = await registry.createClient('Example Client', 'owner@example.com')
+    const site = await registry.registerManagedSite({
       name: 'Example',
       url: 'https://example.com',
+      clientAccountId: client.id,
+      planId: 'sitecare-core',
+      actorIdentifier: 'owner@example.com',
       backupStrategy: 'Daily',
       notes: 'Monitor checkout carefully.'
     })
@@ -42,6 +43,6 @@ describe('Phase 11 MCP layer', () => {
       }
     })
     assert.equal((proposal?.result as { structuredContent: { status: string } }).structuredContent.status, 'pending')
-    database.close()
+    await destroyTestDatabase(database)
   })
 })

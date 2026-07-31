@@ -5,7 +5,7 @@ import { authenticatePluginRequest } from '../../utils/plugin-api'
 export default defineEventHandler(async (event) => {
   try {
     const request = await authenticatePluginRequest(event)
-    return new PluginReportingService().testConnection(request.siteId)
+    return await new PluginReportingService().testConnection(request.siteId)
   } catch (error) {
     return handleApiError(error)
   }

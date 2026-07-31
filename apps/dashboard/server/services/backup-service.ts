@@ -18,6 +18,11 @@ import { AuditService } from './audit-service'
 import { SiteService } from './site-service'
 import { BackupDestinationService } from './backup-destination-service'
 import { BackupDestinationRepository } from '../repositories/backup-destination-repository'
+import { EntitlementService } from './entitlement-service'
+
+interface LongTermBackupEntitlementGate {
+  assertCapability(siteId: string, capability: 'long-term-backups'): Promise<unknown>
+}
 
 const frequencies: BackupFrequency[] = ['daily', 'weekly', 'monthly']
 const providers: StorageProviderType[] = ['dropbox', 's3-compatible', 'google-drive', 'local-filesystem', 'backblaze-b2']
@@ -75,49 +80,63 @@ export class BackupService {
     private readonly repository = new BackupRepository(),
     private readonly siteService = new SiteService(),
     private readonly auditService = new AuditService(),
-    private readonly destinationService = new BackupDestinationService(settings, new BackupDestinationRepository(repository.getDatabase()), auditService, siteService)
+    private readonly destinationService = new BackupDestinationService(settings, new BackupDestinationRepository(repository.getDatabase()), auditService, siteService),
+    private readonly entitlements: LongTermBackupEntitlementGate = new EntitlementService(repository.getDatabase())
   ) {}
 
-  listPolicies(): Array<{ site: { id: string, name: string, url: string }, policy: BackupPolicy | null, connection: HostingConnection | null, restoreCapability: RestoreCapability, latestBackup: BackupArtifact | null }> {
-    return this.siteService.list().map((site) => {
-      const connection = this.repository.getConnection(site.id)
+  async listPolicies(siteIds: string[] | null = null): Promise<Array<{ site: { id: string, name: string, url: string }, policy: BackupPolicy | null, connection: HostingConnection | null, restoreCapability: RestoreCapability, latestBackup: BackupArtifact | null }>> {
+    const sites = await this.siteService.list(siteIds)
+    return Promise.all(sites.map(async (site) => {
+      const [connection, policy, artifacts] = await Promise.all([
+        this.repository.getConnection(site.id),
+        this.repository.getPolicy(site.id),
+        this.repository.listArtifacts(site.id)
+      ])
       return {
         site: { id: site.id, name: site.name, url: site.url },
-        policy: this.repository.getPolicy(site.id),
+        policy,
         connection,
         restoreCapability: connection ? this.assessConnection(connection).restoreCapability : 'unsupported',
-        latestBackup: this.repository.listArtifacts(site.id)[0] ?? null
+        latestBackup: artifacts[0] ?? null
       }
-    })
+    }))
   }
 
-  getSiteOverview(siteId: string) {
-    const site = this.siteService.get(siteId)
-    const policy = this.repository.getPolicy(siteId)
-    const connection = this.repository.getConnection(siteId)
+  async getSiteOverview(siteId: string) {
+    const [site, policy, connection, backups, destinations, destinationSettings, restorePlans] = await Promise.all([
+      this.siteService.get(siteId),
+      this.repository.getPolicy(siteId),
+      this.repository.getConnection(siteId),
+      this.repository.listArtifacts(siteId),
+      this.destinationService.list(),
+      this.destinationService.getSiteSettings(siteId),
+      this.repository.listRestorePlans(siteId)
+    ])
     const assessment = connection ? this.assessConnection(connection) : this.unsupportedAssessment()
-    const backups = this.repository.listArtifacts(siteId)
     return {
       site: { id: site.id, name: site.name, url: site.url },
       policy,
       connection,
       connectionAssessment: assessment,
       storage: this.dropbox().configuration(),
-      destinations: this.destinationService.list(),
-      destinationSettings: this.destinationService.getSiteSettings(siteId),
+      destinations,
+      destinationSettings,
       latestBackup: backups[0] ?? null,
       nextScheduledBackup: policy?.enabled ? this.nextScheduled(policy.frequency) : null,
       backups,
-      restorePlans: this.repository.listRestorePlans(siteId)
+      restorePlans
     }
   }
 
-  updatePolicy(siteId: string, input: UpdateBackupPolicyInput, actorIdentifier: string) {
-    this.siteService.get(siteId)
+  async updatePolicy(siteId: string, input: UpdateBackupPolicyInput, actorIdentifier: string) {
+    await this.siteService.get(siteId)
+    if (input.enabled) await this.entitlements.assertCapability(siteId, 'long-term-backups')
     this.validateInput(input)
-    const existingPolicy = this.repository.getPolicy(siteId)
-    const existingConnection = this.repository.getConnection(siteId)
-    const existingPasswordCiphertext = this.repository.getDatabasePasswordCiphertext(siteId)
+    const [existingPolicy, existingConnection, existingPasswordCiphertext] = await Promise.all([
+      this.repository.getPolicy(siteId),
+      this.repository.getConnection(siteId),
+      this.repository.getDatabasePasswordCiphertext(siteId)
+    ])
     const now = new Date().toISOString()
     const databaseHost = this.optional(input.databaseHost)
     const databaseName = this.optional(input.databaseName)
@@ -167,9 +186,9 @@ export class BackupService {
       createdAt: existingPolicy?.createdAt ?? now,
       updatedAt: now
     }
-    this.repository.saveConnection(connection, databasePasswordCiphertext)
-    this.repository.savePolicy(policy)
-    this.auditService.record({
+    await this.repository.saveConnection(connection, databasePasswordCiphertext)
+    await this.repository.savePolicy(policy)
+    await this.auditService.record({
       siteId,
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -185,10 +204,12 @@ export class BackupService {
     return { policy, connection, connectionAssessment: assessment }
   }
 
-  recordDetectedBackupSource(siteId: string, input: DetectedBackupSourceInput): HostingConnection {
-    this.siteService.get(siteId)
-    const existing = this.repository.getConnection(siteId)
-    const existingPasswordCiphertext = this.repository.getDatabasePasswordCiphertext(siteId)
+  async recordDetectedBackupSource(siteId: string, input: DetectedBackupSourceInput): Promise<HostingConnection> {
+    await this.siteService.get(siteId)
+    const [existing, existingPasswordCiphertext] = await Promise.all([
+      this.repository.getConnection(siteId),
+      this.repository.getDatabasePasswordCiphertext(siteId)
+    ])
     const now = new Date().toISOString()
     const databaseHost = this.optional(input.databaseHost)
     const databaseName = this.optional(input.databaseName)
@@ -215,19 +236,20 @@ export class BackupService {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     }
-    this.repository.saveConnection(connection, databasePasswordCiphertext)
+    await this.repository.saveConnection(connection, databasePasswordCiphertext)
     return connection
   }
 
-  planManualBackup(siteId: string, actorIdentifier: string) {
-    const overview = this.getSiteOverview(siteId)
+  async planManualBackup(siteId: string, actorIdentifier: string) {
+    await this.entitlements.assertCapability(siteId, 'long-term-backups')
+    const overview = await this.getSiteOverview(siteId)
     if (!overview.connection) throw new Error('A hosting connection must be configured before preparing a backup.')
     const assessment = overview.connectionAssessment
     const requested = this.manualBackupSelection(overview.policy, assessment)
     if (!requested.filesIncluded && !requested.databaseIncluded) {
       throw new Error('The detected source cannot back up files or the database yet.')
     }
-    const destinations = this.destinationService.resolveForSite(siteId)
+    const destinations = await this.destinationService.resolveForSite(siteId)
     if (!destinations.length) throw new Error('No enabled backup destination is configured for this site.')
     if (destinations.some(destination => !destination.executable || !destination.credentialConfigured)) {
       throw new Error('Every selected backup destination must have an executable adapter and configured credential.')
@@ -238,7 +260,7 @@ export class BackupService {
     const domain = new URL(overview.site.url).hostname
     const primaryDestination = destinations[0]
     if (!primaryDestination) throw new Error('No enabled backup destination is configured for this site.')
-    const primaryStorage = this.destinationService.dropbox(primaryDestination)
+    const primaryStorage = await this.destinationService.dropbox(primaryDestination)
     const artifact: BackupArtifact = {
       id: backupId,
       siteId,
@@ -261,8 +283,8 @@ export class BackupService {
       uploadVerifiedAt: null,
       errorMessage: null
     }
-    this.repository.createArtifact(artifact)
-    const job = this.repository.createJob({
+    await this.repository.createArtifact(artifact)
+    const job = await this.repository.createJob({
       id: randomUUID(),
       siteId,
       backupId,
@@ -277,8 +299,8 @@ export class BackupService {
       heartbeatAt: null,
       errorMessage: null
     })
-    this.repository.saveJobDestinations(job.id, destinations.map(destination => destination.id))
-    this.auditService.record({
+    await this.repository.saveJobDestinations(job.id, destinations.map(destination => destination.id))
+    await this.auditService.record({
       siteId,
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -296,7 +318,7 @@ export class BackupService {
 
   async testStorageProvider(actorIdentifier: string) {
     const result = await this.dropbox().testConnection()
-    this.auditService.record({
+    await this.auditService.record({
       actorType: 'dashboard-user',
       actorIdentifier,
       eventType: 'backup.storage.tested',
@@ -305,11 +327,11 @@ export class BackupService {
     return result
   }
 
-  testHostingConnection(siteId: string, actorIdentifier: string) {
-    const connection = this.repository.getConnection(siteId)
+  async testHostingConnection(siteId: string, actorIdentifier: string) {
+    const connection = await this.repository.getConnection(siteId)
     if (!connection) throw new Error('No hosting connection is configured for this site.')
     const assessment = this.assessConnection(connection)
-    this.auditService.record({
+    await this.auditService.record({
       siteId,
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -319,8 +341,8 @@ export class BackupService {
     return assessment
   }
 
-  verifyBackup(backupId: string, actorIdentifier: string) {
-    const artifact = this.repository.getArtifact(backupId)
+  async verifyBackup(backupId: string, actorIdentifier: string) {
+    const artifact = await this.repository.getArtifact(backupId)
     if (!artifact) throw new Error('Backup not found.')
     const checks = {
       completed: artifact.status === 'completed',
@@ -331,7 +353,7 @@ export class BackupService {
       uploadVerified: Boolean(artifact.uploadVerifiedAt)
     }
     const verified = Object.values(checks).every(Boolean)
-    this.auditService.record({
+    await this.auditService.record({
       siteId: artifact.siteId,
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -341,36 +363,39 @@ export class BackupService {
     return { backupId, verified, checks, message: verified ? 'Recorded backup evidence is complete.' : 'Backup evidence is incomplete.' }
   }
 
-  getBackupDetails(backupId: string) {
-    const artifact = this.repository.getArtifact(backupId)
+  async getBackupDetails(backupId: string) {
+    const artifact = await this.repository.getArtifact(backupId)
     if (!artifact) throw new Error('Backup not found.')
-    return { artifact, job: this.repository.getJobForBackup(backupId) }
+    return { artifact, job: await this.repository.getJobForBackup(backupId) }
   }
 
-  getClientSafeManifest(backupId: string) {
-    const artifact = this.repository.getArtifact(backupId)
+  async getClientSafeManifest(backupId: string) {
+    const artifact = await this.repository.getArtifact(backupId)
     if (!artifact) throw new Error('Backup not found.')
     if (!artifact.manifest) throw new Error('Backup manifest is not available.')
     return artifact.manifest
   }
 
-  retryFailedBackup(backupId: string, actorIdentifier: string) {
-    const previous = this.repository.getArtifact(backupId)
+  async retryFailedBackup(backupId: string, actorIdentifier: string) {
+    const previous = await this.repository.getArtifact(backupId)
     if (!previous) throw new Error('Backup not found.')
+    await this.entitlements.assertCapability(previous.siteId, 'long-term-backups')
     if (previous.status !== 'failed') throw new Error('Only failed backups can be retried.')
     const now = new Date().toISOString()
     const newBackupId = randomUUID()
-    const destinations = this.destinationService.resolveForSite(previous.siteId)
+    const destinations = await this.destinationService.resolveForSite(previous.siteId)
     const primaryDestination = destinations[0]
     if (!primaryDestination) throw new Error('No enabled backup destination is configured for this site.')
     if (destinations.some(destination => !destination.executable || !destination.credentialConfigured)) {
       throw new Error('Every selected backup destination must have an executable adapter and configured credential.')
     }
-    const artifact = this.repository.createArtifact({
+    const site = await this.siteService.get(previous.siteId)
+    const storage = await this.destinationService.dropbox(primaryDestination)
+    const artifact = await this.repository.createArtifact({
       ...previous,
       id: newBackupId,
       storageProvider: primaryDestination.provider,
-      storagePath: this.destinationService.dropbox(primaryDestination).artifactPath(new URL(this.siteService.get(previous.siteId).url).hostname, newBackupId),
+      storagePath: storage.artifactPath(new URL(site.url).hostname, newBackupId),
       status: 'queued',
       sizeBytes: null,
       checksum: null,
@@ -382,7 +407,7 @@ export class BackupService {
       uploadVerifiedAt: null,
       errorMessage: null
     })
-    const job = this.repository.createJob({
+    const job = await this.repository.createJob({
       id: randomUUID(),
       siteId: artifact.siteId,
       backupId: artifact.id,
@@ -397,8 +422,8 @@ export class BackupService {
       heartbeatAt: null,
       errorMessage: null
     })
-    this.repository.saveJobDestinations(job.id, destinations.map(destination => destination.id))
-    this.auditService.record({
+    await this.repository.saveJobDestinations(job.id, destinations.map(destination => destination.id))
+    await this.auditService.record({
       siteId: artifact.siteId,
       actorType: 'dashboard-user',
       actorIdentifier,
@@ -408,9 +433,11 @@ export class BackupService {
     return { artifact, job, message: 'A new background backup job was queued from the failed backup.' }
   }
 
-  prepareRestore(siteId: string, backupId: string, actorIdentifier: string) {
-    const overview = this.getSiteOverview(siteId)
-    const artifact = this.repository.getArtifact(backupId)
+  async prepareRestore(siteId: string, backupId: string, actorIdentifier: string) {
+    const [overview, artifact] = await Promise.all([
+      this.getSiteOverview(siteId),
+      this.repository.getArtifact(backupId)
+    ])
     if (!artifact || artifact.siteId !== siteId) throw new Error('Backup not found for this site.')
     const capability = overview.connectionAssessment.restoreCapability
     const checks = {
@@ -428,7 +455,7 @@ export class BackupService {
     ]
     const passed = Object.values(checks).every(Boolean)
     const now = new Date().toISOString()
-    const plan = this.repository.createRestorePlan({
+    const plan = await this.repository.createRestorePlan({
       id: randomUUID(),
       siteId,
       backupId,
@@ -443,7 +470,7 @@ export class BackupService {
       createdAt: now,
       updatedAt: now
     })
-    this.auditService.record({
+    await this.auditService.record({
       siteId,
       actorType: 'dashboard-user',
       actorIdentifier,

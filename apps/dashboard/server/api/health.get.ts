@@ -1,8 +1,8 @@
 import { getSystemHealth } from '../services/health-service'
 
-export default defineEventHandler(() => {
+export default defineEventHandler(async () => {
   return {
     ok: true,
-    data: getSystemHealth()
+    data: await getSystemHealth()
   }
 })

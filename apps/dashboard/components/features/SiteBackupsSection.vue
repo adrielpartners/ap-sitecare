@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{ siteId: string }>()
+const api = useSiteCareApi()
 const { data: response, refresh } = await useFetch(() => `/api/sites/${props.siteId}/backups`)
 const overview = computed(() => response.value && 'data' in response.value ? response.value.data : null)
 const busy = ref(false)
@@ -31,7 +32,7 @@ const notes = ref('')
 const connectionNotes = ref('')
 const showAdvancedConnection = ref(false)
 
-watch(overview, (value) => {
+watch(overview, (value: any) => {
   if (!value) return
   const policy = value.policy
   const connection = value.connection
@@ -109,7 +110,7 @@ function backupErrorMessage(error: unknown): string {
 
 async function savePolicy() {
   await runAction(async () => {
-    const destinationResult = await $fetch(`/api/sites/${props.siteId}/backup-destinations`, {
+    const destinationResult = await api<any>(`/api/sites/${props.siteId}/backup-destinations`, {
       method: 'PUT',
       body: {
         mode: destinationMode.value,
@@ -120,7 +121,7 @@ async function savePolicy() {
     if ('data' in destinationResult && destinationResult.data.effectiveDestinations[0]) {
       storageProvider.value = destinationResult.data.effectiveDestinations[0].provider
     }
-    await $fetch(`/api/sites/${props.siteId}/backups/policy`, {
+    await api(`/api/sites/${props.siteId}/backups/policy`, {
       method: 'PUT',
       body: {
         enabled: enabled.value,
@@ -156,13 +157,13 @@ function toggleDestination(destinationId: string, selected: boolean) {
       ? [...new Set([...selectedDestinationIds.value, destinationId])]
       : [destinationId]
   } else {
-    selectedDestinationIds.value = selectedDestinationIds.value.filter(id => id !== destinationId)
+    selectedDestinationIds.value = selectedDestinationIds.value.filter((id: string) => id !== destinationId)
   }
 }
 
 async function testStorage() {
   await runAction(async () => {
-    const result = await $fetch('/api/backup-storage/dropbox/test', { method: 'POST' })
+    const result = await api<any>('/api/backup-storage/dropbox/test', { method: 'POST' })
     if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Dropbox connection test failed.')
     return { message: result.data.message }
   }, 'Storage connection checked.')
@@ -170,7 +171,7 @@ async function testStorage() {
 
 async function testConnection() {
   await runAction(async () => {
-    const result = await $fetch(`/api/sites/${props.siteId}/backups/connection-test`, { method: 'POST' })
+    const result = await api<any>(`/api/sites/${props.siteId}/backups/connection-test`, { method: 'POST' })
     if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Hosting connection test failed.')
     return { message: result.data.messages.join(' ') }
   }, 'Hosting connection checked.')
@@ -178,7 +179,7 @@ async function testConnection() {
 
 async function planBackup() {
   await runAction(async () => {
-    const result = await $fetch(`/api/sites/${props.siteId}/backups/manual`, { method: 'POST' })
+    const result = await api<any>(`/api/sites/${props.siteId}/backups/manual`, { method: 'POST' })
     if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Manual backup planning failed.')
     return { message: result.data.message }
   }, 'Manual backup job prepared.')
@@ -186,7 +187,7 @@ async function planBackup() {
 
 async function verifyBackup(backupId: string) {
   await runAction(async () => {
-    const result = await $fetch(`/api/backups/${backupId}/verify`, { method: 'POST' })
+    const result = await api<any>(`/api/backups/${backupId}/verify`, { method: 'POST' })
     if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Backup verification failed.')
     return { message: result.data.message }
   }, 'Backup evidence checked.')
@@ -202,7 +203,7 @@ async function viewManifest(backupId: string) {
 
 async function retryBackup(backupId: string) {
   await runAction(async () => {
-    const result = await $fetch(`/api/backups/${backupId}/retry`, { method: 'POST' })
+    const result = await api<any>(`/api/backups/${backupId}/retry`, { method: 'POST' })
     if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Backup retry could not be queued.')
     return { message: result.data.message }
   }, 'Backup retry queued.')
@@ -210,7 +211,7 @@ async function retryBackup(backupId: string) {
 
 async function prepareRestore(backupId: string) {
   await runAction(async () => {
-    const result = await $fetch(`/api/sites/${props.siteId}/restore-plans`, { method: 'POST', body: { backupId } })
+    const result = await api<any>(`/api/sites/${props.siteId}/restore-plans`, { method: 'POST', body: { backupId } })
     if (!('data' in result)) throw new Error('error' in result ? result.error.message : 'Restore planning failed.')
     return { message: result.data.plan.status === 'preflight-passed'
       ? 'Restore plan prepared. Destructive execution remains unavailable.'
@@ -247,7 +248,7 @@ function formatBytes(value: number | null): string {
             {{ !overview.storage.enabled ? 'Disabled' : overview.storage.configured ? 'Configured' : 'Not configured' }}
           </AppBadge>
           <h3>Backup destinations</h3>
-          <p class="text-meta">{{ overview.destinationSettings.effectiveDestinations.length ? overview.destinationSettings.effectiveDestinations.map(destination => destination.name).join(', ') : 'No effective destination configured.' }}</p>
+          <p class="text-meta">{{ overview.destinationSettings.effectiveDestinations.length ? (overview.destinationSettings.effectiveDestinations as Array<{ name: string }>).map(destination => destination.name).join(', ') : 'No effective destination configured.' }}</p>
         </div>
       </AppCard>
       <AppCard muted>
@@ -310,7 +311,7 @@ function formatBytes(value: number | null): string {
           />
         </div>
         <p v-else class="text-meta">
-          Effective central destinations: {{ overview?.destinationSettings.effectiveDestinations.map(destination => destination.name).join(', ') || 'None configured' }}
+          Effective central destinations: {{ (overview?.destinationSettings.effectiveDestinations as Array<{ name: string }> | undefined)?.map(destination => destination.name).join(', ') || 'None configured' }}
         </p>
 
         <div class="section-heading">

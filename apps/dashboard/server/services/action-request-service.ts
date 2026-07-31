@@ -11,11 +11,11 @@ export class ActionRequestService {
     private readonly auditService = new AuditService()
   ) {}
 
-  create(siteId: string, actionType: string, rationale: string, requestedBy: string): ActionRequest {
-    this.siteService.get(siteId)
+  async create(siteId: string, actionType: string, rationale: string, requestedBy: string): Promise<ActionRequest> {
+    await this.siteService.get(siteId)
     if (!actionType.trim()) throw new Error('Action type is required.')
     if (!rationale.trim()) throw new Error('Rationale is required.')
-    const request = this.repository.create({
+    const request = await this.repository.create({
       id: randomUUID(),
       siteId,
       actionType: actionType.trim(),
@@ -27,7 +27,7 @@ export class ActionRequestService {
       createdAt: new Date().toISOString(),
       reviewedAt: null
     })
-    this.auditService.record({
+    await this.auditService.record({
       siteId,
       actorType: 'agent-or-dashboard-user',
       actorIdentifier: requestedBy,
@@ -37,22 +37,29 @@ export class ActionRequestService {
     return request
   }
 
-  list(): ActionRequest[] {
-    return this.repository.list()
+  async list(siteIds: string[] | null = null): Promise<ActionRequest[]> {
+    return siteIds === null ? this.repository.list() : this.repository.listScoped(siteIds)
   }
 
-  review(id: string, status: Exclude<ActionRequestStatus, 'pending'>, reviewedBy: string, note?: string): ActionRequest {
-    const request = this.repository.findById(id)
+  async review(
+    id: string,
+    status: Exclude<ActionRequestStatus, 'pending'>,
+    reviewedBy: string,
+    note?: string,
+    siteIds: string[] | null = null
+  ): Promise<ActionRequest> {
+    const request = await this.repository.findById(id)
     if (!request) throw new Error('Action request not found.')
+    if (siteIds !== null && !siteIds.includes(request.siteId)) throw new Error('Action request not found.')
     if (request.status !== 'pending') throw new Error('Action request has already been reviewed.')
-    const reviewed = this.repository.update({
+    const reviewed = await this.repository.update({
       ...request,
       status,
       reviewedBy,
       reviewNote: note?.trim() || null,
       reviewedAt: new Date().toISOString()
     })
-    this.auditService.record({
+    await this.auditService.record({
       siteId: request.siteId,
       actorType: 'dashboard-user',
       actorIdentifier: reviewedBy,

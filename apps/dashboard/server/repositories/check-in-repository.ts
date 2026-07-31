@@ -1,7 +1,6 @@
-import type Database from 'better-sqlite3'
 import type { HealthStatus, SiteCheckIn, SiteHealthSnapshot } from '../domain/types'
-import { useDatabase } from '../utils/database'
-import { parseJsonRecord, stringifyRecord } from '../utils/records'
+import { useDatabase, type QueryExecutor } from '../utils/database'
+import { parseJsonRecord } from '../utils/records'
 
 interface CheckInRow {
   id: string
@@ -9,7 +8,7 @@ interface CheckInRow {
   received_at: string
   source: string
   request_timestamp: string | null
-  payload_json: string
+  payload_json: unknown
 }
 
 interface SnapshotRow {
@@ -52,39 +51,48 @@ function mapSnapshot(row: SnapshotRow): SiteHealthSnapshot {
 }
 
 export class CheckInRepository {
-  constructor(private readonly database: Database.Database = useDatabase()) {}
+  constructor(private readonly database: QueryExecutor = useDatabase()) {}
 
-  createCheckIn(checkIn: SiteCheckIn): SiteCheckIn {
-    this.database.prepare(`
-      INSERT INTO site_check_ins (id, site_id, received_at, source, request_timestamp, payload_json)
-      VALUES (@id, @siteId, @receivedAt, @source, @requestTimestamp, @payloadJson)
-    `).run({ ...checkIn, payloadJson: stringifyRecord(checkIn.payload) })
+  async createCheckIn(checkIn: SiteCheckIn): Promise<SiteCheckIn> {
+    await this.database.query(`
+      INSERT INTO site_check_ins (
+        id, site_id, received_at, source, request_timestamp, payload_json
+      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+    `, [
+      checkIn.id, checkIn.siteId, checkIn.receivedAt, checkIn.source,
+      checkIn.requestTimestamp, JSON.stringify(checkIn.payload)
+    ])
     return checkIn
   }
 
-  listForSite(siteId: string): SiteCheckIn[] {
-    return (this.database.prepare(`
-      SELECT * FROM site_check_ins WHERE site_id = ? ORDER BY received_at DESC
-    `).all(siteId) as CheckInRow[]).map(mapCheckIn)
+  async listForSite(siteId: string): Promise<SiteCheckIn[]> {
+    const result = await this.database.query<CheckInRow>(`
+      SELECT * FROM site_check_ins WHERE site_id = $1 ORDER BY received_at DESC
+    `, [siteId])
+    return result.rows.map(mapCheckIn)
   }
 
-  createSnapshot(snapshot: SiteHealthSnapshot): SiteHealthSnapshot {
-    this.database.prepare(`
+  async createSnapshot(snapshot: SiteHealthSnapshot): Promise<SiteHealthSnapshot> {
+    await this.database.query(`
       INSERT INTO site_health_snapshots (
         id, site_id, check_in_id, status, wordpress_version, php_version,
         plugin_update_count, theme_update_count, last_cron_run_at, created_at
-      ) VALUES (
-        @id, @siteId, @checkInId, @status, @wordpressVersion, @phpVersion,
-        @pluginUpdateCount, @themeUpdateCount, @lastCronRunAt, @createdAt
-      )
-    `).run(snapshot)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+      snapshot.id, snapshot.siteId, snapshot.checkInId, snapshot.status,
+      snapshot.wordpressVersion, snapshot.phpVersion, snapshot.pluginUpdateCount,
+      snapshot.themeUpdateCount, snapshot.lastCronRunAt, snapshot.createdAt
+    ])
     return snapshot
   }
 
-  findLatestSnapshot(siteId: string): SiteHealthSnapshot | null {
-    const row = this.database.prepare(`
-      SELECT * FROM site_health_snapshots WHERE site_id = ? ORDER BY created_at DESC LIMIT 1
-    `).get(siteId) as SnapshotRow | undefined
-    return row ? mapSnapshot(row) : null
+  async findLatestSnapshot(siteId: string): Promise<SiteHealthSnapshot | null> {
+    const result = await this.database.query<SnapshotRow>(`
+      SELECT * FROM site_health_snapshots
+      WHERE site_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [siteId])
+    return result.rows[0] ? mapSnapshot(result.rows[0]) : null
   }
 }

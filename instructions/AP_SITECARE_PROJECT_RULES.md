@@ -1,10 +1,10 @@
 # AP_SITECARE_PROJECT_RULES.md
 
-Version: 1.0
+Version: 2.1
 Project: AP SiteCare
 Repository: `ap-sitecare`
 System Type: Hybrid Internal Operations Platform
-Last Updated: 2026-06-09
+Last Updated: 2026-07-31
 
 ---
 
@@ -39,9 +39,11 @@ Do not reverse this relationship.
 
 AI agents must follow these rules:
 
-1. Do not turn AP SiteCare into a ManageWP clone.
-2. Do not add remote update execution in Version One.
-3. Do not add remote restore execution in Version One.
+1. Do not turn AP SiteCare into an unrestricted ManageWP clone.
+2. Do not add execution capabilities outside the assigned phase in the active
+   implementation plan.
+3. Do not add unattended remote restore execution without a separately
+   approved phase and proven rollback/recovery procedure.
 4. Do not bypass the service layer.
 5. Do not place business logic in UI components.
 6. Do not access the database directly from pages.
@@ -52,20 +54,23 @@ AI agents must follow these rules:
 
 ---
 
-# 3. Observation Before Action Doctrine
+# 3. Observation, Approval, and Action Doctrine
 
 AP SiteCare follows:
 
 Observation
-→ Proposal
+→ Proposal / Preflight
 → Approval
-→ Action
+→ Controlled Action
+→ Verification
+→ Audit
 
-Version One stops at Observation.
+The completed legacy Version One stopped at observation and proposal.
 
-Future versions may add Proposal.
-
-Action capabilities require explicit approval.
+The active roadmap may add narrowly scoped action capabilities only in their
+assigned phases. Every action requires server-side permission checks,
+idempotency, explicit approval where defined, verification, and audit history.
+Agents and MCP tools must never bypass these controls.
 
 ---
 
@@ -177,8 +182,12 @@ Do not implement direct execution paths that bypass Action Requests.
 
 Dashboard Authentication:
 
-- Cloudflare Access
-- Google Login
+- application-owned email and password
+- durable server-side sessions
+- Admin, Team Member, and Client authorization
+
+Cloudflare identity headers and local authentication bypasses are not valid
+Dashboard login mechanisms.
 
 Plugin Authentication:
 
@@ -381,14 +390,19 @@ Do not add a second package manager.
 
 ---
 
-# 17. Phase One Authentication Rules
+# 17. Authentication Transition Rules
 
-- Cloudflare Access owns production dashboard authentication.
-- Protected requests require the authenticated email and JWT assertion headers.
-- Direct production origin access must be restricted.
-- The local development bypass must be explicit.
-- The local development bypass must never be enabled in production.
-- `/api/health` is the only unauthenticated dashboard endpoint in Phase One.
+- Application-owned email/password accounts and revocable sessions own human
+  authentication.
+- Cloudflare human identity headers must not grant application access.
+- Authorization must be enforced in routes and services, with repository-level
+  client/site scoping.
+- Cloudflare may continue to provide proxying, TLS, WAF, rate limiting, and
+  origin protection without presenting a second human login.
+- Direct production origin access must remain restricted.
+- Authentication bypasses are prohibited, including in local development.
+- `/api/health`, signed plugin endpoints, login, invitation acceptance, and
+  password-recovery endpoints are the only unauthenticated HTTP surfaces.
 - Public endpoints must never expose sensitive operational data.
 
 ---
@@ -415,7 +429,9 @@ Do not add a second package manager.
 # 19. Phase Three Data Rules
 
 - All schema changes must be implemented as ordered migrations.
-- Never edit the production SQLite schema manually.
+- Never edit the production PostgreSQL schema manually.
+- Legacy SQLite access is limited to the documented one-time migration tool
+  and migration tests.
 - Database access belongs in repositories.
 - Services own site lifecycle, credential lifecycle, health recording, and
   audit behavior.
@@ -446,8 +462,8 @@ Do not add a second package manager.
 
 # 21. Phase Five Plugin Reporting Rules
 
-- `/api/plugin/*` endpoints bypass Cloudflare Access only because they enforce
-  the plugin HMAC boundary.
+- `/api/plugin/*` endpoints bypass human session authentication only because
+  they enforce the plugin HMAC boundary.
 - `/api/plugin/client-summary` is read-only and may return only client-safe
   care data.
 - Plugin signatures bind the ISO 8601 timestamp and exact request body.
@@ -486,20 +502,22 @@ Do not add a second package manager.
 
 # 23. Integration and Agent Rules
 
-- External integration clients are read-only in Version One.
+- External integration clients remain read-only unless the active roadmap
+  explicitly assigns a controlled write capability.
 - General read-only integration credentials belong in runtime environment
   variables. Backup-destination credentials are the approved exception: they
   may be entered through protected dashboard APIs and stored only as encrypted
   destination credentials using `NUXT_CREDENTIAL_ENCRYPTION_KEY`.
 - Provider clients must return explicit not-configured states when settings
   are absent.
-- Action Requests represent proposals and reviews only.
-- Approving an Action Request must never execute an external action.
+- Action Requests represent proposals and reviews. Execution may be connected
+  only in an explicitly assigned action phase with permission, preflight,
+  idempotency, verification, and audit controls.
 - Agent APIs and MCP tools must call existing services.
 - MCP tools must not access repositories or the database directly.
-- MCP must not expose execution, update, restore, or infrastructure-control
-  tools in Version One.
-- Phase 12 requires a separate action specification and explicit approval.
+- MCP and agents must not expose execution, update, restore, or
+  infrastructure-control tools unless a future phase explicitly approves a
+  narrow tool and preserves the same application approval boundary.
 
 ---
 
@@ -532,6 +550,9 @@ Do not add a second package manager.
 - The WordPress plugin may send database backup credentials only through the
   existing signed HMAC check-in boundary. The dashboard must immediately store
   the password encrypted and must redact it from check-in payload history.
+- This database-password reporting behavior is transitional. Roadmap Phase 7
+  must retire it when a safer approved Hostinger/SSH source connection replaces
+  it.
 - Backup-destination credentials may only be stored encrypted in the
   destination registry. Destination APIs and audit events must never return or
   record plaintext credentials.
@@ -559,3 +580,98 @@ Do not add a second package manager.
   exist in this foundation.
 - Every policy change, backup job plan, provider test, verification, and
   restore preflight must emit an audit event.
+
+---
+
+# 26. Active Roadmap and Agent Handoff Rules
+
+- `AP_SITECARE_IMPLEMENTATION_PLAN.md` is the active roadmap.
+- `AP_SITECARE_IMPLEMENTATION_PLAN_LEGACY.md` is historical and must not be
+  treated as current scope.
+- Work begins only when the user assigns a phase.
+- Agents must not implement later-phase milestones opportunistically.
+- The assigned agent must update the active roadmap at the end of each phase.
+- Phase handoff notes must include completed work, verification, schema and
+  configuration changes, decisions, limitations, deployment notes, and the
+  recommended next assignment.
+- Another human or AI agent must be able to continue from the durable
+  documentation without reconstructing decisions from chat history.
+
+---
+
+# 27. Client Ownership and Entitlement Rules
+
+- Every site must have exactly one current client owner and one underlying
+  SiteCare plan.
+- New site creation must use `ClientRegistryService` so the site, ownership,
+  initial plan, lifecycle evidence, activation intents, and audit history are
+  committed transactionally.
+- `Unassigned Sites — Review Required` is a migration-only placeholder. It
+  must remain visibly marked, may receive reassigned legacy sites, and must
+  never be selectable during new-site registration.
+- Plan definitions are immutable code-owned product definitions. Do not create
+  editable per-site copies of the entitlement matrix.
+- `EntitlementService` exclusively owns effective capability and setting
+  decisions. UI, routes, services, workers, agents, MCP, reports, and future
+  schedulers must not independently infer entitlement from a plan name.
+- Underlying plan identity, subscription status, operational status, and
+  effective entitlements are different facts and must remain separate.
+- All plan and override mutations require a reason and actor, use a service
+  transaction, and emit audit history.
+- Upgrades are immediate. Downgrades and cancellation require a future
+  paid-period-end effective date. Do not silently replace an existing
+  scheduled transition.
+- Suspension pauses operational work without changing or deleting underlying
+  plan history. Reactivation restores plan-derived eligibility.
+- Administrative overrides must have a start time, may have an expiration,
+  must not overlap another active override for the same target, and must never
+  rewrite the underlying plan.
+- New plan-gated work must call `assertCapability` immediately before queueing
+  and workers must re-check eligibility immediately before execution.
+- Service-activation intents express eligibility for Phase 4 scheduling; they
+  are not successful-work records.
+- Downgrade, cancellation, and suspension prevent newly excluded work but do
+  not delete retained artifacts, reports, incidents, or audit history.
+- Temporal synchronization must call the central service and must not duplicate
+  lifecycle or override-expiry rules.
+
+---
+
+# 28. Durable Automation and Notification Rules
+
+- Web requests may validate and commit automation work but must not execute
+  long-running handlers inline.
+- General jobs require stable job type, operation key, idempotency key,
+  requesting actor, bounded attempts, and a secret-free size-bounded payload.
+- A site/system operation lock must prevent concurrent execution of the same
+  operation while permitting unrelated operations to progress.
+- Workers must claim atomically, heartbeat leases, respect cooperative
+  cancellation, recover stale attempts, use bounded backoff, and release locks
+  on every terminal or retry transition.
+- Handlers must use `queued -> preflight -> running -> verifying` and must not
+  equate provider acceptance with verified completion.
+- Every plan-gated handler must re-evaluate `EntitlementService` immediately
+  before execution.
+- The specialized backup worker remains separate until a later phase assigns
+  and verifies a migration onto the general job system.
+- Each notification recipient requires an independent outbox row, attempt
+  history, delivery status, and idempotency identity.
+- Domain events and their required outbox rows must commit in the same
+  PostgreSQL transaction.
+- Dashboard routes and domain services must never call an email provider
+  directly; only the email worker may send committed messages.
+- Provider acceptance is `sent`; only provider delivery evidence is
+  `delivered`.
+- Completed, suppressed, and terminal-failed outbox rows must purge rendered
+  bodies while retaining safe metadata and artifact references.
+- Provider API keys and webhook tokens must be encrypted, masked, excluded
+  from audit metadata, and never returned by an API.
+- Provider webhooks must authenticate before parsing domain events, deduplicate
+  provider event IDs, and update suppressions for permanent delivery risks.
+- Global provider, From, Reply-To, and branding settings are system-level;
+  recipients and operational email categories are site-level.
+- Brevo is the only operational email adapter in Phase 4. Mailgun, Postmark,
+  SendGrid, Telegram, and SMS must remain labeled non-operational until their
+  adapters are explicitly assigned and verified.
+- Admin job retry, cancellation, provider configuration, and suppression-lift
+  actions must produce audit history.

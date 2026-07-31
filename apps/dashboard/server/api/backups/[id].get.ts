@@ -1,10 +1,10 @@
 import { backupApiError } from '../../utils/backup-api'
-import { getBackupService } from '../../utils/backups'
+import { requireBackupAccess } from '../../utils/backups'
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   try {
     const backupId = getRouterParam(event, 'id') ?? ''
-    return { ok: true, data: getBackupService(event).getBackupDetails(backupId) }
+    return { ok: true, data: await (await requireBackupAccess(event, backupId)).getBackupDetails(backupId) }
   } catch (error) {
     return backupApiError(event, error)
   }

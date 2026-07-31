@@ -33,8 +33,101 @@ export interface SiteCredential {
   siteId: string
   secretCiphertext: string
   secretHint: string
+  state: 'active' | 'pending' | 'overlap' | 'revoked'
+  validUntil: string | null
+  confirmedAt: string | null
+  lastUsedAt: string | null
+  supersedesCredentialId: string | null
   createdAt: string
   revokedAt: string | null
+}
+
+export interface SitePluginConnection {
+  siteId: string
+  status: 'awaiting-check-in' | 'connected' | 'stale' | 'revoked'
+  contractVersion: number
+  pluginVersion: string | null
+  wordpressHomeUrl: string | null
+  lastAuthenticatedAt: string | null
+  lastCheckInAt: string | null
+  lastRotationStartedAt: string | null
+  lastRotationCompletedAt: string | null
+  rotationDueAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type WordPressComponentType = 'core' | 'plugin' | 'theme'
+export type WordPressUpdateOutcome = 'succeeded' | 'failed' | 'observed'
+
+export interface WordPressUpdateInventoryItem {
+  snapshotId: string
+  siteId: string
+  componentType: WordPressComponentType
+  slug: string
+  name: string
+  installedVersion: string
+  availableVersion: string | null
+  active: boolean
+  autoUpdateEnabled: boolean
+  supportStatus: 'supported' | 'possibly-abandoned' | 'unknown'
+  premiumLicenseStatus: 'active' | 'inactive' | 'unknown' | 'not-applicable'
+  metadata: Record<string, unknown>
+}
+
+export interface WordPressUpdateSnapshot {
+  id: string
+  siteId: string
+  checkInId: string
+  contractVersion: number
+  checkedAt: string
+  receivedAt: string
+  coreInstalledVersion: string
+  coreAvailableVersion: string | null
+  pluginCount: number
+  themeCount: number
+  pendingUpdateCount: number
+}
+
+export interface WordPressUpdateActivity {
+  id: string
+  siteId: string
+  sourceEventId: string
+  componentType: WordPressComponentType
+  slug: string
+  name: string
+  priorVersion: string | null
+  targetVersion: string | null
+  resultingVersion: string | null
+  startedAt: string | null
+  completedAt: string
+  outcome: WordPressUpdateOutcome
+  errorCode: string | null
+  errorMessage: string | null
+  source: 'wordpress-upgrader' | 'wordpress-automatic-updater' | 'inventory-reconciliation'
+  recordedAt: string
+}
+
+export interface HostingerSiteConnection {
+  siteId: string
+  availability: 'available' | 'not-found' | 'not-configured' | 'not-synchronized' | 'provider-error'
+  domain: string
+  accountUsername: string | null
+  websiteOrderId: string | null
+  wordpressInstallationId: string | null
+  websiteEnabled: boolean | null
+  wordpressValid: boolean | null
+  rootDirectory: string | null
+  managementUrl: string | null
+  dailyBackupAvailability: 'available' | 'not-available'
+  latestDailyBackupAt: string | null
+  dailyBackupMessage: string | null
+  metadata: Record<string, unknown>
+  lastSyncedAt: string | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface SiteCheckIn {

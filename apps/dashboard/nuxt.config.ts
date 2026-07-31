@@ -14,19 +14,34 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   nitro: {
     externals: {
-      external: ['better-sqlite3']
+      external: ['pg']
     }
   },
   runtimeConfig: {
     auth: {
-      developmentBypass: false,
-      developmentEmail: 'developer@adrielpartners.com'
+      secureCookies: false,
+      eventHashKey: '',
+      sessionDays: 30
+    },
+    sitecareBaseUrl: 'http://localhost:3000',
+    email: {
+      provider: 'brevo',
+      brevoApiKey: '',
+      fromAddress: '',
+      fromName: 'SiteCare',
+      replyTo: '',
+      webhookBearerToken: ''
     },
     integrations: {
       cloudflareApiToken: '',
+      cloudflareApiBaseUrl: 'https://api.cloudflare.com/client/v4',
+      cloudflareWebhookSecret: '',
+      cloudflareAccountId: '',
+      cloudflareWebhookDestinationId: '',
+      cloudflareNotificationPolicyId: '',
       dropboxAccessToken: '',
       dropboxBackupRoot: '',
-      hostingerApiBaseUrl: '',
+      hostingerApiBaseUrl: 'https://developers.hostinger.com',
       hostingerApiToken: ''
     },
     backups: {
@@ -36,7 +51,7 @@ export default defineNuxtConfig({
       dropboxTokenStrategy: 'runtime-access-token'
     },
     credentialEncryptionKey: '',
-    databasePath: './data/sitecare.sqlite'
+    databaseUrl: 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'
   },
   typescript: {
     strict: true

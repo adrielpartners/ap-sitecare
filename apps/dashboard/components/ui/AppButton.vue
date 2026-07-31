@@ -20,6 +20,9 @@ withDefaults(defineProps<{
     class="app-button"
     :class="`app-button--${variant}`"
     :to="to"
+    :external="to.startsWith('http')"
+    :target="to.startsWith('http') ? '_blank' : undefined"
+    :rel="to.startsWith('http') ? 'noopener noreferrer' : undefined"
   >
     <span v-if="loading" class="app-button__spinner" aria-hidden="true" />
     <slot />

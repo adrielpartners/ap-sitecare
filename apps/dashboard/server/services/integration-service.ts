@@ -25,12 +25,12 @@ export class IntegrationService {
     return {
       cloudflare: true,
       dropbox: Boolean(this.settings.dropboxAccessToken && this.settings.dropboxBackupRoot),
-      hostinger: Boolean(this.settings.hostingerApiToken && this.settings.hostingerApiBaseUrl)
+      hostinger: Boolean(this.settings.hostingerApiToken)
     }
   }
 
   async inspect(siteId: string, provider: IntegrationProvider): Promise<IntegrationResult> {
-    const site = this.siteService.get(siteId)
+    const site = await this.siteService.get(siteId)
     const domain = new URL(site.url).hostname
     if (provider === 'cloudflare') return this.cloudflare.inspect(domain)
     if (provider === 'dropbox') return this.dropbox.inspect(domain)

@@ -1,23 +1,46 @@
 name: sitecare
 
 services:
+  sitecare-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sitecare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_USER: ${POSTGRES_USER:-sitecare}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sitecare} -d ${POSTGRES_DB:-sitecare}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - sitecare_internal
+    volumes:
+      - sitecare-postgres-data:/var/lib/postgresql/data
+
   sitecare-dashboard:
     build:
       context: /opt/sitecare
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      sitecare-postgres:
+        condition: service_healthy
     env_file:
       - path: ../.env
         required: false
     environment:
       HOST: 0.0.0.0
       NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: /backup-sources
-      NUXT_DATABASE_PATH: /data/sitecare.sqlite
+      NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
       PORT: 3000
     networks:
       - traefik_proxy
+      - sitecare_internal
     volumes:
-      - sitecare-data:/data
       - /opt/sitecare/backup-sources:/backup-sources:ro
     labels:
       - "traefik.enable=true"
@@ -38,19 +61,61 @@ services:
       dockerfile: Dockerfile
       target: worker
     restart: unless-stopped
+    depends_on:
+      sitecare-postgres:
+        condition: service_healthy
     env_file:
       - path: ../.env
         required: false
     environment:
       NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: /backup-sources
-      NUXT_DATABASE_PATH: /data/sitecare.sqlite
+      NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
+    networks:
+      - sitecare_internal
     volumes:
-      - sitecare-data:/data
       - /opt/sitecare/backup-sources:/backup-sources:ro
 
+  email-worker:
+    build:
+      context: /opt/sitecare
+      dockerfile: Dockerfile
+      target: worker
+    command: ["npm", "run", "email-worker:continuous", "--workspace=@ap-sitecare/dashboard"]
+    restart: unless-stopped
+    depends_on:
+      sitecare-postgres:
+        condition: service_healthy
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
+    networks:
+      - sitecare_internal
+
+  automation-worker:
+    build:
+      context: /opt/sitecare
+      dockerfile: Dockerfile
+      target: worker
+    command: ["npm", "run", "automation-worker:continuous", "--workspace=@ap-sitecare/dashboard"]
+    restart: unless-stopped
+    depends_on:
+      sitecare-postgres:
+        condition: service_healthy
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
+    networks:
+      - sitecare_internal
+
 volumes:
-  sitecare-data:
+  sitecare-postgres-data:
 
 networks:
+  sitecare_internal:
+    internal: true
   traefik_proxy:
     external: true

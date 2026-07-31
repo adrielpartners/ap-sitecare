@@ -10,6 +10,11 @@ import { SiteRepository } from '../repositories/site-repository'
 import { decryptSecret } from '../utils/credential-crypto'
 import { AuditService } from './audit-service'
 import { BackupDestinationService } from './backup-destination-service'
+import { EntitlementService } from './entitlement-service'
+
+interface BackupWorkerEntitlementGate {
+  assertCapability(siteId: string, capability: 'long-term-backups'): Promise<unknown>
+}
 
 export interface BackupWorkerSettings {
   allowedLocalBaseDirectories: string[]
@@ -39,18 +44,19 @@ export class BackupWorkerService {
       settings.dropboxEnabled,
       settings.dropboxTokenStrategy
     ),
-    private readonly destinationService?: BackupDestinationService
+    private readonly destinationService?: BackupDestinationService,
+    private readonly entitlements: BackupWorkerEntitlementGate = new EntitlementService(repository.getDatabase())
   ) {}
 
   async runNext(): Promise<BackupJob | null> {
     const now = new Date()
     const staleBefore = new Date(now.getTime() - this.settings.staleAfterMinutes * 60_000).toISOString()
-    for (const stale of this.repository.failStaleJobs(staleBefore, now.toISOString())) {
-      this.record(stale, 'backup.failed', { failure: stale.errorMessage })
+    for (const stale of await this.repository.failStaleJobs(staleBefore, now.toISOString())) {
+      await this.record(stale, 'backup.failed', { failure: stale.errorMessage })
     }
-    const job = this.repository.claimNextQueuedJob(now.toISOString())
+    const job = await this.repository.claimNextQueuedJob(now.toISOString())
     if (!job) return null
-    this.audit.record({
+    await this.audit.record({
       siteId: job.siteId,
       actorType: 'backup-worker',
       actorIdentifier: this.workerId,
@@ -59,21 +65,24 @@ export class BackupWorkerService {
     })
 
     const heartbeat = setInterval(() => {
-      try {
-        this.repository.heartbeatJob(job.id, job.claimToken, new Date().toISOString())
-      } catch {
-        // The main execution path will surface persistent database failures.
-      }
+      void this.repository
+        .heartbeatJob(job.id, job.claimToken, new Date().toISOString())
+        .catch(() => {
+          // The main execution path will surface persistent database failures.
+        })
     }, 15_000)
     heartbeat.unref()
 
     let workDirectory: string | null = null
     try {
+      await this.entitlements.assertCapability(job.siteId, 'long-term-backups')
       await mkdir(resolve(this.settings.tempRoot), { recursive: true, mode: 0o700 })
       workDirectory = await mkdtemp(join(resolve(this.settings.tempRoot), 'apsc-backup-'))
-      const artifact = this.requiredArtifact(job.backupId)
-      const site = this.sites.findById(job.siteId)
-      const connection = this.repository.getConnection(job.siteId)
+      const [artifact, site, connection] = await Promise.all([
+        this.requiredArtifact(job.backupId),
+        this.sites.findById(job.siteId),
+        this.repository.getConnection(job.siteId)
+      ])
       if (!site || !connection) throw new Error('Backup job configuration is incomplete.')
       if (connection.connectionType !== 'local-vps') throw new Error('Only Local VPS backup execution is supported.')
       const local = new LocalVpsConnection(this.settings.allowedLocalBaseDirectories)
@@ -88,12 +97,12 @@ export class BackupWorkerService {
       if (artifact.filesIncluded) {
         built.push(await this.builder.createFilesArchive(wordpressPath, workDirectory))
         await local.validateTreeHasNoSymlinks(wordpressPath)
-        this.record(job, 'backup.files-archive.created', { archiveName: built.at(-1)?.archiveName })
+        await this.record(job, 'backup.files-archive.created', { archiveName: built.at(-1)?.archiveName })
       }
       if (artifact.databaseIncluded) {
-        const database = this.databaseConfiguration(connection)
+        const database = await this.databaseConfiguration(connection)
         built.push(await this.builder.createDatabaseArchive(database, workDirectory))
-        this.record(job, 'backup.database-dump.created', { included: true })
+        await this.record(job, 'backup.database-dump.created', { included: true })
       }
       if (!built.length) throw new Error('Backup job does not include files or database.')
 
@@ -114,9 +123,9 @@ export class BackupWorkerService {
       const packageFiles = await this.builder.writeManifestAndChecksums(workDirectory, manifestBase, built)
       const checksumFile = packageFiles.files.find(file => file.type === 'checksums')
       if (!checksumFile) throw new Error('Checksum artifact was not created.')
-      const storages = this.resolveStorages(job)
+      const storages = await this.resolveStorages(job)
       const primaryStorage = storages[0]?.storage ?? this.storage
-      this.repository.updateArtifact({
+      await this.repository.updateArtifact({
         ...artifact,
         filesIncluded: artifact.filesIncluded,
         databaseIncluded: artifact.databaseIncluded,
@@ -130,40 +139,40 @@ export class BackupWorkerService {
       for (const destination of storages) {
         const destinationRoot = destination.storage.artifactPath(domain, artifact.id)
         for (const file of packageFiles.files) {
-          this.repository.heartbeatJob(job.id, job.claimToken, new Date().toISOString())
+          await this.repository.heartbeatJob(job.id, job.claimToken, new Date().toISOString())
           const result = await destination.storage.upload(file.path, destination.storage.destinationPath(destinationRoot, file.archiveName))
           if (!result.verified) throw new Error(`Dropbox upload verification failed for ${file.archiveName}.`)
         }
-        this.record(job, 'backup.dropbox-upload.completed', { destinationId: destination.id, fileCount: packageFiles.files.length })
-        this.record(job, 'backup.dropbox-upload.verified', { destinationId: destination.id, fileCount: packageFiles.files.length })
+        await this.record(job, 'backup.dropbox-upload.completed', { destinationId: destination.id, fileCount: packageFiles.files.length })
+        await this.record(job, 'backup.dropbox-upload.verified', { destinationId: destination.id, fileCount: packageFiles.files.length })
       }
       totalSize = packageFiles.files.reduce((sum, file) => sum + file.sizeBytes, 0)
 
       const completedAt = new Date().toISOString()
-      this.repository.updateArtifact({
-        ...this.requiredArtifact(job.backupId),
+      await this.repository.updateArtifact({
+        ...await this.requiredArtifact(job.backupId),
         status: 'completed',
         sizeBytes: totalSize,
         completedAt,
         uploadVerifiedAt: completedAt,
         errorMessage: null
       })
-      this.repository.finishJob(job.id, job.claimToken, 'completed', null, completedAt)
-      this.record(job, 'backup.completed', { sizeBytes: totalSize })
+      await this.repository.finishJob(job.id, job.claimToken, 'completed', null, completedAt)
+      await this.record(job, 'backup.completed', { sizeBytes: totalSize })
       return this.repository.getJob(job.id)
     } catch (error) {
       const message = safeFailureMessage(error)
       const failedAt = new Date().toISOString()
-      const artifact = this.repository.getArtifact(job.backupId)
+      const artifact = await this.repository.getArtifact(job.backupId)
       if (artifact) {
-        this.repository.updateArtifact({ ...artifact, status: 'failed', completedAt: failedAt, errorMessage: message })
+        await this.repository.updateArtifact({ ...artifact, status: 'failed', completedAt: failedAt, errorMessage: message })
       }
       try {
-        this.repository.finishJob(job.id, job.claimToken, 'failed', message, failedAt)
+        await this.repository.finishJob(job.id, job.claimToken, 'failed', message, failedAt)
       } catch {
         // A stale-claim recovery may already have finalized this job.
       }
-      this.record(job, 'backup.failed', { failure: message })
+      await this.record(job, 'backup.failed', { failure: message })
       return this.repository.getJob(job.id)
     } finally {
       clearInterval(heartbeat)
@@ -171,14 +180,14 @@ export class BackupWorkerService {
     }
   }
 
-  private requiredArtifact(backupId: string): BackupArtifact {
-    const artifact = this.repository.getArtifact(backupId)
+  private async requiredArtifact(backupId: string): Promise<BackupArtifact> {
+    const artifact = await this.repository.getArtifact(backupId)
     if (!artifact) throw new Error('Backup artifact was not found.')
     return artifact
   }
 
-  private databaseConfiguration(connection: HostingConnection) {
-    const ciphertext = this.repository.getDatabasePasswordCiphertext(connection.siteId)
+  private async databaseConfiguration(connection: HostingConnection) {
+    const ciphertext = await this.repository.getDatabasePasswordCiphertext(connection.siteId)
     if (!connection.databaseConfigured || !connection.databaseHost || !connection.databasePort
       || !connection.databaseName || !connection.databaseUsername || !ciphertext) {
       throw new Error('Database backup credentials are unavailable.')
@@ -192,18 +201,19 @@ export class BackupWorkerService {
     }
   }
 
-  private resolveStorages(job: BackupJob): Array<{ id: string, storage: DropboxStorageProvider }> {
-    const destinationIds = this.repository.getJobDestinationIds(job.id)
+  private async resolveStorages(job: BackupJob): Promise<Array<{ id: string, storage: DropboxStorageProvider }>> {
+    const destinationIds = await this.repository.getJobDestinationIds(job.id)
     if (!this.destinationService || !destinationIds.length) return [{ id: 'runtime-dropbox', storage: this.storage }]
-    return destinationIds.map((id) => {
-      const destination = this.destinationService?.list().find(item => item.id === id)
+    const destinations = await this.destinationService.list()
+    return Promise.all(destinationIds.map(async (id) => {
+      const destination = destinations.find(item => item.id === id)
       if (!destination) throw new Error('A queued backup destination is no longer available.')
-      return { id, storage: this.destinationService!.dropbox(destination) }
-    })
+      return { id, storage: await this.destinationService!.dropbox(destination) }
+    }))
   }
 
-  private record(job: BackupJob, eventType: string, metadata: Record<string, unknown>): void {
-    this.audit.record({
+  private async record(job: BackupJob, eventType: string, metadata: Record<string, unknown>): Promise<void> {
+    await this.audit.record({
       siteId: job.siteId,
       actorType: 'backup-worker',
       actorIdentifier: this.workerId,

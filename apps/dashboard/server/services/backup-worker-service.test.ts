@@ -10,11 +10,15 @@ import type { StorageUploadResult } from '../backups/storage-provider'
 import { AuditRepository } from '../repositories/audit-repository'
 import { BackupRepository } from '../repositories/backup-repository'
 import { SiteRepository } from '../repositories/site-repository'
-import { createDatabase } from '../utils/database'
+import { createTestDatabase, destroyTestDatabase } from '../testing/postgres-test-database'
 import { AuditService } from './audit-service'
 import { BackupService } from './backup-service'
 import { BackupWorkerService } from './backup-worker-service'
 import { SiteService } from './site-service'
+
+const entitledForLongTermBackups = {
+  async assertCapability() { return {} }
+}
 
 class FixtureProcessRunner implements ProcessRunner {
   constructor(private readonly failWith?: string) {}
@@ -50,8 +54,8 @@ class FixtureDropboxStorage extends DropboxStorageProvider {
   }
 }
 
-function createFixture(options?: { databaseEnabled?: boolean, runnerFailure?: string }) {
-  const database = createDatabase(':memory:')
+async function createFixture(options?: { databaseEnabled?: boolean, runnerFailure?: string }) {
+  const database = await createTestDatabase()
   const backupRepository = new BackupRepository(database)
   const auditRepository = new AuditRepository(database)
   const auditService = new AuditService(auditRepository)
@@ -71,9 +75,9 @@ function createFixture(options?: { databaseEnabled?: boolean, runnerFailure?: st
     allowedLocalBaseDirectories: [join(root, 'sites')],
     credentialEncryptionKey: 'fixture-encryption-key'
   }
-  const service = new BackupService(settings, backupRepository, siteService, auditService)
-  const site = siteService.create({ name: 'Worker Fixture', url: 'https://example.com' })
-  service.updatePolicy(site.id, {
+  const service = new BackupService(settings, backupRepository, siteService, auditService, undefined, entitledForLongTermBackups)
+  const site = await siteService.create({ name: 'Worker Fixture', url: 'https://example.com' })
+  await service.updatePolicy(site.id, {
     enabled: true,
     frequency: 'daily',
     filesEnabled: true,
@@ -94,18 +98,18 @@ function createFixture(options?: { databaseEnabled?: boolean, runnerFailure?: st
     databaseUsername: options?.databaseEnabled ? 'wordpress' : null,
     databasePassword: options?.databaseEnabled ? 'super-secret-database-password' : null
   }, 'operator@example.com')
-  const queued = service.planManualBackup(site.id, 'operator@example.com')
+  const queued = await service.planManualBackup(site.id, 'operator@example.com')
   const storage = new FixtureDropboxStorage()
   const worker = new BackupWorkerService({
     ...settings,
     tempRoot,
     staleAfterMinutes: 60
-  }, backupRepository, siteRepository, auditService, new BackupArtifactBuilder(new FixtureProcessRunner(options?.runnerFailure)), storage)
+  }, backupRepository, siteRepository, auditService, new BackupArtifactBuilder(new FixtureProcessRunner(options?.runnerFailure)), storage, undefined, entitledForLongTermBackups)
   return { auditRepository, backupRepository, database, queued, storage, worker }
 }
 
-function createDetectedDatabaseFixture() {
-  const database = createDatabase(':memory:')
+async function createDetectedDatabaseFixture() {
+  const database = await createTestDatabase()
   const backupRepository = new BackupRepository(database)
   const auditRepository = new AuditRepository(database)
   const auditService = new AuditService(auditRepository)
@@ -122,9 +126,9 @@ function createDetectedDatabaseFixture() {
     allowedLocalBaseDirectories: [join(root, 'sites')],
     credentialEncryptionKey: 'fixture-encryption-key'
   }
-  const service = new BackupService(settings, backupRepository, siteService, auditService)
-  const site = siteService.create({ name: 'Detected DB Fixture', url: 'https://example.com' })
-  service.recordDetectedBackupSource(site.id, {
+  const service = new BackupService(settings, backupRepository, siteService, auditService, undefined, entitledForLongTermBackups)
+  const site = await siteService.create({ name: 'Detected DB Fixture', url: 'https://example.com' })
+  await service.recordDetectedBackupSource(site.id, {
     wordpressPath: null,
     databaseHost: '127.0.0.1',
     databasePort: 3306,
@@ -134,32 +138,36 @@ function createDetectedDatabaseFixture() {
     providerLabel: 'WordPress plugin',
     detectedAt: new Date().toISOString()
   })
-  const queued = service.planManualBackup(site.id, 'operator@example.com')
+  const queued = await service.planManualBackup(site.id, 'operator@example.com')
   const storage = new FixtureDropboxStorage()
   const worker = new BackupWorkerService({
     ...settings,
     tempRoot,
     staleAfterMinutes: 60
-  }, backupRepository, siteRepository, auditService, new BackupArtifactBuilder(new FixtureProcessRunner()), storage)
-  return { auditRepository, backupRepository, queued, storage, worker }
+  }, backupRepository, siteRepository, auditService, new BackupArtifactBuilder(new FixtureProcessRunner()), storage, undefined, entitledForLongTermBackups)
+  return { auditRepository, backupRepository, database, queued, storage, worker }
 }
 
 describe('Backup execution worker', () => {
-  it('prevents duplicate claims for the same queued job', () => {
-    const { backupRepository } = createFixture()
-    const first = backupRepository.claimNextQueuedJob(new Date().toISOString())
-    const second = backupRepository.claimNextQueuedJob(new Date().toISOString())
-    assert.ok(first)
-    assert.equal(second, null)
+  it('prevents duplicate claims when workers compete concurrently for the same queued job', async () => {
+    const { backupRepository, database } = await createFixture()
+    const claims = await Promise.all([
+      backupRepository.claimNextQueuedJob(new Date().toISOString()),
+      backupRepository.claimNextQueuedJob(new Date().toISOString())
+    ])
+    assert.equal(claims.filter(Boolean).length, 1)
+    assert.equal(claims.filter(claim => claim === null).length, 1)
+    await destroyTestDatabase(database)
   })
 
-  it('marks stale running jobs and artifacts failed', () => {
-    const { backupRepository, queued } = createFixture()
-    const claimed = backupRepository.claimNextQueuedJob('2026-01-01T00:00:00.000Z')
+  it('marks stale running jobs and artifacts failed', async () => {
+    const { backupRepository, database, queued } = await createFixture()
+    const claimed = await backupRepository.claimNextQueuedJob('2026-01-01T00:00:00.000Z')
     assert.ok(claimed)
-    const failed = backupRepository.failStaleJobs('2026-01-01T00:01:00.000Z', '2026-01-01T00:02:00.000Z')
+    const failed = await backupRepository.failStaleJobs('2026-01-01T00:01:00.000Z', '2026-01-01T00:02:00.000Z')
     assert.equal(failed.length, 1)
-    assert.equal(backupRepository.getArtifact(queued.artifact.id)?.status, 'failed')
+    assert.equal((await backupRepository.getArtifact(queued.artifact.id))?.status, 'failed')
+    await destroyTestDatabase(database)
   })
 
   it('rejects unsafe Dropbox destination paths', () => {
@@ -168,9 +176,9 @@ describe('Backup execution worker', () => {
   })
 
   it('creates a manifest and checksums, uploads evidence, and completes the job', async () => {
-    const { auditRepository, backupRepository, queued, storage, worker } = createFixture()
+    const { auditRepository, backupRepository, database, queued, storage, worker } = await createFixture()
     const result = await worker.runNext()
-    const artifact = backupRepository.getArtifact(queued.artifact.id)
+    const artifact = await backupRepository.getArtifact(queued.artifact.id)
     assert.equal(result?.status, 'completed')
     assert.equal(artifact?.status, 'completed')
     assert.ok(artifact?.manifest)
@@ -181,13 +189,14 @@ describe('Backup execution worker', () => {
       'manifest.json',
       'wordpress-files.tar.gz'
     ])
-    assert.equal(auditRepository.listForSite(queued.artifact.siteId).some(event => event.eventType === 'backup.completed'), true)
+    assert.equal((await auditRepository.listForSite(queued.artifact.siteId)).some(event => event.eventType === 'backup.completed'), true)
+    await destroyTestDatabase(database)
   })
 
   it('runs a database-only manual job without a saved policy or local WordPress path', async () => {
-    const { backupRepository, queued, storage, worker } = createDetectedDatabaseFixture()
+    const { backupRepository, database, queued, storage, worker } = await createDetectedDatabaseFixture()
     const result = await worker.runNext()
-    const artifact = backupRepository.getArtifact(queued.artifact.id)
+    const artifact = await backupRepository.getArtifact(queued.artifact.id)
     assert.equal(result?.status, 'completed')
     assert.equal(artifact?.status, 'completed')
     assert.equal(artifact?.filesIncluded, false)
@@ -197,24 +206,28 @@ describe('Backup execution worker', () => {
       'manifest.json',
       'wordpress-database.sql.gz'
     ])
+    await destroyTestDatabase(database)
   })
 
   it('fails clearly and does not persist secrets in jobs, artifacts, or audit events', async () => {
     const secret = 'super-secret-database-password'
-    const { auditRepository, backupRepository, database, queued, worker } = createFixture({
+    const { auditRepository, backupRepository, database, queued, worker } = await createFixture({
       databaseEnabled: true,
       runnerFailure: `mysqldump failed password=${secret}`
     })
     const result = await worker.runNext()
     assert.equal(result?.status, 'failed')
     const persisted = JSON.stringify({
-      job: backupRepository.getJobForBackup(queued.artifact.id),
-      artifact: backupRepository.getArtifact(queued.artifact.id),
-      audit: auditRepository.listForSite(queued.artifact.siteId)
+      job: await backupRepository.getJobForBackup(queued.artifact.id),
+      artifact: await backupRepository.getArtifact(queued.artifact.id),
+      audit: await auditRepository.listForSite(queued.artifact.siteId)
     })
     assert.equal(persisted.includes(secret), false)
     assert.match(result?.errorMessage ?? '', /\[redacted\]/)
-    const stored = database.prepare('SELECT database_password_ciphertext FROM hosting_connections').get() as { database_password_ciphertext: string }
+    const stored = (await database.query<{ database_password_ciphertext: string }>(
+      'SELECT database_password_ciphertext FROM hosting_connections'
+    )).rows[0]!
     assert.equal(stored.database_password_ciphertext.includes(secret), false)
+    await destroyTestDatabase(database)
   })
 })
