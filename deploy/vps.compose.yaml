@@ -44,6 +44,7 @@ services:
       - /opt/sitecare/backup-sources:/backup-sources:ro
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
       - "traefik.http.routers.sitecare-dashboard.rule=Host(`sitecare.adrielpartners.com`)"
       - "traefik.http.routers.sitecare-dashboard.entrypoints=websecure"
       - "traefik.http.routers.sitecare-dashboard.tls.certresolver=mytlschallenge"
