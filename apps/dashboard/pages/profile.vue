@@ -101,10 +101,12 @@ async function revoke(id: string): Promise<void> {
           </AppCard>
           <p v-if="mfaError" class="text-danger" role="alert">{{ mfaError }}</p>
         </div>
-        <AppCard v-if="recoveryCodes.length" tone="warning" class="section-gap">
-          <h3>Save these one-time recovery codes</h3>
-          <p class="text-meta">They are shown once. Store them in your password manager.</p>
-          <pre>{{ recoveryCodes.join('\n') }}</pre>
+        <AppCard v-if="recoveryCodes.length" tone="warning" class="mfa-recovery">
+          <div class="mfa-recovery__content">
+            <h3>Save these one-time recovery codes</h3>
+            <p class="text-meta">They are shown once. Store them in your password manager.</p>
+            <pre class="mfa-recovery__codes">{{ recoveryCodes.join('\n') }}</pre>
+          </div>
         </AppCard>
       </AppPanel>
       <AppPanel title="Remembered devices" description="Remembered devices can skip email verification for 30 days. Password sign-in is still required after logout.">
@@ -171,5 +173,28 @@ async function revoke(id: string): Promise<void> {
 
 .mfa-verification__field {
   max-width: 28rem;
+}
+
+.mfa-recovery {
+  margin-top: var(--space-6);
+}
+
+.mfa-recovery__content {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mfa-recovery__content h3,
+.mfa-recovery__content p,
+.mfa-recovery__codes {
+  margin: var(--space-0);
+}
+
+.mfa-recovery__codes {
+  overflow-x: auto;
+  padding: var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
 }
 </style>
