@@ -321,3 +321,39 @@ Remaining gates:
   documented above and remains subject to Free-plan Health Check availability.
 - real-site and multi-role acceptance remains gated on registering the first
   managed site and test users.
+
+### 2026-08-01 — Commit `a1e32cf`
+
+Operator: Codex, authorized by the project owner.
+
+Email-MFA deployment and recovery point:
+
+- fast-forwarded production from `93e85e0` to `a1e32cf`
+- built and restarted Dashboard, automation, backup, and email services with
+  production Compose; PostgreSQL remained healthy
+- applied migration 15, `replace_totp_with_email_mfa_and_trusted_devices`
+- verified PostgreSQL dump
+  `/opt/sitecare/db-backups/sitecare-pre-mfa-20260801T222547Z.dump`
+- dump size: 219,896 bytes; mode `600`
+- dump SHA-256:
+  `897b5fd79208acdcb7f6a7e51fa359ee660fc27be55a9cb920c2db253b5c2290`
+- restricted configuration snapshot:
+  `/opt/sitecare/db-backups/sitecare-env-20260801T222547Z`; mode `600`
+
+Passed live checks:
+
+- public `/api/health` returned HTTP 200 with PostgreSQL connected
+- Dashboard and PostgreSQL health checks passed; every application worker was
+  running and recent logs contained no fatal, unhandled, or migration failures
+- unauthenticated `/profile` redirected to login
+- migration 15 and the MFA challenge/trusted-device tables were present
+- the authenticated Profile rendered the email-MFA enrollment, 30-day
+  remembered-device, and 72-hour inactivity-session interface
+- the first Admin enrollment challenge was queued through the durable outbox,
+  accepted by Brevo, and recorded as delivered on the first attempt
+
+Remaining gate:
+
+- the one-time enrollment code must be entered by the owner in the open Profile
+  page. Until it is verified, the Admin remains unenrolled and fresh high-risk
+  step-up remains unavailable by design.

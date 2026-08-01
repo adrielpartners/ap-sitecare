@@ -2009,9 +2009,10 @@ Known limitations:
 
 ## Phase 11 — Production Hardening and Operational Launch
 
-Status: `deployed — 2026-08-01`; partial live external acceptance is complete
-and the remaining real-site, MFA, multi-role, restore, and canary gates remain
-operator actions.
+Status: `deployed — 2026-08-01`; partial live external acceptance is complete.
+Email MFA is deployed and the first Admin enrollment email is delivered; the
+owner must enter that one-time code to close the enrollment gate. Real-site,
+multi-role, restore, and canary gates remain operator actions.
 
 ### Goal
 
@@ -2086,9 +2087,10 @@ agent handoffs.
 
 Delivered:
 
-- MFA-required login after enrollment, mandatory high-risk step-up, cross-site
-  and origin rejection, CSRF, production cookie policy, restrictive response
-  headers, private downloads, and request identifiers
+- email MFA-required login after enrollment, 30-day revocable remembered
+  devices, a 72-hour inactivity logout, mandatory fresh high-risk email
+  step-up, cross-site and origin rejection, CSRF, production cookie policy,
+  restrictive response headers, private downloads, and request identifiers
 - structured redacted HTTP/worker logging and an Admin System Health view for
   schema, failed/stale work, provider degradation, active incidents, and secret
   configuration presence
@@ -2109,7 +2111,7 @@ Verification:
 
 Accepted limitations and deployment gates:
 
-- production commit `76cb0e9` and migration 14 are deployed; Dropbox, Hostinger
+- production commit `a1e32cf` and migration 15 are deployed; Dropbox, Hostinger
   portfolio, Brevo account/sender/webhook authentication, Cloudflare zone-read,
   public health, worker, and Admin-interface checks passed as recorded in
   `docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md`
@@ -2122,8 +2124,9 @@ Accepted limitations and deployment gates:
 - the current Cloudflare token is sufficient for zone inventory/settings and
   Health Check collection reads but is not sufficient for the complete
   Security Status evidence set
-- production Admin MFA enrollment is explicitly deferred; high-risk restore
-  and central-update execution remains blocked by design
+- the production Admin email-MFA challenge was delivered successfully and the
+  profile is awaiting the owner's one-time code; high-risk restore and
+  central-update execution remains blocked until that code is verified
 - live Admin pages are functional, but hydration mismatches and the misleading
   Dropbox OAuth readiness signal require a corrective release
 - external plugin malware scanning and unattended rollback remain future
