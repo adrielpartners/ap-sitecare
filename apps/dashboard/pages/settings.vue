@@ -209,7 +209,7 @@ async function testDestination(id: string) {
           </div>
 
           <div v-if="provider === 'dropbox'" class="grid">
-            <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" required description="A folder inside the Dropbox app's accessible root, defaulting to /SiteCare Backups. For an App Folder-scoped app, do not repeat the app folder name here." />
+            <AppInput v-model="basePath" label="Dropbox base path" name="dropbox-base-path" required description="A folder inside Dropbox, defaulting to /SiteCare Backups. Use / when the App Folder itself is already named SiteCare Backups." />
             <AppSelect v-model="dropboxAuthMode" label="Authorization" name="dropbox-auth-mode" :options="[
               { label: 'OAuth refresh token (recommended)', value: 'oauth-refresh-token' },
               { label: 'Static access token', value: 'access-token' }

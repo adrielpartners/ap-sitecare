@@ -33,7 +33,7 @@ export class DropboxStorageProvider implements StorageProvider {
     return {
       provider: this.type,
       accountLabel: this.accountLabel.trim() || null,
-      basePath: this.basePath.trim() ? this.normalizedBasePath() : '',
+      basePath: this.basePath.trim() === '/' ? '/' : this.basePath.trim() ? this.normalizedBasePath() : '',
       enabled: this.enabled,
       tokenStrategy: this.hasCredential() ? this.tokenStrategy : 'not-configured',
       configured: Boolean(this.hasCredential() && this.basePath)
@@ -188,6 +188,10 @@ export class DropboxStorageProvider implements StorageProvider {
   }
 
   private normalizedBasePath(): string {
+    // Dropbox App Folder apps expose their app folder as API root. Allow `/`
+    // to mean that root so an app already named "SiteCare Backups" does not
+    // create a redundant nested folder with the same name.
+    if (this.basePath.trim() === '/') return ''
     return this.normalizeDestinationPath(this.basePath)
   }
 

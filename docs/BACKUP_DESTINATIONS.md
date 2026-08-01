@@ -12,6 +12,10 @@ independent off-site destination is executable per Pro site in Phase 7.
 - The default Dropbox root is `/SiteCare Backups` and can be changed in
   Dashboard Settings. Spaces are ordinary path characters and are entered
   literally; do not use `%20` or backslash escaping.
+- For an App Folder-scoped app whose app folder is already named
+  `SiteCare Backups`, use `/` as the Dashboard root. Dropbox then stores each
+  client directly inside that app folder without creating a duplicated nested
+  `SiteCare Backups` directory.
 - SiteCare creates and preserves one stable client folder, then writes new
   artifacts to `Client Name/YYYY/MM/{backup-id}`.
 - Changing the destination root affects new artifacts only. Exact paths for
@@ -39,8 +43,9 @@ independent off-site destination is executable per Pro site in Phase 7.
    `NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI`; production defaults to:
    `https://sitecare.adrielpartners.com/api/backup-destinations/oauth/callback`.
 4. Configure the app key and secret in deployment secrets.
-5. In Dashboard Settings, create a Dropbox destination with OAuth authorization
-   and `/SiteCare Backups` (or another approved literal root).
+5. In Dashboard Settings, create a Dropbox destination with OAuth authorization.
+   Use `/` when the App Folder itself is named `SiteCare Backups`; otherwise use
+   `/SiteCare Backups` or another approved literal root.
 6. Select **Connect Dropbox**, approve access once, then run **Test connection**.
 
 Required deployment variables:

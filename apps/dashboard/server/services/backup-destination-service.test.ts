@@ -143,5 +143,12 @@ describe('Backup destination registry', () => {
       provider.artifactPath('Adriel Partners Client', 'backup-123', '2026-07-31T20:00:00.000Z'),
       '/SiteCare Backups/Adriel Partners Client/2026/07/backup-123'
     )
+
+    const appFolderProvider = new DropboxStorageProvider('token', '/', 'SiteCare Backups', true, 'runtime-access-token')
+    assert.equal(
+      appFolderProvider.artifactPath('Adriel Partners Client', 'backup-456', '2026-08-01T02:00:00.000Z'),
+      '/Adriel Partners Client/2026/08/backup-456'
+    )
+    assert.equal(appFolderProvider.configuration().basePath, '/')
   })
 })
