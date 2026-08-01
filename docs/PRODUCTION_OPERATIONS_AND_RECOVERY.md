@@ -156,10 +156,9 @@ key.
 
 ## Required live acceptance
 
-The implementation cannot prove external credentials or hosting behavior from
-the local workspace. Before declaring the production launch accepted, complete:
+Live acceptance began on 2026-08-01. Before declaring the production launch
+fully accepted, complete:
 
-- Dropbox OAuth refresh and write/read verification after a process restart
 - one live Hostinger shared Cloud Pro source acquisition
 - one SiteCare Pro backup and supervised restore to a clean WordPress-compatible
   account
@@ -172,3 +171,81 @@ the local workspace. Before declaring the production launch accepted, complete:
 
 Record the deployment commit, timestamp, database dump, operator, and results
 in the production change log.
+
+## Production change log
+
+### 2026-08-01 — Commit `76cb0e9`
+
+Operator: Codex, authorized by the project owner.
+
+Deployment and recovery point:
+
+- fast-forwarded production from `ac06c21` to `76cb0e9`
+- built and restarted Dashboard, automation, backup, and email services with
+  production Compose
+- applied migration 14, `add_mfa_step_up_and_central_plugin_rollouts`
+- preserved the server's existing untracked `db-backups/` and
+  `docker-compose.yml`
+- verified PostgreSQL dump
+  `/opt/sitecare-ops/postgres/sitecare-pre-76cb0e9-20260801T110209Z.dump`
+- dump size: 169,864 bytes
+- dump SHA-256:
+  `50d9410bd9250d67583cd0b513d524e2b660bb8198d9ef10b400b6432e65c211`
+- restricted configuration snapshot:
+  `/opt/sitecare-ops/config/sitecare-pre-76cb0e9-20260801T110209Z.env`
+
+Passed live checks:
+
+- public `/api/health` returned HTTP 200 with PostgreSQL connected
+- unauthenticated protected APIs returned HTTP 401 and protected pages
+  redirected to login
+- HSTS, CSP, frame denial, content-type, permissions, and referrer headers were
+  present; the Let's Encrypt certificate is valid through 2026-09-08
+- PostgreSQL and Dashboard health checks passed; every required container was
+  running with zero restarts
+- migration 14 was the latest schema migration and the existing Admin record
+  remained present; production still contained zero managed sites
+- System Health reported healthy workers, queues, integrations, incidents, and
+  database status
+- the encrypted Dropbox OAuth destination survived restart and passed a fresh
+  metadata/read-permission and content/write-permission connection test at
+  `2026-08-01T11:12:19.992Z`
+- Hostinger API returned 25 websites and 51 WordPress installations
+- Brevo API access succeeded, the configured sender was present and active,
+  unauthenticated webhook delivery was rejected, and the configured bearer
+  token reached payload validation; no email was sent during this validation
+- Cloudflare listed 50 zones on the first page and allowed read access to each
+  zone's Health Check collection; all returned zero configured checks
+- all 14 authenticated Admin pages rendered without route errors; dashboard,
+  settings, and profile rendered at 390 px without page-level horizontal
+  overflow
+
+Findings and remaining gates:
+
+- [Cloudflare's current Health Checks documentation](https://developers.cloudflare.com/health-checks/)
+  lists Standalone Health Checks as unavailable on Free plans. A successful
+  empty-list API read does not grant creation rights. Do not create checks until
+  the owner chooses paid Cloudflare plans or revises the uptime architecture.
+- the Cloudflare token cannot read the account resource, DNS records, DNSSEC,
+  managed-rules, or cache-rules endpoints. It can read zone settings and
+  Universal SSL. Expand its read permissions before expecting complete
+  automated Security Status evidence; technician overrides remain available.
+- the production Admin has not enrolled MFA. Enrollment is required before a
+  restore or central plugin rollout can execute.
+- no managed site exists in PostgreSQL, so Hostinger source acquisition,
+  WordPress contract-4 check-in, backup/restore, SiteHealth, client isolation,
+  and plugin-canary acceptance remain gated on registering the first site and
+  relevant test users.
+- an external connector attempted `/api/plugin/check-in` for an unknown site
+  during validation. Register or reissue that site's connection before relying
+  on its reports.
+- the browser logged repeated Nuxt hydration-mismatch errors across page loads.
+  The pages remained usable, but this needs a corrective release.
+- System Health reports Dropbox OAuth as missing because it only checks runtime
+  environment variables, while the live OAuth credential is intentionally
+  encrypted in PostgreSQL. Correct the readiness calculation; do not reconnect
+  the healthy destination as a workaround.
+- VPS disk use was 71%, below the 80% alert threshold but close enough to
+  monitor during backup and image growth.
+- tablet, native screen-reader, full keyboard, Team Member, and separate Client
+  isolation checks remain outstanding.

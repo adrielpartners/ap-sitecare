@@ -6,13 +6,14 @@ Project: AP SiteCare
 
 Repository: `ap-sitecare`
 
-Last Updated: 2026-07-31
+Last Updated: 2026-08-01
 
 Roadmap Status: Phase 1 through Phase 10 implementation complete. Phase 11
-hardening is implementation-complete. External production acceptance remains
-open for Dropbox OAuth restart proof, Hostinger source acquisition, supervised
-restore, Cloudflare Free-plan capability, WordPress contract-4 canary rollout,
-live Brevo/report delivery, and multi-role browser checks.
+hardening is deployed at commit `76cb0e9` and partial live acceptance is
+complete. External acceptance remains open for a registered production site,
+Hostinger source acquisition, supervised restore, a revised Free-plan uptime
+decision, WordPress contract-4 canary rollout, fresh report delivery, MFA, and
+multi-role browser checks.
 
 ---
 
@@ -166,20 +167,47 @@ The application implementation covers the approved roadmap. The following
 items require production credentials, a real hosted site, or an explicit future
 product decision and therefore remain open:
 
-- prove Dropbox OAuth refresh/write/read after a process restart
 - prove Hostinger Agency Cloud Pro SSH/SFTP and WP-CLI source acquisition
 - complete one SiteCare Pro portable backup and supervised clean-host restore
-- confirm Cloudflare Free-plan Health Check/API capability for every Pro site;
-  do not substitute an internal Dashboard probe when unavailable
+- decide whether Pro uptime requires paid Cloudflare plans or a revised
+  Dashboard-owned/external monitoring design; Cloudflare's current official
+  documentation lists zero Standalone Health Checks on Free plans
 - install AP SiteCare 0.5.0 / contract 4 on managed sites and complete one
   harmless recovery-ready plugin canary rollout
 - complete one live SiteHealth Review publication, private download, and Brevo
   delivery to multiple recipients
 - perform authenticated Admin, Team Member, and separate-client browser,
   accessibility, and responsive acceptance checks
+- enroll the production Admin in MFA before restore or central-update execution
 - decide whether to procure an external plugin malware scanner
 - decide whether and when to add Mailgun/Postmark/SendGrid delivery,
   Telegram/SMS, S3/Google Drive destinations, billing, or Service Time
+
+Completed live acceptance on 2026-08-01:
+
+- deployed commit `76cb0e9` and migration 14 after a verified PostgreSQL dump
+- preserved all existing production records and the encrypted deployment file
+- verified public HTTPS health, authentication redirects, protected API 401s,
+  security headers, and the production TLS certificate
+- verified all required containers running with zero restarts and healthy
+  System Health projections
+- proved Dropbox OAuth refresh and required metadata/write permissions after
+  the process restart; the connected destination remains encrypted in
+  PostgreSQL and uses the Dropbox App Folder as `/`
+- authenticated against Hostinger and read 25 website records and 51 WordPress
+  installation records; site-specific source acquisition remains untestable
+  until at least one site is registered
+- authenticated against Brevo, confirmed the configured sender is active, and
+  verified the secured webhook rejects missing authentication and accepts its
+  configured bearer token before payload validation; no new test email was sent
+- authenticated to Cloudflare zone APIs and read zone settings and empty Health
+  Check collections, while confirming the token lacks account, DNS, DNSSEC,
+  managed-rules, and cache-rules read coverage needed for the full Security
+  Status checklist
+- smoke-tested every authenticated Admin page and mobile layouts; no route
+  failure or page-level horizontal overflow was observed
+- recorded two interface defects for follow-up: repeated Nuxt hydration
+  mismatches and a false Dropbox OAuth warning in Production Configuration
 
 ---
 
@@ -1978,8 +2006,9 @@ Known limitations:
 
 ## Phase 11 — Production Hardening and Operational Launch
 
-Status: `implementation-complete — 2026-07-31`; production deployment and the
-documented live external acceptance checklist remain operator actions.
+Status: `deployed — 2026-08-01`; partial live external acceptance is complete
+and the remaining real-site, MFA, multi-role, restore, and canary gates remain
+operator actions.
 
 ### Goal
 
@@ -2077,14 +2106,23 @@ Verification:
 
 Accepted limitations and deployment gates:
 
-- the repository cannot prove live Dropbox, Hostinger, Cloudflare, Brevo, or
-  WordPress credentials without using production; exact morning acceptance
-  steps are in `docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md`
-- SSH deployment remained intentionally deferred after the project owner
-  tabled it; no unobserved production mutation was performed
-- Cloudflare Free-plan Health Check availability may prevent provider-owned
-  uptime provisioning and must remain explicit rather than replaced by an
-  internal probe
+- production commit `76cb0e9` and migration 14 are deployed; Dropbox, Hostinger
+  portfolio, Brevo account/sender/webhook authentication, Cloudflare zone-read,
+  public health, worker, and Admin-interface checks passed as recorded in
+  `docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md`
+- no managed production site exists yet, so WordPress contract-4, Hostinger
+  source acquisition, portable backup/restore, SiteHealth, central-update, and
+  per-site Cloudflare flows remain unproven
+- Cloudflare's current product documentation excludes Standalone Health Checks
+  from Free plans, so the approved provider-owned uptime requirement cannot be
+  fulfilled without a plan or architecture decision
+- the current Cloudflare token is sufficient for zone inventory/settings and
+  Health Check collection reads but is not sufficient for the complete
+  Security Status evidence set
+- the production Admin has not enrolled MFA, which correctly blocks high-risk
+  restore and central-update execution
+- live Admin pages are functional, but hydration mismatches and the misleading
+  Dropbox OAuth readiness signal require a corrective release
 - external plugin malware scanning and unattended rollback remain future
   decisions, not hidden launch claims
 
