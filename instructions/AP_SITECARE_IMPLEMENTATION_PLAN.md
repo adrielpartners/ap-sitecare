@@ -1538,8 +1538,12 @@ Verification:
 
 Production acceptance gates:
 
-- create/configure the Dropbox app key, secret, and exact callback URI; connect
-  the destination once and verify refresh behavior against the production app
+- completed 2026-07-31: configured the App Folder-scoped production Dropbox
+  app, exact callback URI, and required scopes; stored the app secret only in
+  deployment secrets; connected an encrypted Dashboard OAuth refresh token;
+  verified metadata-read, content-write, and automatic refresh-token exchange;
+  and deployed `/` app-folder-root support so paths begin directly with the
+  stable client folder inside `Dropbox/Apps/SiteCare Backups`
 - enable Hostinger Remote Access for one Pro site, add a SiteCare SSH public
   key, configure its host/user/root, and prove the read boundary plus WP-CLI
   database export on the actual Agency Cloud Pro account
