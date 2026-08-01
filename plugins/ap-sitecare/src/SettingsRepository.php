@@ -9,6 +9,7 @@ final class SettingsRepository
     private const OPTION_KEY = 'apsc_settings';
     private const LAST_CRON_KEY = 'apsc_last_cron_run_at';
     private const DASHBOARD_REQUESTS_KEY = 'apsc_dashboard_request_ids';
+    private const DASHBOARD_REQUEST_CLAIM_PREFIX = 'apsc_dashboard_request_';
 
     public function get_all(): array
     {
@@ -85,17 +86,31 @@ final class SettingsRepository
         if ($request_id === '') {
             return false;
         }
+        $request_hash = hash('sha256', $request_id);
+        $claim_key = self::DASHBOARD_REQUEST_CLAIM_PREFIX . $request_hash;
+        if (!add_option($claim_key, time(), '', false)) {
+            return false;
+        }
         $requests = get_option(self::DASHBOARD_REQUESTS_KEY, array());
         $requests = is_array($requests) ? $requests : array();
         $cutoff = time() - 10 * MINUTE_IN_SECONDS;
-        $requests = array_filter($requests, static fn ($timestamp) => is_int($timestamp) && $timestamp >= $cutoff);
-        if (isset($requests[$request_id])) {
-            return false;
+        foreach ($requests as $stored_hash => $timestamp) {
+            if (!is_int($timestamp) || $timestamp < $cutoff) {
+                delete_option(self::DASHBOARD_REQUEST_CLAIM_PREFIX . $stored_hash);
+                unset($requests[$stored_hash]);
+            }
         }
-        $requests[$request_id] = time();
+        $requests[$request_hash] = time();
         if (count($requests) > 100) {
             asort($requests);
-            $requests = array_slice($requests, -100, null, true);
+            while (count($requests) > 100) {
+                $oldest_hash = array_key_first($requests);
+                if ($oldest_hash === null) {
+                    break;
+                }
+                delete_option(self::DASHBOARD_REQUEST_CLAIM_PREFIX . $oldest_hash);
+                unset($requests[$oldest_hash]);
+            }
         }
         update_option(self::DASHBOARD_REQUESTS_KEY, $requests, false);
         return true;

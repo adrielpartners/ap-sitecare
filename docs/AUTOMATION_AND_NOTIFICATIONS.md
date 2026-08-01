@@ -242,14 +242,15 @@ rollout order:
 6. Configure site recipients and categories before later phases begin sending
    operational notifications.
 
-The pending production Phase 2 PostgreSQL/authentication cutover remains a
-deployment prerequisite for production, but it does not block Phase 5
-development.
+Production now runs PostgreSQL and application-owned authentication. Migration
+14 adds central rollout state but does not replace the durable job tables.
 
 ## Current limitations
 
-- Only `entitlements.synchronize` is registered as a general automation
-  handler. Later phases supply update, monitoring, report, and backup handlers.
+- Registered handlers now cover entitlements, WordPress refresh and plugin
+  rollout targets, Hostinger portfolio sync, Cloudflare uptime/security and
+  retention, SiteCare backup scheduling/retention, and SiteHealth annual
+  planning/collection.
 - Schedules are inspectable but not generally editable in the UI.
 - A live Brevo account was not used in automated tests; the adapter contract,
   worker, persistence, and webhook behavior are tested with deterministic

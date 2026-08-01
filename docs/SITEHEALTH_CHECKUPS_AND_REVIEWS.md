@@ -35,7 +35,7 @@ the normalized value used by the draft.
 
 - Google PageSpeed Insights: desktop/mobile performance, lab metrics, and
   field Core Web Vitals when returned by Google.
-- WordPress plugin contract version 3: published-page metadata, bounded media
+- WordPress plugin contract version 3 or newer: published-page metadata, bounded media
   candidates, user display names/roles/registration dates, environment,
   storage, and WordPress-prefix database metrics.
 - Existing WordPress update intelligence: core/plugin/theme inventory,
@@ -53,8 +53,8 @@ or infer a successful Hostinger backup when the API omits backup timing.
 
 ## WordPress Plugin Rollout
 
-The richer collection requires AP SiteCare plugin `0.4.0` and check-in contract
-version `3`. Older contracts remain accepted during rollout but produce an
+The richer collection requires AP SiteCare plugin `0.4.0` or newer and check-in contract
+version `3` or newer. The current plugin 0.5.0 reports contract 4. Older contracts remain accepted during rollout but produce an
 explicit unavailable SiteHealth plugin evidence record.
 
 The plugin intentionally excludes user emails, passwords, authentication
@@ -132,6 +132,7 @@ Client routes include:
 ```text
 GET /api/client/sitehealth/reviews
 GET /api/client/sitehealth/reviews/:reviewId
+GET /api/client/sitehealth/reviews/:reviewId/download
 ```
 
 ## Deployment and Acceptance
@@ -141,8 +142,8 @@ together. Then:
 
 1. confirm `/api/health` reports a connected database;
 2. confirm the automation worker has the daily SiteHealth schedule;
-3. distribute plugin `0.4.0` to a test WordPress site and receive a contract
-   version 3 check-in;
+3. distribute current plugin `0.5.0` to a test WordPress site and receive a
+   contract version 4 check-in;
 4. configure at least one enabled `sitehealth` recipient for that site;
 5. run one manual Checkup, review the evidence, publish a Review, and queue its
    email;

@@ -532,3 +532,17 @@ The dashboard now uses a dark mission-control visual direction.
 
 All colors, gradients, surfaces, shadows, glows, spacing, radius, and motion
 values originate in `apps/dashboard/assets/styles/tokens.css`.
+
+## Client Portal Extension
+
+The client experience uses the same dark token system but lowers operational
+density. Customer-facing pages prioritize plan identity, reassurance, plain
+language, and expandable owned-site summaries. Status never relies on color
+alone; badges retain text labels, unavailable evidence uses explicit copy, and
+all expansion and recipient controls are keyboard-operable native elements.
+
+Client layouts use auto-fitting metric cards, two-column detail groups that
+collapse to one column, horizontally available data tables, visible focus from
+the shared primitives, semantic headings/fieldsets, labeled controls, and
+status/error live regions. Internal IDs, worker terminology, raw provider
+capabilities, and audit language do not belong in client navigation or cards.

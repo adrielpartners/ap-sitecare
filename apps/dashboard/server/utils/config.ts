@@ -41,6 +41,10 @@ export interface RuntimeSettings {
     dropboxTokenStrategy: 'runtime-access-token' | 'oauth'
     tempRoot: string
   }
+  pluginPackages: {
+    root: string
+    maximumBytes: number
+  }
   credentialEncryptionKey: string
   databaseUrl: string
 }
@@ -98,6 +102,10 @@ function runtimeSettingsFromEnvironment(): RuntimeSettings {
         ? 'oauth'
         : 'runtime-access-token',
       tempRoot: process.env.NUXT_BACKUPS_TEMP_ROOT || '/tmp/ap-sitecare-backups'
+    },
+    pluginPackages: {
+      root: process.env.NUXT_PLUGIN_PACKAGES_ROOT || '/var/lib/ap-sitecare/plugin-packages',
+      maximumBytes: numberSetting(process.env.NUXT_PLUGIN_PACKAGES_MAXIMUM_BYTES, 52_428_800)
     },
     credentialEncryptionKey: process.env.NUXT_CREDENTIAL_ENCRYPTION_KEY || '',
     databaseUrl: process.env.NUXT_DATABASE_URL || 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'

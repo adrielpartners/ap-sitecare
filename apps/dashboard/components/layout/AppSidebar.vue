@@ -23,6 +23,8 @@ const items = computed(() => {
         { label: 'Clients', to: '/clients' },
         { label: 'Users', to: '/users' },
         { label: 'Automation', to: '/automation' },
+        { label: 'Central Updates', to: '/plugin-rollouts' },
+        { label: 'System Health', to: '/operations' },
         { label: 'Settings', to: '/settings' }
       ]
     : []

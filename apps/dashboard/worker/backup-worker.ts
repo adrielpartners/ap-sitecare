@@ -8,6 +8,7 @@ import { BackupWorkerService } from '../server/services/backup-worker-service'
 import { BackupDestinationRepository } from '../server/repositories/backup-destination-repository'
 import { BackupDestinationService } from '../server/services/backup-destination-service'
 import { SiteService } from '../server/services/site-service'
+import { logOperationalEvent, safeOperationalError } from '../server/utils/structured-logger'
 
 const databaseUrl = process.env.NUXT_DATABASE_URL || 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'
 const database = createDatabase(databaseUrl, { applicationName: 'ap-sitecare-backup-worker' })
@@ -54,6 +55,9 @@ try {
     if (!continuous || stopping) break
     if (!result) await delay(5000)
   } while (!stopping)
+} catch (error) {
+  logOperationalEvent('error', 'backup-worker.crashed', safeOperationalError(error))
+  process.exitCode = 1
 } finally {
   await database.close()
 }

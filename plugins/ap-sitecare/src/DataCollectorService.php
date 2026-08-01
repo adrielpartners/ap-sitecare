@@ -38,7 +38,7 @@ final class DataCollectorService
         $active_theme = wp_get_theme();
 
         return array(
-            'contractVersion' => 3,
+            'contractVersion' => 4,
             'pluginVersion' => defined('APSC_PLUGIN_VERSION') ? APSC_PLUGIN_VERSION : null,
             'wordpressHomeUrl' => home_url('/'),
             'wordpressVersion' => get_bloginfo('version'),

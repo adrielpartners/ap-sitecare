@@ -24,6 +24,7 @@ function severityTone(severity: string) {
       <div class="cluster">
         <AppBadge tone="success">{{ review.status }}</AppBadge>
         <span class="text-meta">Published {{ review.publishedAt ? new Date(review.publishedAt).toLocaleDateString() : '—' }}</span>
+        <a v-if="isClient" class="download-link" :href="`/api/client/sitehealth/reviews/${review.id}/download`">Download Review</a>
       </div>
     </header>
 
@@ -83,4 +84,5 @@ function severityTone(severity: string) {
 <style scoped>
 .review { max-width: 70rem; }
 .review__summary { font-size: var(--font-size-lg); line-height: var(--line-height-body); }
+.download-link { color: var(--color-primary-hover); font-weight: var(--font-weight-semibold); }
 </style>

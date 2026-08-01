@@ -2,7 +2,7 @@
 Contributors: adrielpartners
 Requires at least: 6.0
 Requires PHP: 8.0
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 
 Securely reports WordPress operational health and provides a client-facing care summary inside WordPress Admin.
 
@@ -39,3 +39,10 @@ Version 0.4 adds privacy-conscious SiteHealth evidence for content, media,
 users, the WordPress/PHP environment, storage, and database health. Candidate
 items remain review-only: the plugin never performs cleanup and does not send
 client reports or email.
+
+Version 0.5 adds check-in contract version 4 and a narrowly scoped, signed,
+replay-resistant plugin package update endpoint. It accepts only a Dashboard
+rollout request that identifies the exact installed plugin file, prior and
+target versions, one-use package URL, and SHA-256 checksum. It does not expose
+arbitrary file management or command execution. Dashboard migration 14,
+administrator MFA, recovery evidence, and a canary rollout are required.

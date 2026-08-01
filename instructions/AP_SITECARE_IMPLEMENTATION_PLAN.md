@@ -1,6 +1,6 @@
 # AP SiteCare Implementation Plan
 
-Version: 2.4
+Version: 3.0
 
 Project: AP SiteCare
 
@@ -8,10 +8,11 @@ Repository: `ap-sitecare`
 
 Last Updated: 2026-07-31
 
-Roadmap Status: Phase 1 through Phase 8 implementation complete. Phase 7's live
-Hostinger source and backup/restore acceptance proof remains intentionally
-deferred. Phase 8 production acceptance requires the WordPress plugin rollout
-and one live Checkup/Review/email proof.
+Roadmap Status: Phase 1 through Phase 10 implementation complete. Phase 11
+hardening is implementation-complete. External production acceptance remains
+open for Dropbox OAuth restart proof, Hostinger source acquisition, supervised
+restore, Cloudflare Free-plan capability, WordPress contract-4 canary rollout,
+live Brevo/report delivery, and multi-role browser checks.
 
 ---
 
@@ -29,8 +30,9 @@ The legacy plan describes how the current codebase was built. This plan
 describes how to move from that working baseline to the approved SiteCare
 service platform.
 
-Work proceeds one phase at a time. A phase begins only when the user explicitly
-assigns it. Agents must not silently begin later phases.
+Work normally proceeds one phase at a time. On 2026-07-31 the project owner
+explicitly authorized autonomous completion of all remaining phases, which
+superseded the one-phase assignment rule for Phases 9 through 11.
 
 ---
 
@@ -120,23 +122,28 @@ The following capabilities exist today:
 - managed-site registration, editing, disabling, and credential issuance
 - application-owned email/password authentication with server-side sessions
 - Admin, Team Member, and Client roles with site-scoped authorization
-- client accounts, site ownership, invitations, password recovery, and a safe
-  Client Dashboard shell
+- client accounts, site ownership, invitations, password recovery, and a
+  complete client-safe Dashboard
 - immutable SiteCare plan definitions, centralized effective entitlements,
   plan lifecycle history, and audited administrative overrides
 - client registry and detail views with ownership, suspension, and plan
   management
 - durable authentication email outbox and Brevo delivery worker
 - signed WordPress plugin check-ins using per-site HMAC credentials
-- basic WordPress, PHP, plugin-update-count, and theme-update-count reporting
+- detailed WordPress core/plugin/theme inventory, SiteHealth evidence, update
+  activity, and signed contract-4 central update execution
 - site health projection, audit history, and operational notes
-- initial read-only Cloudflare, Dropbox, and Hostinger clients
+- Cloudflare uptime/security, Dropbox OAuth/storage, and capability-aware
+  Hostinger integrations
 - Action Request records and inspection-oriented agent APIs
-- inspection-and-proposal MCP server
+- inspection-and-proposal MCP server without approval or execution tools
 - backup policy, artifact, job, destination, and restore-plan foundations
 - separate claim-based backup worker
 - Local VPS file/database archive execution and Dropbox upload verification
 - plugin-detected backup-source information
+- monthly SiteCare Pro portable backups, supervised restore evidence,
+  SiteHealth Reviews, canary plugin rollouts, system health, and recovery
+  runbooks
 
 Phase 1 verification performed on 2026-07-30:
 
@@ -153,25 +160,26 @@ current decisions and structures are superseded by this roadmap.
 
 ---
 
-# 5. Confirmed Gaps
+# 5. Remaining Live Acceptance and Future Decisions
 
-The target system still requires:
+The application implementation covers the approved roadmap. The following
+items require production credentials, a real hosted site, or an explicit future
+product decision and therefore remain open:
 
-- a durable scheduler, general job system, and broader transactional outbox
-  and idempotency controls beyond authentication email
-- additional transactional email providers and per-site notification settings
-- durable WordPress connection rotation without routine reauthentication
-- detailed core, theme, and plugin inventory and update history
-- Hostinger portfolio synchronization based on actually available APIs
-- Cloudflare Health Check synchronization and incident workflows
-- Cloudflare Security Status checklist
-- SiteHealth Checkups and SiteHealth Reviews
-- SiteCare Pro monthly long-term backup automation and two-year retention
-- configurable storage paths and durable Dropbox OAuth
-- supervised portable restore delivery
-- centralized manual plugin update rollout
-- a client-facing Dashboard
-- production migration, security, recovery, and operational runbooks
+- prove Dropbox OAuth refresh/write/read after a process restart
+- prove Hostinger Agency Cloud Pro SSH/SFTP and WP-CLI source acquisition
+- complete one SiteCare Pro portable backup and supervised clean-host restore
+- confirm Cloudflare Free-plan Health Check/API capability for every Pro site;
+  do not substitute an internal Dashboard probe when unavailable
+- install AP SiteCare 0.5.0 / contract 4 on managed sites and complete one
+  harmless recovery-ready plugin canary rollout
+- complete one live SiteHealth Review publication, private download, and Brevo
+  delivery to multiple recipients
+- perform authenticated Admin, Team Member, and separate-client browser,
+  accessibility, and responsive acceptance checks
+- decide whether to procure an external plugin malware scanner
+- decide whether and when to add Mailgun/Postmark/SendGrid delivery,
+  Telegram/SMS, S3/Google Drive destinations, billing, or Service Time
 
 ---
 
@@ -1575,10 +1583,10 @@ Deployment notes:
 - use `docs/BACKUP_DESTINATIONS.md` and `BACKUP_WORKER_OPERATIONS.md` as the
   storage, Hostinger source, worker, recovery, and acceptance handoff
 
-Recommended next assignment:
+Historical next assignment (completed on 2026-07-31):
 
-- complete the three production acceptance proofs above, then begin Phase 8 —
-  SiteHealth Checkups and SiteHealth Reviews
+- Phase 8 — SiteHealth Checkups and SiteHealth Reviews was implemented; its
+  external acceptance proofs remain in the consolidated production runbook.
 
 ---
 
@@ -1743,16 +1751,18 @@ Deployment and operations:
 - annual evaluation begins from the automation worker's global daily schedule;
   Plus/Pro sites are not queued until their calculated due date
 
-Recommended next assignment:
+Historical next assignment (completed on 2026-07-31):
 
-- complete the Phase 8 live acceptance checklist, then begin Phase 9 —
-  Centralized Manual Plugin Updates
+- Phase 9 — Centralized Manual Plugin Updates was implemented under the
+  project owner's autonomous completion authorization; the separate live
+  acceptance gates remain listed in Phase 9 and the production runbook.
 
 ---
 
 ## Phase 9 — Centralized Manual Plugin Updates
 
-Status: `not-started`
+Status: `implementation-complete — 2026-07-31`; AP SiteCare 0.5.0 deployment
+and one live canary rollout remain production acceptance gates.
 
 ### Goal
 
@@ -1827,11 +1837,63 @@ once and safely roll it out to selected connected sites.
 - failed batches stop safely
 - no Team Member, Client, agent, or MCP tool can bypass the approval boundary
 
+### Completion Record
+
+Delivered:
+
+- Admin ZIP intake with 50 MiB default limit, bounded archive-entry and
+  expanded-size checks, traversal/symlink/executable rejection, one-root
+  WordPress header validation, SHA-256, immutable provenance, quarantine, and
+  private shared storage
+- automatic current-inventory target discovery with explicit current,
+  not-installed, disconnected, suspended, incompatible, and recovery-required
+  categories; editable draft selection and per-target preflight evidence
+- SiteCare verified backup evidence for Pro and technician-confirmed Hostinger
+  backup evidence for Core/Plus
+- durable Action Request, Admin TOTP/recovery-code step-up, canary and remaining
+  batches, concurrency setting, halt threshold, per-site automation lock,
+  failure-only retry, audit evidence, and per-site update emails
+- AP SiteCare 0.5.0 / contract 4 with a signed replay-resistant
+  `plugin-update` endpoint, one-use ten-minute downloads, checksum and exact
+  plugin/version verification, activation preservation, and no generic command
+  surface
+- Central Updates interface, MFA enrollment, recovery-code delivery, and
+  central update operations documentation
+
+Verification:
+
+- focused archive, traversal, version, and TOTP tests pass
+- TypeScript/Nuxt type checking and production build pass
+- all changed WordPress PHP files pass syntax validation
+- dependency audit reports zero known vulnerabilities
+
+Schema/configuration changes:
+
+- migration 14 adds MFA usage state, immutable packages, recovery evidence,
+  rollouts, targets, and package download claims
+- `NUXT_PLUGIN_PACKAGES_ROOT` and
+  `NUXT_PLUGIN_PACKAGES_MAXIMUM_BYTES` configure private package storage
+- Dashboard and automation worker share the `sitecare-plugin-packages` volume
+
+Known limitations:
+
+- built-in scanning is structural; an external malware provider is not selected
+- rollback is supervised from preflight recovery evidence
+- existing sites require the one-time manual AP SiteCare 0.5.0 upgrade before
+  they can receive central updates
+- production acceptance requires a harmless vendor-plugin canary
+
+Deployment notes:
+
+- back up PostgreSQL, deploy Dashboard and automation worker together, allow
+  migration 14 to apply, install AP SiteCare 0.5.0 manually, enroll Admin MFA,
+  and run the acceptance canary from `docs/CENTRAL_PLUGIN_UPDATES.md`
+
 ---
 
 ## Phase 10 — Complete Client Dashboard Experience
 
-Status: `not-started`
+Status: `complete — 2026-07-31`
 
 ### Goal
 
@@ -1885,11 +1947,39 @@ experience.
 - client-visible data comes from the same services as internal APIs
 - the portal is usable across supported devices
 
+### Completion Record
+
+Delivered:
+
+- responsive client-safe information architecture and owned-site expansion
+- customer-facing plan/included service presentation, WordPress update status
+  and activity, separate Hostinger/SiteCare backup evidence, Pro uptime
+  incidents, security summary, and explicit unavailable states
+- published SiteHealth Review links plus authorized private no-store HTML
+  downloads and a direct SiteCare email path
+- client-owned per-site multiple email recipient and category management
+- DTO boundaries that omit internal notes, credentials, storage paths, raw
+  provider payloads, raw evidence, account identifiers, and audit records
+- cross-client service isolation test and client portal operations guide
+
+Verification:
+
+- client projection isolation test passes against PostgreSQL
+- TypeScript/Nuxt type checking and production build pass
+- semantic headings, tables, field labels, keyboard buttons, responsive grids,
+  empty states, warning states, and error regions are implemented
+
+Known limitations:
+
+- final screen-reader and real-device acceptance remains a production checklist
+  item because no authenticated production browser session was used overnight
+
 ---
 
 ## Phase 11 — Production Hardening and Operational Launch
 
-Status: `not-started`
+Status: `implementation-complete — 2026-07-31`; production deployment and the
+documented live external acceptance checklist remain operator actions.
 
 ### Goal
 
@@ -1959,6 +2049,49 @@ agent handoffs.
 - security and client isolation checks pass
 - operations are documented for another human or AI agent
 - current status and next work are unambiguous
+
+### Completion Record
+
+Delivered:
+
+- MFA-required login after enrollment, mandatory high-risk step-up, cross-site
+  and origin rejection, CSRF, production cookie policy, restrictive response
+  headers, private downloads, and request identifiers
+- structured redacted HTTP/worker logging and an Admin System Health view for
+  schema, failed/stale work, provider degradation, active incidents, and secret
+  configuration presence
+- transactional AES-256-GCM credential-key rotation covering WordPress,
+  hosting, destination, email, and MFA ciphertext
+- PostgreSQL backup/restore, additive migration, record-count validation,
+  rollback, disaster recovery, alerting, routine operations, and live
+  acceptance runbooks
+- final security review, client data-minimization review, central update and
+  client portal handoffs, updated architecture/decisions/README/roadmap
+- `adm-zip` 0.6.0 with zero known npm audit findings
+
+Verification:
+
+- full PostgreSQL-backed automated suite, Nuxt type checking, production build,
+  PHP syntax, Compose validation, dependency audit, and plugin archive checks
+  are the final local release gate
+
+Accepted limitations and deployment gates:
+
+- the repository cannot prove live Dropbox, Hostinger, Cloudflare, Brevo, or
+  WordPress credentials without using production; exact morning acceptance
+  steps are in `docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md`
+- SSH deployment remained intentionally deferred after the project owner
+  tabled it; no unobserved production mutation was performed
+- Cloudflare Free-plan Health Check availability may prevent provider-owned
+  uptime provisioning and must remain explicit rather than replaced by an
+  internal probe
+- external plugin malware scanning and unattended rollback remain future
+  decisions, not hidden launch claims
+
+Recommended next roadmap:
+
+- production acceptance and usability feedback only; do not add product scope
+  until the recorded live gates are completed and reviewed
 
 ---
 

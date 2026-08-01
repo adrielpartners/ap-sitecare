@@ -1,7 +1,9 @@
 # WordPress Update Intelligence and Hostinger Visibility
 
 This document is the Phase 5 deployment and extension contract for the
-Dashboard, automation worker, and AP SiteCare WordPress plugin 0.3.0.
+Dashboard, automation worker, and AP SiteCare WordPress connector. Phase 5
+introduced plugin 0.3.0 / contract 2; the current release is plugin 0.5.0 /
+contract 4 and remains backward-compatible for observation.
 
 ## What Phase 5 Owns
 
@@ -12,6 +14,8 @@ routine backup/restoration service.
 
 Phase 5 observes software and provider state. It does not install uploaded
 packages, restore Hostinger backups, or create SiteCare Pro long-term backups.
+Central package execution was added later and is documented separately in
+`docs/CENTRAL_PLUGIN_UPDATES.md`.
 
 ## Upgrade Order
 
@@ -29,6 +33,10 @@ packages, restore Hostinger backups, or create SiteCare Pro long-term backups.
 The plugin remains compatible with an existing version 1 connection while the
 Dashboard accepts both contract versions. Detailed inventory appears only
 after the first version 2 check-in.
+
+For the current release, install `dist/ap-sitecare-0.5.0.zip` after Dashboard
+migration 14. Contract 4 retains all contract-2 inventory behavior and adds the
+narrow central plugin update endpoint.
 
 ## Connection Lifecycle
 

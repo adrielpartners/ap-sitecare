@@ -156,6 +156,104 @@ Operational safety is more important than maximum automation.
 
 Moderate.
 
+---
+
+# Decision 044: Gate central plugin deployment with recovery evidence, Admin MFA, and canaries
+
+## Decision
+
+Central plugin updates use immutable structurally validated packages and a
+narrow signed WordPress contract. Discovery auto-selects installed sites that
+report an older version, while incompatible and blocked targets remain visible.
+No target can execute without current plan-appropriate recovery evidence, an
+approved Action Request, Admin MFA step-up, and successful preflight. A canary
+batch precedes broader release and the configured failure threshold pauses the
+rollout. Retry is limited to failed targets. Rollback remains supervised.
+
+Package download claims are hashed, expire after ten minutes, and are consumed
+once. The WordPress endpoint verifies checksum, plugin slug/file, prior version,
+target version, replay identity, and final installed version; it cannot execute
+arbitrary commands.
+
+## Rationale
+
+Commercial packages sometimes require manual upload, but central convenience
+must not turn one compromised Dashboard session or incorrect ZIP into an
+unbounded portfolio-wide incident.
+
+## Tradeoffs
+
+- AP SiteCare 0.5.0 / contract 4 must first be installed through the existing
+  site-by-site process.
+- Structural validation is not a malware verdict; trusted provenance remains
+  an administrator responsibility until an external scanner is selected.
+- Core and Plus require technician-confirmed Hostinger backup evidence.
+- Failed updates require technician recovery rather than automatic rollback.
+
+## Date Adopted
+
+2026-07-31
+
+## Reversibility
+
+Moderate.
+
+---
+
+# Decision 045: Make the Client portal a safe projection, not a parallel data model
+
+## Decision
+
+Client pages consume client-safe projections from the existing entitlement,
+update, backup, uptime, security, SiteHealth, and notification services. Every
+route is site-scoped. The portal never returns internal notes, credentials,
+provider account details, storage paths, raw evidence, or audit records.
+Clients may manage email recipients for their own sites and download only
+published SiteHealth Review projections.
+
+## Rationale
+
+One operational source of truth prevents client and staff views from drifting,
+while explicit projections preserve privacy and make authorization testable.
+
+## Date Adopted
+
+2026-07-31
+
+## Reversibility
+
+Low.
+
+---
+
+# Decision 046: Treat production launch as an operational capability with explicit live acceptance gates
+
+## Decision
+
+The application exposes structured redacted logs, Admin system health, MFA at
+login after enrollment, origin/CSRF defenses, security headers, a transactional
+credential-key rotation utility, and documented PostgreSQL/disaster recovery.
+Implementation completion is distinct from live acceptance. Dropbox refresh,
+Hostinger acquisition, supervised restore, contract-4 WordPress rollout,
+Brevo delivery, Cloudflare Free-plan availability, and multi-role browser checks
+must be recorded in production rather than inferred locally.
+
+## Rationale
+
+External credentials and provider-plan behavior cannot be proven by unit tests.
+Separating code readiness from live acceptance prevents false completion while
+leaving another operator or agent an exact checklist.
+
+## Date Adopted
+
+2026-07-31
+
+## Reversibility
+
+Low.
+
+---
+
 # Decision 027: Auto-detect backup source details through signed plugin check-ins
 
 ## Decision

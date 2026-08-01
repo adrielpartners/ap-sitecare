@@ -46,6 +46,15 @@ export default defineEventHandler(async (event) => {
   event.context.sitecareIdentity = identity
 
   if (path.startsWith('/api/') && unsafeMethods.has(event.method)) {
+    const fetchSite = getHeader(event, 'sec-fetch-site')
+    if (fetchSite === 'cross-site') {
+      throw createError({ statusCode: 403, statusMessage: 'Cross-site requests are not permitted.' })
+    }
+    const origin = getHeader(event, 'origin')
+    const expectedHost = getHeader(event, 'x-forwarded-host') || getHeader(event, 'host')
+    if (origin && expectedHost && !sameRequestHost(origin, expectedHost)) {
+      throw createError({ statusCode: 403, statusMessage: 'The request origin is not permitted.' })
+    }
     const csrfCookie = getCookie(event, CSRF_COOKIE)
     const csrfHeader = getHeader(event, 'x-sitecare-csrf')
     const repository = new (await import('../repositories/identity-repository')).IdentityRepository()
@@ -57,6 +66,11 @@ export default defineEventHandler(async (event) => {
 
   enforceRouteAuthorization(path, event.method, identity)
 })
+
+function sameRequestHost(origin: string, expectedHost: string): boolean {
+  try { return new URL(origin).host === expectedHost }
+  catch { return false }
+}
 
 function enforceRouteAuthorization(
   path: string,

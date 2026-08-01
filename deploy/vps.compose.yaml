@@ -34,6 +34,7 @@ services:
         required: false
     environment:
       HOST: 0.0.0.0
+      SITECARE_PROCESS_NAME: sitecare-dashboard
       NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: /backup-sources
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
       PORT: 3000
@@ -42,6 +43,7 @@ services:
       - sitecare_internal
     volumes:
       - /opt/sitecare/backup-sources:/backup-sources:ro
+      - sitecare-plugin-packages:/var/lib/ap-sitecare/plugin-packages
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik_proxy"
@@ -69,6 +71,7 @@ services:
       - path: ../.env
         required: false
     environment:
+      SITECARE_PROCESS_NAME: sitecare-backup-worker
       NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES: /backup-sources
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
     networks:
@@ -91,6 +94,7 @@ services:
       - path: ../.env
         required: false
     environment:
+      SITECARE_PROCESS_NAME: sitecare-email-worker
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
     networks:
       - sitecare_internal
@@ -110,13 +114,17 @@ services:
       - path: ../.env
         required: false
     environment:
+      SITECARE_PROCESS_NAME: sitecare-automation-worker
       NUXT_DATABASE_URL: ${NUXT_DATABASE_URL:?NUXT_DATABASE_URL is required}
     networks:
       - sitecare_internal
       - sitecare_egress
+    volumes:
+      - sitecare-plugin-packages:/var/lib/ap-sitecare/plugin-packages
 
 volumes:
   sitecare-postgres-data:
+  sitecare-plugin-packages:
 
 networks:
   sitecare_internal:

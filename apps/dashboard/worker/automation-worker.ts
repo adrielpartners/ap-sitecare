@@ -8,6 +8,7 @@ import {
 import { AuditRepository } from '../server/repositories/audit-repository'
 import { AuditService } from '../server/services/audit-service'
 import { createDatabase } from '../server/utils/database'
+import { logOperationalEvent, safeOperationalError } from '../server/utils/structured-logger'
 
 const databaseUrl = process.env.NUXT_DATABASE_URL || 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'
 const database = createDatabase(databaseUrl, { applicationName: 'ap-sitecare-automation-worker' })
@@ -44,6 +45,9 @@ try {
     if (!continuous || stopping) break
     if (!handled) await delay(pollSeconds * 1000)
   } while (!stopping)
+} catch (error) {
+  logOperationalEvent('error', 'automation-worker.crashed', safeOperationalError(error))
+  process.exitCode = 1
 } finally {
   await database.close()
 }

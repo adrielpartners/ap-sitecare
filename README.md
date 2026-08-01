@@ -37,6 +37,12 @@ Version One is complete through Phase 11:
 - detailed WordPress core/plugin/theme inventory and update activity history
 - manual and six-hour WordPress observation refresh
 - Hostinger portfolio/domain synchronization with explicit capability gaps
+- Cloudflare-owned SiteCare Pro uptime incident state and Security Status
+- monthly portable SiteCare Pro long-term backups and supervised restore plans
+- automated/manual SiteHealth Checkups and published SiteHealth Reviews
+- Admin-only, MFA-gated, canary-first centralized plugin rollouts
+- complete client-safe portal with reports and per-site email recipients
+- structured operational logging, System Health, and recovery runbooks
 
 The original Version One plan is complete, and its controlled action layer was
 not implemented.
@@ -60,7 +66,8 @@ The active phased roadmap is:
 instructions/AP_SITECARE_IMPLEMENTATION_PLAN.md
 ```
 
-Roadmap Phases 1–7 are implemented. Phase 7 adds monthly SiteCare Pro portable
+Roadmap Phases 1–10 are implemented and Phase 11 hardening is
+implementation-complete. Phase 7 adds monthly SiteCare Pro portable
 full-site backups, Hostinger SSH/SFTP acquisition, Dropbox offline OAuth,
 24-month retention tracking, backup email notifications, and supervised restore
 evidence. Production acceptance still requires a live Hostinger source test,
@@ -115,9 +122,14 @@ deployment. See
 [`docs/AUTHENTICATION_AND_ACCESS.md`](docs/AUTHENTICATION_AND_ACCESS.md).
 The general automation and email-worker contracts are documented in
 [`docs/AUTOMATION_AND_NOTIFICATIONS.md`](docs/AUTOMATION_AND_NOTIFICATIONS.md).
-WordPress connection, update intelligence, Hostinger visibility, and plugin
-0.3.0 deployment are documented in
+WordPress connection, update intelligence, Hostinger visibility, and connector
+deployment are documented in
 [`docs/WORDPRESS_UPDATE_INTELLIGENCE.md`](docs/WORDPRESS_UPDATE_INTELLIGENCE.md).
+Central package rollout is documented in
+[`docs/CENTRAL_PLUGIN_UPDATES.md`](docs/CENTRAL_PLUGIN_UPDATES.md), the client
+projection in [`docs/CLIENT_PORTAL.md`](docs/CLIENT_PORTAL.md), and production
+recovery/acceptance in
+[`docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md`](docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md).
 
 Before issuing site credentials, set and securely back up:
 
@@ -137,6 +149,7 @@ plugins/ap-sitecare
 
 In WordPress, open **Settings → AP SiteCare**, enter the dashboard URL, Site
 ID, and Site Secret, then test the connection and send the first check-in.
+Install AP SiteCare 0.5.0 / contract 4 before using centralized plugin updates.
 
 ## MCP
 
@@ -158,6 +171,7 @@ npm test
 npm run build
 docker compose config --quiet
 docker compose build
+npm audit
 ```
 
 Tests create and remove a unique PostgreSQL schema for each case. Override
@@ -187,3 +201,13 @@ These are separate deployment processes. The automation worker owns general
 scheduled application work; the existing backup worker remains specialized for
 archive and database-dump execution. Web requests only commit jobs and outbox
 messages; they do not perform long-running work or send email directly.
+
+## Production status
+
+Local implementation completion is not live acceptance. Before the expanded
+release is declared operational, complete the Dropbox restart proof, Hostinger
+source acquisition, supervised restore, connector-4 canary update, Brevo/report
+delivery, Cloudflare Free-plan capability check, and multi-role browser checks
+listed in the production operations runbook. The Admin **System Health** page
+shows configuration presence and degraded workers/integrations without exposing
+secret values.

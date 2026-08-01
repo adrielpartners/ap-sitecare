@@ -31,6 +31,7 @@ import { BackupRepository } from '../repositories/backup-repository'
 import { SiteRepository } from '../repositories/site-repository'
 import { SiteService } from './site-service'
 import { SiteHealthService } from './sitehealth-service'
+import { PluginRolloutService } from './plugin-rollout-service'
 
 const sensitiveKey = /(password|secret|token|credential|authorization|api[-_]?key)/i
 
@@ -563,6 +564,7 @@ export class AutomationWorkerService {
 }
 
 export interface CoreAutomationHandlerSettings {
+  sitecareBaseUrl: string
   credentialEncryptionKey: string
   hostingerApiBaseUrl: string
   hostingerApiToken: string
@@ -588,6 +590,7 @@ export interface CoreAutomationHandlerSettings {
 export function createCoreAutomationHandlers(
   database: QueryExecutor | TransactionalQueryExecutor = useDatabase(),
   settings: CoreAutomationHandlerSettings = {
+    sitecareBaseUrl: process.env.NUXT_SITECARE_BASE_URL ?? 'http://localhost:3000',
     credentialEncryptionKey: process.env.NUXT_CREDENTIAL_ENCRYPTION_KEY ?? '',
     hostingerApiBaseUrl: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL ?? 'https://developers.hostinger.com',
     hostingerApiToken: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN ?? '',
@@ -635,6 +638,10 @@ export function createCoreAutomationHandlers(
   )
   const audit = new AuditService(new AuditRepository(database))
   const sitehealth = new SiteHealthService(database)
+  const pluginRollouts = new PluginRolloutService({
+    sitecareBaseUrl: settings.sitecareBaseUrl,
+    credentialEncryptionKey: settings.credentialEncryptionKey
+  }, database)
   const backups = new BackupService({
     credentialEncryptionKey: settings.credentialEncryptionKey,
     dropboxAccessToken: settings.dropboxAccessToken,
@@ -747,6 +754,13 @@ export function createCoreAutomationHandlers(
         const checkupId = typeof job.payload.checkupId === 'string' ? job.payload.checkupId : ''
         if (!checkupId) throw new AutomationPermanentError('SiteHealth collection requires a Checkup ID.', 'checkup-required')
         return sitehealth.runCheckup(checkupId)
+      }
+    }],
+    ['wordpress.plugin-update', {
+      async execute(job) {
+        const targetId = typeof job.payload.targetId === 'string' ? job.payload.targetId : ''
+        if (!targetId) throw new AutomationPermanentError('Plugin rollout target is required.', 'target-required')
+        return pluginRollouts.executeTarget(targetId)
       }
     }]
   ])

@@ -73,4 +73,56 @@ export class WordPressConnectorService {
       pendingUpdateCount: detail.snapshot.pendingUpdateCount
     }
   }
+
+  async requestPluginUpdate(siteId: string, input: {
+    requestId: string
+    pluginSlug: string
+    pluginFile: string
+    installedVersion: string
+    targetVersion: string
+    packageUrl: string
+    checksumSha256: string
+  }): Promise<{ beforeVersion: string, resultingVersion: string, pluginFile: string, remoteStatus: number }> {
+    const site = await this.siteService.get(siteId)
+    if (site.status !== 'active') throw new Error('Disabled sites cannot receive plugin updates.')
+    const connection = await this.credentialService.getConnectionSummary(siteId)
+    if (!connection.activeCredential || !connection.connection || connection.connection.contractVersion < 4) {
+      throw new Error('Upgrade the AP SiteCare WordPress connector before using centralized plugin updates.')
+    }
+    const requestedAt = new Date().toISOString()
+    const rawBody = JSON.stringify({ action: 'plugin-update', ...input })
+    const secret = await this.credentialService.getActiveSecret(siteId)
+    const endpoint = new URL('/wp-json/ap-sitecare/v1/plugin-update', connection.connection.wordpressHomeUrl ?? site.url)
+    const response = await this.fetcher(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json', Accept: 'application/json',
+        'X-APSC-Site-ID': siteId, 'X-APSC-Timestamp': requestedAt,
+        'X-APSC-Dashboard-Signature': createDashboardPluginSignature(secret, requestedAt, rawBody)
+      },
+      body: rawBody,
+      signal: AbortSignal.timeout(180_000),
+      redirect: 'follow'
+    })
+    const body = await response.json().catch(() => null) as Record<string, unknown> | null
+    if (!response.ok) {
+      const remoteCode = typeof body?.code === 'string' ? body.code.slice(0, 100) : 'remote-error'
+      const remoteMessage = typeof body?.message === 'string' ? body.message.slice(0, 1_000) : 'No error details were returned.'
+      throw new Error(`WordPress plugin update failed (${remoteCode}, HTTP ${response.status}): ${remoteMessage}`)
+    }
+    if (!body || body.ok !== true || typeof body.beforeVersion !== 'string'
+      || typeof body.resultingVersion !== 'string' || typeof body.pluginFile !== 'string') {
+      throw new Error('WordPress plugin update endpoint returned an invalid response.')
+    }
+    if (body.pluginFile !== input.pluginFile || body.beforeVersion !== input.installedVersion
+      || body.resultingVersion !== input.targetVersion) {
+      throw new Error('WordPress reported a plugin identity or version mismatch after the update.')
+    }
+    return {
+      beforeVersion: body.beforeVersion,
+      resultingVersion: body.resultingVersion,
+      pluginFile: body.pluginFile,
+      remoteStatus: response.status
+    }
+  }
 }

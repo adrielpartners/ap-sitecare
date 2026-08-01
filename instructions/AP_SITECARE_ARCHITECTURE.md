@@ -1551,3 +1551,58 @@ Migration 13 adds:
 
 The operational contract is documented in
 `docs/SITEHEALTH_CHECKUPS_AND_REVIEWS.md`.
+
+---
+
+# 29. Central Plugin Rollouts
+
+Migration 14 introduces immutable plugin packages, technician recovery
+evidence, rollout/target state, and hashed single-use download claims. Uploads
+are Admin-only and stored outside the web root. `PluginPackageService` performs
+bounded ZIP validation before `PluginUpdateRepository` records the checksum,
+manifest, provenance, and scan capability. Duplicate content resolves to the
+existing immutable package.
+
+`PluginRolloutService` joins current WordPress inventories, connector contract,
+site state, subscription, and backup evidence into one preflight category per
+site. An Action Request is created when discovery begins. Selection remains
+editable only in draft. Approval requires an enrolled Admin's TOTP/recovery
+code, then releases batch zero through the general automation worker. Batch one
+is queued only after the canary terminates below the halt threshold.
+
+The Dashboard creates a ten-minute, one-use package URL for each target. The
+WordPress connector contract version 4 verifies the Dashboard HMAC and replay
+claim, exact plugin file and prior version, package SHA-256, resulting version,
+and previous activation state. It exposes no generic execution primitive.
+Automatic rollback is deliberately absent; failure requires supervised use of
+the preflight recovery evidence. Results and notification fan-out remain
+Dashboard-owned.
+
+# 30. Client Projection Boundary
+
+`ClientPortalService` composes entitlements, WordPress updates, Hostinger and
+SiteCare backup evidence, Cloudflare summaries, published Reviews, and
+notification recipients for an already resolved list of accessible site IDs.
+Every site-specific client route repeats the authorization check. Client DTOs
+exclude provider account data, credentials, storage paths, raw evidence,
+internal notes, and audit history. Downloadable Reviews are generated from the
+same published client-safe projection and use private no-store responses.
+
+# 31. Production Operations
+
+HTTP requests receive request identifiers and restrictive browser headers.
+Slow requests and failures emit structured JSON with sensitive-key redaction;
+workers record normalized crash events. `OperationalHealthService` provides an
+Admin-only aggregate for schema version, failed and stale work, provider
+degradation, active incidents, and configuration presence without returning
+secret values.
+
+MFA-required accounts must provide TOTP or a one-time recovery code at login
+after enrollment. High-risk plugin approval always performs a fresh step-up.
+Credential encryption covers connector, hosting, destination, email, and MFA
+secrets; the transactional rotation CLI re-encrypts all supported ciphertext
+columns and verifies each result before commit.
+
+Deployment, PostgreSQL recovery, disaster recovery, accepted external gates,
+and key rotation are defined in
+`docs/PRODUCTION_OPERATIONS_AND_RECOVERY.md`.

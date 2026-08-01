@@ -1627,6 +1627,130 @@ const migrations: Migration[] = [
       CREATE INDEX sitehealth_cleanup_proposals_site_status
         ON sitehealth_cleanup_proposals(site_id, status, created_at DESC);
     `
+  },
+  {
+    id: 14,
+    name: 'add_mfa_step_up_and_central_plugin_rollouts',
+    sql: `
+      ALTER TABLE user_mfa_factors
+        ADD COLUMN last_used_at TIMESTAMPTZ;
+
+      CREATE TABLE plugin_update_packages (
+        id TEXT PRIMARY KEY,
+        plugin_slug TEXT NOT NULL,
+        plugin_name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        checksum_sha256 TEXT NOT NULL,
+        size_bytes BIGINT NOT NULL CHECK (size_bytes > 0),
+        storage_path TEXT NOT NULL,
+        validation_status TEXT NOT NULL
+          CHECK (validation_status IN ('validated', 'rejected', 'quarantined')),
+        scan_status TEXT NOT NULL
+          CHECK (scan_status IN ('structural-passed', 'external-passed', 'external-unavailable', 'failed')),
+        provenance_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        manifest_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        uploaded_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        UNIQUE (checksum_sha256)
+      );
+
+      CREATE INDEX plugin_update_packages_slug_version
+        ON plugin_update_packages(plugin_slug, version, created_at DESC);
+
+      CREATE TABLE site_recovery_evidence (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('sitecare-backup', 'hostinger-technician-confirmed')),
+        backup_reference TEXT NOT NULL,
+        backup_completed_at TIMESTAMPTZ NOT NULL,
+        valid_until TIMESTAMPTZ NOT NULL,
+        notes TEXT,
+        confirmed_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX site_recovery_evidence_site_valid
+        ON site_recovery_evidence(site_id, valid_until DESC);
+
+      CREATE TABLE plugin_update_rollouts (
+        id TEXT PRIMARY KEY,
+        package_id TEXT NOT NULL,
+        action_request_id TEXT,
+        status TEXT NOT NULL
+          CHECK (status IN ('draft', 'approved', 'canary-running', 'paused', 'running', 'completed', 'failed', 'cancelled')),
+        canary_size INTEGER NOT NULL DEFAULT 1 CHECK (canary_size BETWEEN 1 AND 20),
+        failure_threshold INTEGER NOT NULL DEFAULT 1 CHECK (failure_threshold BETWEEN 1 AND 20),
+        concurrency_limit INTEGER NOT NULL DEFAULT 2 CHECK (concurrency_limit BETWEEN 1 AND 20),
+        halt_reason TEXT,
+        created_by TEXT NOT NULL,
+        confirmed_by TEXT,
+        confirmed_at TIMESTAMPTZ,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (package_id) REFERENCES plugin_update_packages(id) ON DELETE RESTRICT,
+        FOREIGN KEY (action_request_id) REFERENCES action_requests(id) ON DELETE RESTRICT
+      );
+
+      CREATE INDEX plugin_update_rollouts_status_created
+        ON plugin_update_rollouts(status, created_at DESC);
+
+      CREATE TABLE plugin_update_targets (
+        id TEXT PRIMARY KEY,
+        rollout_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        plugin_file TEXT,
+        installed_version TEXT,
+        target_version TEXT NOT NULL,
+        resulting_version TEXT,
+        category TEXT NOT NULL
+          CHECK (category IN ('eligible', 'current', 'not-installed', 'disconnected', 'suspended', 'incompatible', 'recovery-required')),
+        selected BOOLEAN NOT NULL DEFAULT FALSE,
+        recovery_ready BOOLEAN NOT NULL DEFAULT FALSE,
+        recovery_evidence_id TEXT,
+        preflight_status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (preflight_status IN ('pending', 'passed', 'blocked')),
+        preflight_message TEXT,
+        batch_number INTEGER,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'queued', 'running', 'succeeded', 'failed', 'skipped', 'needs-attention')),
+        automation_job_id TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        error_code TEXT,
+        error_message TEXT,
+        response_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (rollout_id) REFERENCES plugin_update_rollouts(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (recovery_evidence_id) REFERENCES site_recovery_evidence(id) ON DELETE RESTRICT,
+        FOREIGN KEY (automation_job_id) REFERENCES automation_jobs(id) ON DELETE SET NULL,
+        UNIQUE (rollout_id, site_id)
+      );
+
+      CREATE INDEX plugin_update_targets_rollout_status
+        ON plugin_update_targets(rollout_id, batch_number, status, created_at);
+
+      CREATE TABLE plugin_package_download_tokens (
+        token_hash TEXT PRIMARY KEY,
+        package_id TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (package_id) REFERENCES plugin_update_packages(id) ON DELETE CASCADE,
+        FOREIGN KEY (target_id) REFERENCES plugin_update_targets(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX plugin_package_download_tokens_expiry
+        ON plugin_package_download_tokens(expires_at ASC)
+        WHERE used_at IS NULL;
+    `
   }
 ]
 

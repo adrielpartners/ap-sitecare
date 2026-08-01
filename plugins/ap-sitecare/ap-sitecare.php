@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AP SiteCare
  * Description: Reports WordPress operational health and provides client care visibility.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Author: Adriel Partners
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -12,7 +12,7 @@ defined('ABSPATH') || exit;
 
 define('APSC_PLUGIN_FILE', __FILE__);
 define('APSC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('APSC_PLUGIN_VERSION', '0.4.0');
+define('APSC_PLUGIN_VERSION', '0.5.0');
 
 require_once APSC_PLUGIN_DIR . 'src/SettingsRepository.php';
 require_once APSC_PLUGIN_DIR . 'src/UpdateMonitorService.php';
@@ -25,6 +25,7 @@ require_once APSC_PLUGIN_DIR . 'src/AdminController.php';
 require_once APSC_PLUGIN_DIR . 'src/ClientAdminController.php';
 require_once APSC_PLUGIN_DIR . 'src/CronController.php';
 require_once APSC_PLUGIN_DIR . 'src/RestController.php';
+require_once APSC_PLUGIN_DIR . 'src/PluginUpdateService.php';
 
 use APSiteCare\AdminController;
 use APSiteCare\ApiClientService;
@@ -35,6 +36,7 @@ use APSiteCare\CronController;
 use APSiteCare\DataCollectorService;
 use APSiteCare\ReporterService;
 use APSiteCare\RestController;
+use APSiteCare\PluginUpdateService;
 use APSiteCare\SettingsRepository;
 use APSiteCare\UpdateMonitorService;
 
@@ -57,7 +59,7 @@ $apsc_client_care = new ClientCareService(
 (new ClientAdminController($apsc_settings, $apsc_client_care))->register_hooks();
 (new AdminController($apsc_settings, $apsc_reporter, $apsc_client_care))->register_hooks();
 (new CronController($apsc_settings, $apsc_reporter, $apsc_client_care))->register_hooks();
-(new RestController($apsc_settings, $apsc_reporter))->register_hooks();
+(new RestController($apsc_settings, $apsc_reporter, new PluginUpdateService()))->register_hooks();
 $apsc_update_monitor->register_hooks();
 
 register_activation_hook(__FILE__, array(CronController::class, 'activate'));

@@ -5,6 +5,7 @@ useHead({ title: 'Sign in' })
 const route = useRoute()
 const email = ref('')
 const password = ref('')
+const mfaCode = ref('')
 const loading = ref(false)
 const error = ref('')
 
@@ -14,7 +15,7 @@ async function submit(): Promise<void> {
   try {
     await $fetch('/api/auth/login', {
       method: 'POST',
-      body: { email: email.value, password: password.value }
+      body: { email: email.value, password: password.value, mfaCode: mfaCode.value }
     })
     const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
       ? route.query.redirect
@@ -37,6 +38,7 @@ async function submit(): Promise<void> {
     </div>
     <AppInput v-model="email" label="Email address" name="email" type="email" autocomplete="email" required />
     <AppInput v-model="password" label="Password" name="password" type="password" autocomplete="current-password" required />
+    <AppInput v-model="mfaCode" label="Authenticator or recovery code (if enabled)" name="mfa-code" autocomplete="one-time-code" />
     <p v-if="error" class="auth-form__error" role="alert">{{ error }}</p>
     <AppButton type="submit" :loading="loading">Sign in</AppButton>
     <NuxtLink to="/forgot-password">Forgot your password?</NuxtLink>

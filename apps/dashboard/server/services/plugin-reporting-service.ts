@@ -36,7 +36,7 @@ function updateCount(value: unknown, key: string): number {
 
 function contractVersion(value: unknown): number {
   if (value === undefined || value === null) return 1
-  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 3) {
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 4) {
     throw new Error('contractVersion must be a supported positive integer.')
   }
   return value as number

@@ -59,9 +59,10 @@ database configuration takes precedence over the runtime fallback.
 - Team Member: operational read/write access to all sites by default, or a
   selected site set. No identity, master destination, or site-credential
   management.
-- Client: read-only access through `/portal` to sites assigned to their client
-  account. No operational APIs, provider credentials, internal notes, master
-  settings, or internal audit data.
+- Client: client-safe access through `/portal` to sites assigned to their client
+  account. Clients may manage email recipients for their own sites but cannot
+  mutate operations. No provider credentials, internal notes, master settings,
+  or internal audit data.
 
 Changing a user's role or access does not require reissuing credentials.
 Disabling an account immediately revokes its active sessions.
@@ -82,14 +83,24 @@ Disabling an account immediately revokes its active sessions.
 - Five failed sign-ins within 15 minutes trigger a temporary rate limit by
   hashed email/network evidence. User-facing failures do not reveal whether an
   account exists.
+- Cross-site unsafe requests and mismatched browser origins are rejected.
+- Responses use restrictive frame, object, referrer, permissions, resource,
+  and content-security policies.
 
 ## MFA boundary
 
-The schema and identity model include MFA enrollment and recovery foundations.
-Admin accounts are marked as requiring MFA. Enrollment/challenge UI is not yet
-active because centralized plugin-update and restore execution are not active.
-Those high-risk operations must remain disabled until verified Admin MFA is
-enforced at execution time.
+MFA-required accounts enroll a standard six-digit TOTP authenticator from
+**Profile & sessions** and receive eight one-time recovery codes. Recovery-code
+hashes and the encrypted TOTP secret are stored in PostgreSQL; codes are shown
+once and consumed once. After enrollment, MFA-required users must provide an
+authenticator or recovery code at login. Central plugin rollout approval also
+requires a fresh Admin step-up and remains disabled before enrollment.
+
+The first bootstrapped Admin may sign in before enrollment solely to complete
+setup. Enroll immediately and store the recovery codes in the password manager.
+There is intentionally no self-service MFA reset; recovery after losing every
+factor is an explicit database/administrator incident guided by the production
+recovery runbook.
 
 ## Deployment cutover
 

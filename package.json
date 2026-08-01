@@ -22,6 +22,8 @@
     "email-worker": "npm run email-worker --workspace=@ap-sitecare/dashboard",
     "email-worker:continuous": "npm run email-worker:continuous --workspace=@ap-sitecare/dashboard",
     "migrate:sqlite-to-postgres": "npm run migrate:sqlite-to-postgres --workspace=@ap-sitecare/dashboard --",
+    "rotate-credential-key": "npm run rotate-credential-key --workspace=@ap-sitecare/dashboard",
+    "reset-user-mfa": "npm run reset-user-mfa --workspace=@ap-sitecare/dashboard",
     "test": "npm run test --workspace=@ap-sitecare/dashboard",
     "typecheck": "npm run typecheck --workspace=@ap-sitecare/dashboard"
   }

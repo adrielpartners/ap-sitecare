@@ -57,6 +57,10 @@ export default defineNuxtConfig({
       dropboxTokenStrategy: 'runtime-access-token',
       tempRoot: '/tmp/ap-sitecare-backups'
     },
+    pluginPackages: {
+      root: '/var/lib/ap-sitecare/plugin-packages',
+      maximumBytes: 52_428_800
+    },
     credentialEncryptionKey: '',
     databaseUrl: 'postgresql://sitecare:sitecare@127.0.0.1:5432/sitecare'
   },
