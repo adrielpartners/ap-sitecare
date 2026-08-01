@@ -64,7 +64,7 @@ watch(statusFilter, async () => {
 
 function dateTime(value: string | null): string {
   if (!value) return 'Never'
-  return new Date(value).toLocaleString()
+  return formatSiteCareDateTime(value)
 }
 
 function intervalLabel(seconds: number): string {

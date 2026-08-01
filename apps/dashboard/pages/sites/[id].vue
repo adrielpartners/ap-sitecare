@@ -149,7 +149,7 @@ async function runAction(action: () => Promise<void>) {
               {{ detail.site.status }}
             </AppBadge>
             <h2>Inventory status</h2>
-            <p class="text-meta">Registered {{ new Date(detail.site.createdAt).toLocaleString() }}</p>
+            <p class="text-meta">Registered {{ formatSiteCareDateTime(detail.site.createdAt) }}</p>
           </div>
         </AppCard>
         <AppCard>
@@ -369,20 +369,20 @@ async function runAction(action: () => Promise<void>) {
               </AppCard>
               <AppCard muted>
                 <p class="text-meta">Last authenticated</p>
-                <h2>{{ connectionDetail.connection.lastAuthenticatedAt ? new Date(connectionDetail.connection.lastAuthenticatedAt).toLocaleString() : 'Never' }}</h2>
+                <h2>{{ connectionDetail.connection.lastAuthenticatedAt ? formatSiteCareDateTime(connectionDetail.connection.lastAuthenticatedAt) : 'Never' }}</h2>
               </AppCard>
               <AppCard muted>
                 <p class="text-meta">Next automatic rotation</p>
-                <h2>{{ connectionDetail.connection.rotationDueAt ? new Date(connectionDetail.connection.rotationDueAt).toLocaleDateString() : 'After first connection' }}</h2>
+                <h2>{{ connectionDetail.connection.rotationDueAt ? formatSiteCareDate(connectionDetail.connection.rotationDueAt) : 'After first connection' }}</h2>
               </AppCard>
             </div>
             <AppTable v-if="connectionDetail?.credentials?.length" caption="Credential lifecycle" :columns="['Issued', 'Hint', 'State', 'Last used', 'Valid until']">
               <tr v-for="credential in connectionDetail.credentials" :key="credential.id">
-                <td>{{ new Date(credential.createdAt).toLocaleString() }}</td>
+                <td>{{ formatSiteCareDateTime(credential.createdAt) }}</td>
                 <td>••••••{{ credential.secretHint }}</td>
                 <td><AppBadge :tone="credential.state === 'active' ? 'success' : credential.state === 'pending' ? 'warning' : 'neutral'">{{ credential.state }}</AppBadge></td>
-                <td>{{ credential.lastUsedAt ? new Date(credential.lastUsedAt).toLocaleString() : 'Never' }}</td>
-                <td>{{ credential.validUntil ? new Date(credential.validUntil).toLocaleString() : '—' }}</td>
+                <td>{{ credential.lastUsedAt ? formatSiteCareDateTime(credential.lastUsedAt) : 'Never' }}</td>
+                <td>{{ credential.validUntil ? formatSiteCareDateTime(credential.validUntil) : '—' }}</td>
               </tr>
             </AppTable>
             <div class="cluster">

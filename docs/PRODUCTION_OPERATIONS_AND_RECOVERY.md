@@ -32,6 +32,30 @@ Send these internal platform alerts to an administrative address, not client
 site recipients. Site-specific uptime, TLS, backup, update, security, and
 SiteHealth email continue through their per-site categories.
 
+## Cloudflare API token permissions
+
+Use one account-scoped token limited to the Adriel Partners account and all
+zones in that account. SiteCare needs these read permissions for portfolio and
+Security Status collection:
+
+- Account — `Account Settings Read`
+- Account — `Notifications Read`
+- Zone — `Zone Read`
+- Zone — `DNS Read`
+- Zone — `Zone Settings Read`
+- Zone — `SSL and Certificates Read`
+- Zone — `Bot Management Read`
+- Zone — `Zone WAF Read`
+- Zone — `Cache Settings Read`
+- Zone — `Health Checks Read`
+
+Do not grant DNS, settings, SSL, WAF, cache, bot, or account write permissions
+for status reporting. If SiteCare will provision and adjust Standalone Health
+Checks on a paid Cloudflare plan, add Zone — `Health Checks Write`; that is the
+only Cloudflare write scope required by the current implementation. Free plans
+do not currently include Standalone Health Checks, so this write scope does not
+make the feature available on the present portfolio.
+
 ## Pre-deployment backup
 
 Create a restricted directory outside the Git checkout and dump PostgreSQL:
@@ -230,8 +254,9 @@ Findings and remaining gates:
   managed-rules, or cache-rules endpoints. It can read zone settings and
   Universal SSL. Expand its read permissions before expecting complete
   automated Security Status evidence; technician overrides remain available.
-- the production Admin has not enrolled MFA. Enrollment is required before a
-  restore or central plugin rollout can execute.
+- production Admin MFA enrollment was explicitly deferred by the project owner
+  on 2026-08-01. The implementation remains available, and restore or central
+  plugin rollout execution remains blocked until enrollment is approved.
 - no managed site exists in PostgreSQL, so Hostinger source acquisition,
   WordPress contract-4 check-in, backup/restore, SiteHealth, client isolation,
   and plugin-canary acceptance remain gated on registering the first site and

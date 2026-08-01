@@ -39,7 +39,7 @@ function serviceLabel(value: string): string {
   return ({ 'wordpress-update-monitoring': 'WordPress update monitoring', 'hostinger-daily-backups': 'Hostinger daily backups', 'uptime-monitoring': 'Uptime monitoring', 'annual-sitehealth-checkup': 'Annual SiteHealth Checkup', 'long-term-backups': 'Long-term off-site backups' } as Record<string,string>)[value] ?? value
 }
 function statusTone(value: string): 'success'|'warning'|'danger'|'neutral' { return ['healthy','active','current','completed','available'].includes(value) ? 'success' : ['unhealthy','failed','critical'].includes(value) ? 'danger' : ['unknown','stale','attention','pending'].includes(value) ? 'warning' : 'neutral' }
-function date(value: string | null): string { return value ? new Date(value).toLocaleString() : 'Not currently available' }
+function date(value: string | null): string { return value ? formatSiteCareDateTime(value) : 'Not currently available' }
 function duration(seconds: number | null): string { if (seconds === null) return 'In progress'; const minutes = Math.round(seconds / 60); return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr ${minutes % 60} min` }
 </script>
 

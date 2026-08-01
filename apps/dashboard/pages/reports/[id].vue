@@ -23,7 +23,7 @@ function severityTone(severity: string) {
       <p>{{ review.content.site.url }}</p>
       <div class="cluster">
         <AppBadge tone="success">{{ review.status }}</AppBadge>
-        <span class="text-meta">Published {{ review.publishedAt ? new Date(review.publishedAt).toLocaleDateString() : '—' }}</span>
+        <span class="text-meta">Published {{ review.publishedAt ? formatSiteCareDate(review.publishedAt) : '—' }}</span>
         <a v-if="isClient" class="download-link" :href="`/api/client/sitehealth/reviews/${review.id}/download`">Download Review</a>
       </div>
     </header>

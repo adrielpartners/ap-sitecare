@@ -12,7 +12,7 @@ export class OperationalHealthService {
   async inspect() {
     const now = new Date().toISOString()
     const staleLease = new Date(Date.now() - 5 * 60_000).toISOString()
-    const [migration, jobs, staleJobs, backups, staleBackups, email, staleEmail, integrations, sites] = await Promise.all([
+    const [migration, jobs, staleJobs, backups, staleBackups, email, staleEmail, integrations, storedDropboxOauth, sites] = await Promise.all([
       this.database.query<{ id: number, name: string, applied_at: string }>('SELECT * FROM schema_migrations ORDER BY id DESC LIMIT 1'),
       this.count(`SELECT COUNT(*)::text AS count FROM automation_jobs WHERE status IN ('failed','needs-attention')`),
       this.count(`SELECT COUNT(*)::text AS count FROM automation_jobs WHERE status IN ('preflight','running','verifying') AND COALESCE(heartbeat_at, updated_at, started_at, created_at) < $1`, [staleLease]),
@@ -30,6 +30,15 @@ export class OperationalHealthService {
           (SELECT COUNT(*) FROM backup_destinations WHERE last_connection_status='failed')::int AS destination_failures,
           (SELECT COUNT(*) FROM uptime_tls_alerts WHERE status='open')::int AS open_tls_alerts,
           (SELECT COUNT(*) FROM uptime_incidents WHERE status='open')::int AS open_uptime_incidents
+      `),
+      this.count(`
+        SELECT COUNT(*)::text AS count
+        FROM backup_destinations
+        WHERE provider='dropbox'
+          AND enabled=true
+          AND credential_source='encrypted'
+          AND credential_ciphertext IS NOT NULL
+          AND configuration_json->>'authMode'='oauth-refresh-token'
       `),
       this.count(`SELECT COUNT(*)::text AS count FROM sites WHERE status='active'`)
     ])
@@ -55,7 +64,11 @@ export class OperationalHealthService {
         secureCookies: this.settings.auth.secureCookies || process.env.NODE_ENV === 'production',
         emailApi: Boolean(this.settings.email.brevoApiKey),
         cloudflareApi: Boolean(this.settings.integrations.cloudflareApiToken),
-        dropboxOAuth: Boolean(this.settings.integrations.dropboxRefreshToken && this.settings.integrations.dropboxAppKey && this.settings.integrations.dropboxAppSecret),
+        dropboxOAuth: Boolean(
+          this.settings.integrations.dropboxAppKey
+          && this.settings.integrations.dropboxAppSecret
+          && (this.settings.integrations.dropboxRefreshToken || storedDropboxOauth > 0)
+        ),
         hostingerApi: Boolean(this.settings.integrations.hostingerApiToken)
       }
     }

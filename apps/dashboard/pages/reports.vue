@@ -65,7 +65,7 @@ async function runCheckup() {
         <AppTable v-if="entries.length && !isClient" caption="SiteHealth Checkup history" :columns="['Site', 'Created', 'Trigger', 'Status', 'Review', '']">
           <tr v-for="entry in entries" :key="entry.id">
             <td><strong>{{ entry.site.name }}</strong><br><span class="text-meta">{{ entry.site.url }}</span></td>
-            <td>{{ new Date(entry.createdAt).toLocaleString() }}</td>
+            <td>{{ formatSiteCareDateTime(entry.createdAt) }}</td>
             <td>{{ entry.triggerType }}</td>
             <td><AppBadge :tone="tone(entry.status)">{{ entry.status }}</AppBadge></td>
             <td>{{ entry.latestReview ? `v${entry.latestReview.version} · ${entry.latestReview.status}` : 'Pending' }}</td>
@@ -77,7 +77,7 @@ async function runCheckup() {
             <div class="stack stack--sm">
               <AppBadge tone="success">{{ review.status }}</AppBadge>
               <h3>{{ review.title }}</h3>
-              <p class="text-meta">Published {{ review.publishedAt ? new Date(review.publishedAt).toLocaleDateString() : 'recently' }}</p>
+              <p class="text-meta">Published {{ review.publishedAt ? formatSiteCareDate(review.publishedAt) : 'recently' }}</p>
               <AppButton :to="`/reports/${review.id}`" variant="secondary">Read Review</AppButton>
             </div>
           </AppCard>

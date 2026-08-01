@@ -12,8 +12,8 @@ Roadmap Status: Phase 1 through Phase 10 implementation complete. Phase 11
 hardening is deployed at commit `76cb0e9` and partial live acceptance is
 complete. External acceptance remains open for a registered production site,
 Hostinger source acquisition, supervised restore, a revised Free-plan uptime
-decision, WordPress contract-4 canary rollout, fresh report delivery, MFA, and
-multi-role browser checks.
+  decision, WordPress contract-4 canary rollout, fresh report delivery, and
+  multi-role browser checks.
 
 ---
 
@@ -178,10 +178,13 @@ product decision and therefore remain open:
   delivery to multiple recipients
 - perform authenticated Admin, Team Member, and separate-client browser,
   accessibility, and responsive acceptance checks
-- enroll the production Admin in MFA before restore or central-update execution
 - decide whether to procure an external plugin malware scanner
 - decide whether and when to add Mailgun/Postmark/SendGrid delivery,
   Telegram/SMS, S3/Google Drive destinations, billing, or Service Time
+
+MFA enrollment is explicitly deferred as of 2026-08-01. MFA and high-risk
+step-up remain implemented, but restore and central-update execution must stay
+blocked until the project owner reopens enrollment.
 
 Completed live acceptance on 2026-08-01:
 
@@ -2119,8 +2122,8 @@ Accepted limitations and deployment gates:
 - the current Cloudflare token is sufficient for zone inventory/settings and
   Health Check collection reads but is not sufficient for the complete
   Security Status evidence set
-- the production Admin has not enrolled MFA, which correctly blocks high-risk
-  restore and central-update execution
+- production Admin MFA enrollment is explicitly deferred; high-risk restore
+  and central-update execution remains blocked by design
 - live Admin pages are functional, but hydration mismatches and the misleading
   Dropbox OAuth readiness signal require a corrective release
 - external plugin malware scanning and unattended rollback remain future

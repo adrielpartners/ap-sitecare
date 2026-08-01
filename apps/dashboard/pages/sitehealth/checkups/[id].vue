@@ -105,7 +105,7 @@ async function initiateCleanup(proposalId: string) {
     <div class="stack">
       <div class="cluster">
         <AppBadge :tone="tone(detail.checkup.status)">{{ detail.checkup.status }}</AppBadge>
-        <span class="text-meta">{{ detail.checkup.triggerType }} · {{ new Date(detail.checkup.createdAt).toLocaleString() }}</span>
+        <span class="text-meta">{{ detail.checkup.triggerType }} · {{ formatSiteCareDateTime(detail.checkup.createdAt) }}</span>
         <AppButton variant="secondary" :disabled="busy" @click="refresh">Refresh</AppButton>
       </div>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
@@ -124,7 +124,7 @@ async function initiateCleanup(proposalId: string) {
                 <div class="cluster"><AppBadge :tone="tone(item.availability)">{{ item.availability }}</AppBadge><span class="text-meta">{{ item.area }}</span></div>
                 <h3>{{ item.metricKey }}</h3>
                 <p>{{ item.summary }}</p>
-                <p class="text-meta">{{ item.source }} · {{ item.observedAt ? new Date(item.observedAt).toLocaleString() : 'not observed' }}</p>
+                <p class="text-meta">{{ item.source }} · {{ item.observedAt ? formatSiteCareDateTime(item.observedAt) : 'not observed' }}</p>
               </div>
             </AppCard>
           </div>
@@ -185,7 +185,7 @@ async function initiateCleanup(proposalId: string) {
           <AppTable v-if="published.length" caption="Published SiteHealth Review versions" :columns="['Version', 'Status', 'Published', 'Actions']">
             <tr v-for="review in published" :key="review.id">
               <td>v{{ review.version }}</td><td><AppBadge :tone="tone(review.status)">{{ review.status }}</AppBadge></td>
-              <td>{{ review.publishedAt ? new Date(review.publishedAt).toLocaleString() : '—' }}</td>
+              <td>{{ review.publishedAt ? formatSiteCareDateTime(review.publishedAt) : '—' }}</td>
               <td><div class="cluster"><AppButton :to="`/reports/${review.id}`" variant="secondary">View</AppButton><AppButton v-if="review.status !== 'superseded'" :loading="busy" @click="sendReview(review.id)">Email Review</AppButton></div></td>
             </tr>
           </AppTable>

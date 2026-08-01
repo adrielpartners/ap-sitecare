@@ -21,7 +21,7 @@ function eventLabel(eventType: string): string {
       <div>
         <strong>{{ eventLabel(event.eventType) }}</strong>
         <p class="text-meta">
-          {{ new Date(event.createdAt).toLocaleString() }} · {{ event.actorIdentifier ?? event.actorType }}
+          {{ formatSiteCareDateTime(event.createdAt) }} · {{ event.actorIdentifier ?? event.actorType }}
         </p>
       </div>
     </li>

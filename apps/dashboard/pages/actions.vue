@@ -37,7 +37,7 @@ async function review(id: string, decision: 'approve' | 'reject') {
             </AppBadge>
             <h2>{{ request.actionType }}</h2>
             <p>{{ request.rationale }}</p>
-            <p class="text-meta">Requested by {{ request.requestedBy }} · {{ new Date(request.createdAt).toLocaleString() }}</p>
+            <p class="text-meta">Requested by {{ request.requestedBy }} · {{ formatSiteCareDateTime(request.createdAt) }}</p>
             <div v-if="request.status === 'pending'" class="cluster">
               <AppButton :disabled="busy" @click="review(request.id, 'approve')">Approve proposal</AppButton>
               <AppButton :disabled="busy" variant="secondary" @click="review(request.id, 'reject')">Reject</AppButton>

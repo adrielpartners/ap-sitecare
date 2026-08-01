@@ -132,8 +132,8 @@ function duration(seconds: number | null) {
       <AppTable v-if="detail?.incidents?.length" caption="Cloudflare uptime incidents" :columns="['Status', 'Started', 'Recovered', 'Duration', 'Failures', 'Reason']">
         <tr v-for="incident in detail.incidents" :key="incident.id">
           <td><AppBadge :tone="incident.status === 'recovered' ? 'success' : 'danger'">{{ incident.status }}</AppBadge></td>
-          <td>{{ new Date(incident.startedAt).toLocaleString() }}</td>
-          <td>{{ incident.recoveredAt ? new Date(incident.recoveredAt).toLocaleString() : 'Ongoing' }}</td>
+          <td>{{ formatSiteCareDateTime(incident.startedAt) }}</td>
+          <td>{{ incident.recoveredAt ? formatSiteCareDateTime(incident.recoveredAt) : 'Ongoing' }}</td>
           <td>{{ duration(incident.durationSeconds) }}</td>
           <td>{{ incident.failureCount }}</td>
           <td>{{ incident.finalReason ?? 'No provider reason' }}</td>
@@ -165,8 +165,8 @@ function duration(seconds: number | null) {
       <AppTable v-if="detail?.maintenanceWindows?.length" caption="Maintenance windows" :columns="['Status', 'Starts', 'Ends', 'Reason', 'Action']">
         <tr v-for="window in detail.maintenanceWindows" :key="window.id">
           <td><AppBadge :tone="window.cancelledAt ? 'neutral' : 'info'">{{ window.cancelledAt ? 'Cancelled' : 'Scheduled' }}</AppBadge></td>
-          <td>{{ new Date(window.startsAt).toLocaleString() }}</td>
-          <td>{{ new Date(window.endsAt).toLocaleString() }}</td>
+          <td>{{ formatSiteCareDateTime(window.startsAt) }}</td>
+          <td>{{ formatSiteCareDateTime(window.endsAt) }}</td>
           <td>{{ window.reason }}</td>
           <td><AppButton v-if="!window.cancelledAt" :disabled="busy" variant="quiet" @click="cancelMaintenance(window.id)">Cancel</AppButton></td>
         </tr>

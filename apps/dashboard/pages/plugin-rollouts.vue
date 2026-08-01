@@ -121,7 +121,7 @@ function tone(status: string): 'success' | 'warning' | 'danger' | 'neutral' { re
       <AppPanel title="Rollout history">
         <div class="stack">
           <button v-for="item in rollouts" :key="item.id" class="row-button" type="button" @click="openRollout(item.id)">
-            <span><strong>{{ item.package.pluginName }} {{ item.package.version }}</strong><small>{{ new Date(item.createdAt).toLocaleString() }}</small></span>
+            <span><strong>{{ item.package.pluginName }} {{ item.package.version }}</strong><small>{{ formatSiteCareDateTime(item.createdAt) }}</small></span>
             <AppBadge :tone="tone(item.status)">{{ item.status }}</AppBadge>
           </button>
         </div>

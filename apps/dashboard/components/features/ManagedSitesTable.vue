@@ -45,7 +45,7 @@ const emit = defineEmits<{
           </span>
         </td>
         <td><StatusBadge :status="site.securityStatus" /></td>
-        <td>{{ site.lastCheckInAt ? new Date(site.lastCheckInAt).toLocaleString() : 'Never' }}</td>
+        <td>{{ site.lastCheckInAt ? formatSiteCareDateTime(site.lastCheckInAt) : 'Never' }}</td>
         <td><AppButton :to="`/sites/${site.id}`" variant="quiet">View →</AppButton></td>
       </tr>
     </AppTable>

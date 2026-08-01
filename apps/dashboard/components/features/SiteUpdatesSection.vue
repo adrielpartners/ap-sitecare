@@ -127,7 +127,7 @@ function outcomeTone(value: Outcome): 'success' | 'danger' | 'info' {
       <div class="grid">
         <AppCard muted>
           <p class="text-meta">Update check</p>
-          <h2>{{ new Date(detail.snapshot.checkedAt).toLocaleString() }}</h2>
+          <h2>{{ formatSiteCareDateTime(detail.snapshot.checkedAt) }}</h2>
           <AppBadge :tone="detail.stale ? 'warning' : 'success'">{{ detail.stale ? 'Stale' : 'Fresh' }}</AppBadge>
         </AppCard>
         <AppCard muted>
@@ -140,7 +140,7 @@ function outcomeTone(value: Outcome): 'success' | 'danger' | 'info' {
         <AppCard muted>
           <p class="text-meta">Installed inventory</p>
           <h2>{{ detail.snapshot.pluginCount }} plugins · {{ detail.snapshot.themeCount }} themes</h2>
-          <span class="text-meta">Received {{ new Date(detail.snapshot.receivedAt).toLocaleString() }}</span>
+          <span class="text-meta">Received {{ formatSiteCareDateTime(detail.snapshot.receivedAt) }}</span>
         </AppCard>
       </div>
 
@@ -160,7 +160,7 @@ function outcomeTone(value: Outcome): 'success' | 'danger' | 'info' {
       <AppPanel title="Update activity" description="Successful, failed, and reconciled updates reported by WordPress.">
         <AppTable v-if="detail.activities.length" caption="WordPress update activity" :columns="['Completed', 'Component', 'Version change', 'Outcome', 'Details']">
           <tr v-for="activity in detail.activities" :key="activity.id">
-            <td>{{ new Date(activity.completedAt).toLocaleString() }}</td>
+            <td>{{ formatSiteCareDateTime(activity.completedAt) }}</td>
             <td><strong>{{ activity.name }}</strong><br><span class="text-meta">{{ activity.componentType }}</span></td>
             <td>{{ activity.priorVersion ?? 'Unknown' }} → {{ activity.resultingVersion ?? activity.targetVersion ?? 'Unknown' }}</td>
             <td><AppBadge :tone="outcomeTone(activity.outcome)">{{ activity.outcome }}</AppBadge></td>
@@ -181,7 +181,7 @@ function outcomeTone(value: Outcome): 'success' | 'danger' | 'info' {
         <div class="grid">
           <AppCard muted><p class="text-meta">Account</p><h2>{{ hostinger.accountUsername ?? 'Not available' }}</h2></AppCard>
           <AppCard muted><p class="text-meta">Installation ID</p><h2>{{ hostinger.wordpressInstallationId ?? 'Not required' }}</h2></AppCard>
-          <AppCard muted><p class="text-meta">Daily backup evidence</p><h2>{{ hostinger.latestDailyBackupAt ? new Date(hostinger.latestDailyBackupAt).toLocaleString() : 'Not available' }}</h2></AppCard>
+          <AppCard muted><p class="text-meta">Daily backup evidence</p><h2>{{ hostinger.latestDailyBackupAt ? formatSiteCareDateTime(hostinger.latestDailyBackupAt) : 'Not available' }}</h2></AppCard>
         </div>
         <p class="text-meta">{{ hostinger.lastErrorMessage ?? hostinger.dailyBackupMessage }}</p>
       </div>

@@ -68,9 +68,9 @@ function statusTone(status: PortfolioEntry['status']): 'success' | 'warning' | '
             <td><AppBadge :tone="statusTone(entry.status)">{{ entry.status }}</AppBadge><br><span class="text-meta">{{ entry.snapshot.pendingUpdateCount }} pending</span></td>
             <td>{{ entry.snapshot.coreInstalledVersion }}<br><span class="text-meta">{{ entry.snapshot.coreAvailableVersion ? `→ ${entry.snapshot.coreAvailableVersion}` : 'Current' }}</span></td>
             <td>{{ entry.snapshot.pluginCount }} plugins<br><span class="text-meta">{{ entry.snapshot.themeCount }} themes</span></td>
-            <td>{{ new Date(entry.snapshot.checkedAt).toLocaleString() }}</td>
-            <td>{{ entry.latestSuccessAt ? new Date(entry.latestSuccessAt).toLocaleString() : 'No activity yet' }}</td>
-            <td><AppBadge :tone="entry.failureCount ? 'danger' : 'neutral'">{{ entry.failureCount }}</AppBadge><br><span v-if="entry.latestFailureAt" class="text-meta">Latest {{ new Date(entry.latestFailureAt).toLocaleString() }}</span></td>
+            <td>{{ formatSiteCareDateTime(entry.snapshot.checkedAt) }}</td>
+            <td>{{ entry.latestSuccessAt ? formatSiteCareDateTime(entry.latestSuccessAt) : 'No activity yet' }}</td>
+            <td><AppBadge :tone="entry.failureCount ? 'danger' : 'neutral'">{{ entry.failureCount }}</AppBadge><br><span v-if="entry.latestFailureAt" class="text-meta">Latest {{ formatSiteCareDateTime(entry.latestFailureAt) }}</span></td>
             <td><AppButton :to="`/sites/${entry.site.id}?tab=updates`" variant="quiet">Inspect →</AppButton></td>
           </tr>
         </AppTable>

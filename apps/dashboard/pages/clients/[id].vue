@@ -113,7 +113,7 @@ async function runAction(action: () => Promise<void>) {
               <p class="text-meta">{{ item.site.url }}</p>
               <p v-if="item.service.effective.pendingTransition" class="text-meta">
                 {{ item.service.effective.pendingTransition.transitionType }} scheduled for
-                {{ new Date(item.service.effective.pendingTransition.effectiveAt).toLocaleString() }}
+                {{ formatSiteCareDateTime(item.service.effective.pendingTransition.effectiveAt) }}
               </p>
               <p class="text-meta">{{ item.service.effective.activeOverrides.length }} active overrides</p>
               <AppButton :to="`/sites/${item.site.id}?tab=service`" variant="secondary">Manage site plan</AppButton>

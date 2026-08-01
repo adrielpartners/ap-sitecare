@@ -284,7 +284,7 @@ async function saveUserAccess(userId: string): Promise<void> {
         <div class="grid">
           <AppCard v-for="invitation in invitations" :key="invitation.id" muted>
             <strong>{{ invitation.email }}</strong>
-            <p class="text-meta">{{ invitation.role }} · expires {{ new Date(invitation.expiresAt).toLocaleString() }}</p>
+            <p class="text-meta">{{ invitation.role }} · expires {{ formatSiteCareDateTime(invitation.expiresAt) }}</p>
           </AppCard>
         </div>
       </AppPanel>

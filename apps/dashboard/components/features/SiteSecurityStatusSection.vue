@@ -55,7 +55,7 @@ async function setStatus(controlKey: string, status: 'active' | 'inactive') {
       <div class="security-summary">
         <div>
           <p class="text-meta">Last API check</p>
-          <h2>{{ detail?.security?.checkedAt ? new Date(detail.security.checkedAt).toLocaleString() : 'Not checked' }}</h2>
+          <h2>{{ detail?.security?.checkedAt ? formatSiteCareDateTime(detail.security.checkedAt) : 'Not checked' }}</h2>
         </div>
         <AppButton :loading="busyKey === 'synchronize'" @click="synchronize">Check Cloudflare now</AppButton>
       </div>
@@ -69,7 +69,7 @@ async function setStatus(controlKey: string, status: 'active' | 'inactive') {
             <AppBadge :tone="tone(control.status)">{{ control.status }}</AppBadge>
           </div>
           <p>{{ control.summary }}</p>
-          <p v-if="control.technicianOverride" class="text-meta">Technician evidence by {{ control.technicianOverride.actorIdentifier }} on {{ new Date(control.technicianOverride.observedAt).toLocaleString() }}.</p>
+          <p v-if="control.technicianOverride" class="text-meta">Technician evidence by {{ control.technicianOverride.actorIdentifier }} on {{ formatSiteCareDateTime(control.technicianOverride.observedAt) }}.</p>
           <details>
             <summary>Record technician evidence</summary>
             <div class="stack stack--sm evidence-form">

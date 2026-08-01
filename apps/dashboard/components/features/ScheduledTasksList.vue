@@ -17,7 +17,7 @@ defineProps<{
         <strong>{{ task.label }}</strong>
         <p>{{ task.description }}</p>
       </div>
-      <time :datetime="task.scheduledFor">{{ new Date(task.scheduledFor).toLocaleString() }}</time>
+      <time :datetime="task.scheduledFor">{{ formatSiteCareDateTime(task.scheduledFor) }}</time>
     </li>
   </ol>
 </template>

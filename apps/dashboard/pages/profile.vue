@@ -85,7 +85,7 @@ async function revoke(id: string): Promise<void> {
               <div>
                 <strong>{{ item.current ? 'This browser' : 'Signed-in browser' }}</strong>
                 <p class="text-meta">{{ item.userAgent || 'Unknown browser' }}</p>
-                <p class="text-meta">Last used {{ new Date(item.lastSeenAt).toLocaleString() }}</p>
+                <p class="text-meta">Last used {{ formatSiteCareDateTime(item.lastSeenAt) }}</p>
               </div>
               <AppButton variant="secondary" :loading="busy === item.id" @click="revoke(item.id)">Revoke</AppButton>
             </div>

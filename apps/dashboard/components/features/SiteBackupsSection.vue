@@ -303,7 +303,7 @@ function formatBytes(value: number | null): string {
         <div class="stack stack--sm">
           <AppBadge :tone="overview.latestBackup?.status === 'completed' ? 'success' : 'neutral'">{{ overview.latestBackup?.status ?? 'No backups' }}</AppBadge>
           <h3>Latest SiteCare long-term backup</h3>
-          <p class="text-meta">{{ overview.latestSuccessfulBackup ? new Date(overview.latestSuccessfulBackup.completedAt).toLocaleString() : 'No successful long-term backup recorded.' }}</p>
+          <p class="text-meta">{{ overview.latestSuccessfulBackup ? formatSiteCareDateTime(overview.latestSuccessfulBackup.completedAt) : 'No successful long-term backup recorded.' }}</p>
           <p v-if="overview.recentFailedBackups.length" class="text-meta">{{ overview.recentFailedBackups.length }} recent failed backup{{ overview.recentFailedBackups.length === 1 ? '' : 's' }} retained for review.</p>
         </div>
       </AppCard>
@@ -311,7 +311,7 @@ function formatBytes(value: number | null): string {
         <div class="stack stack--sm">
           <AppBadge :tone="overview.hostingerDailyBackup?.dailyBackupAvailability === 'available' ? 'success' : 'neutral'">Hostinger-managed</AppBadge>
           <h3>Hostinger daily backups</h3>
-          <p class="text-meta">{{ overview.hostingerDailyBackup?.latestDailyBackupAt ? `Latest reported: ${new Date(overview.hostingerDailyBackup.latestDailyBackupAt).toLocaleString()}` : overview.hostingerDailyBackup?.dailyBackupMessage ?? 'Hostinger daily backup timing is not available through the API.' }}</p>
+          <p class="text-meta">{{ overview.hostingerDailyBackup?.latestDailyBackupAt ? `Latest reported: ${formatSiteCareDateTime(overview.hostingerDailyBackup.latestDailyBackupAt)}` : overview.hostingerDailyBackup?.dailyBackupMessage ?? 'Hostinger daily backup timing is not available through the API.' }}</p>
           <a v-if="overview.hostingerDailyBackup?.managementUrl" :href="overview.hostingerDailyBackup.managementUrl" target="_blank" rel="noreferrer">Open Hostinger</a>
         </div>
       </AppCard>
@@ -448,7 +448,7 @@ function formatBytes(value: number | null): string {
     <AppPanel title="Backup history" description="Durable backup artifact and evidence records.">
       <AppTable v-if="overview?.backups.length" caption="Backup history" :columns="['Started', 'Type', 'Status', 'Contents', 'Size', 'Evidence', 'Result', 'Actions']">
         <tr v-for="backup in overview.backups" :key="backup.id">
-          <td>{{ new Date(backup.startedAt).toLocaleString() }}</td>
+          <td>{{ formatSiteCareDateTime(backup.startedAt) }}</td>
           <td>{{ backup.backupType }}</td>
           <td><AppBadge :tone="backup.status === 'completed' ? 'success' : backup.status === 'failed' ? 'danger' : 'info'">{{ backup.status }}</AppBadge></td>
           <td>{{ [backup.filesIncluded ? 'Files' : '', backup.databaseIncluded ? 'Database' : ''].filter(Boolean).join(' + ') }}</td>
@@ -489,7 +489,7 @@ function formatBytes(value: number | null): string {
               <AppTextarea v-model="restoreOutcomes[plan.id]" :name="`restore-outcome-${plan.id}`" label="Restore outcome" />
               <AppButton variant="secondary" :disabled="busy" @click="recordRestoreCompleted(plan)">Record completed restore</AppButton>
             </template>
-            <p v-else class="text-meta">Completed {{ new Date(plan.restorationCompletedAt).toLocaleString() }} by {{ plan.completedBy }} on {{ plan.targetHostLabel }}. {{ plan.outcome }}</p>
+            <p v-else class="text-meta">Completed {{ formatSiteCareDateTime(plan.restorationCompletedAt) }} by {{ plan.completedBy }} on {{ plan.targetHostLabel }}. {{ plan.outcome }}</p>
           </div>
         </AppCard>
       </div>

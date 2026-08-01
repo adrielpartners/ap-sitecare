@@ -55,11 +55,11 @@ async function runCheckup() {
         </AppCard>
         <AppCard muted>
           <p class="text-meta">Next due</p>
-          <h3>{{ overview.annualPolicy.nextDueAt ? new Date(overview.annualPolicy.nextDueAt).toLocaleDateString() : 'Not scheduled' }}</h3>
+          <h3>{{ overview.annualPolicy.nextDueAt ? formatSiteCareDate(overview.annualPolicy.nextDueAt) : 'Not scheduled' }}</h3>
         </AppCard>
         <AppCard muted>
           <p class="text-meta">Last completed</p>
-          <h3>{{ overview.annualPolicy.lastCompletedAt ? new Date(overview.annualPolicy.lastCompletedAt).toLocaleDateString() : 'Not yet' }}</h3>
+          <h3>{{ overview.annualPolicy.lastCompletedAt ? formatSiteCareDate(overview.annualPolicy.lastCompletedAt) : 'Not yet' }}</h3>
         </AppCard>
       </div>
       <AppEmptyState v-else title="Policy initializes automatically" description="The automation worker will synchronize annual eligibility from the central entitlement service." />
@@ -68,7 +68,7 @@ async function runCheckup() {
     <AppPanel title="SiteHealth Checkups" :description="`${overview?.checkups?.length ?? 0} recent Checkups`">
       <AppTable v-if="overview?.checkups?.length" caption="SiteHealth Checkup history" :columns="['Started', 'Trigger', 'Status', 'Review', '']">
         <tr v-for="checkup in overview.checkups" :key="checkup.id">
-          <td>{{ new Date(checkup.createdAt).toLocaleString() }}</td>
+          <td>{{ formatSiteCareDateTime(checkup.createdAt) }}</td>
           <td>{{ checkup.triggerType }}</td>
           <td><AppBadge :tone="tone(checkup.status)">{{ checkup.status }}</AppBadge></td>
           <td>{{ checkup.latestReview ? `v${checkup.latestReview.version} · ${checkup.latestReview.status}` : 'Pending' }}</td>

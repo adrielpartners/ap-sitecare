@@ -16,7 +16,7 @@ defineProps<{
       <div>
         <strong>{{ activity.label }}</strong>
         <p>{{ activity.siteName ?? 'System activity' }}</p>
-        <time :datetime="activity.createdAt">{{ new Date(activity.createdAt).toLocaleString() }}</time>
+        <time :datetime="activity.createdAt">{{ formatSiteCareDateTime(activity.createdAt) }}</time>
       </div>
     </li>
   </ol>

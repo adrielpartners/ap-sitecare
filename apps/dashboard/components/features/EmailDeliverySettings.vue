@@ -74,7 +74,7 @@ function providerLabel(provider: string): string {
 }
 
 function dateTime(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : 'Not recorded'
+  return value ? formatSiteCareDateTime(value) : 'Not recorded'
 }
 
 function statusTone(status: string): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
