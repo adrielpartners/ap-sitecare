@@ -74,13 +74,30 @@ async function revoke(id: string): Promise<void> {
             <p class="text-meta">Email verification protects sign-in and high-risk operations.</p>
           </AppCard>
         </div>
-        <div v-if="!session?.user.mfaEnrolled" class="stack section-gap">
-          <AppButton v-if="!enrollment" :loading="busy === 'mfa-enroll'" @click="beginMfa">Set up email MFA</AppButton>
+        <div v-if="!session?.user.mfaEnrolled" class="mfa-enrollment">
+          <div v-if="!enrollment" class="mfa-enrollment__action">
+            <AppButton :loading="busy === 'mfa-enroll'" @click="beginMfa">Set up email MFA</AppButton>
+          </div>
           <AppCard v-else muted>
-            <h3>Check your email</h3>
-            <p class="text-meta">We sent a six-digit verification code to {{ enrollment.destinationHint }}. It expires at {{ formatSiteCareDateTime(enrollment.expiresAt) }}.</p>
-            <label class="field"><span>Verification code</span><input v-model="verificationCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
-            <AppButton :loading="busy === 'mfa-verify'" @click="verifyMfa">Verify email and enable MFA</AppButton>
+            <div class="mfa-verification">
+              <div class="mfa-verification__header">
+                <h3>Check your email</h3>
+                <p class="text-meta">We sent a six-digit verification code to {{ enrollment.destinationHint }}. It expires at {{ formatSiteCareDateTime(enrollment.expiresAt) }}.</p>
+              </div>
+              <div class="mfa-verification__field">
+                <AppInput
+                  v-model="verificationCode"
+                  label="Verification code"
+                  name="mfa-verification-code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                />
+              </div>
+              <div class="mfa-verification__actions">
+                <AppButton :loading="busy === 'mfa-verify'" @click="verifyMfa">Verify email and enable MFA</AppButton>
+              </div>
+            </div>
           </AppCard>
           <p v-if="mfaError" class="text-danger" role="alert">{{ mfaError }}</p>
         </div>
@@ -122,3 +139,37 @@ async function revoke(id: string): Promise<void> {
     </div>
   </div>
 </template>
+
+<style scoped>
+.mfa-enrollment {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.mfa-enrollment__action,
+.mfa-verification__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.mfa-verification {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.mfa-verification__header {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.mfa-verification__header h3,
+.mfa-verification__header p {
+  margin-bottom: var(--space-0);
+}
+
+.mfa-verification__field {
+  max-width: 28rem;
+}
+</style>
