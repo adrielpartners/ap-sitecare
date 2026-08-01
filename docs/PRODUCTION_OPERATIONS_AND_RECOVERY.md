@@ -274,3 +274,49 @@ Findings and remaining gates:
   monitor during backup and image growth.
 - tablet, native screen-reader, full keyboard, Team Member, and separate Client
   isolation checks remain outstanding.
+
+### 2026-08-01 — Commit `4910dc7`
+
+Operator: Codex, authorized by the project owner.
+
+Corrective deployment and recovery point:
+
+- fast-forwarded production from `661c5c0` to `4910dc7`
+- built and restarted Dashboard, automation, backup, and email services with
+  production Compose; PostgreSQL did not require replacement
+- no schema migration was added; migration 14 remains current
+- preserved the server's existing untracked `db-backups/` and
+  `docker-compose.yml`
+- verified PostgreSQL dump
+  `/opt/sitecare-ops/postgres/sitecare-pre-4910dc7-20260801T171310Z.dump`
+- dump size: 218,119 bytes
+- dump SHA-256:
+  `0acbf15d55ad14ab73105d348c3a783cb2e26d1d73c96abd7be0349be099232b`
+- restricted configuration snapshot:
+  `/opt/sitecare-ops/config/sitecare-pre-4910dc7-20260801T171310Z.env`
+
+Passed live checks:
+
+- public `/api/health` returned HTTP 200 with PostgreSQL connected
+- Dashboard and PostgreSQL health checks passed; all five containers were
+  running with zero restarts
+- migration 14 remained current, the existing Admin remained present, and the
+  site count remained zero
+- Profile, Dashboard, Settings, and System Health rendered after fresh
+  navigation with no new browser warnings or errors, including no Nuxt
+  hydration-mismatch reports
+- System Health reported overall healthy, all workers and integrations healthy,
+  zero open uptime or TLS incidents, and Dropbox OAuth as configured
+- the Dropbox readiness check now accepts an enabled encrypted Dashboard-managed
+  OAuth refresh credential in PostgreSQL when the Dropbox application key and
+  secret are configured; it no longer requires a duplicate runtime refresh
+  token
+
+Remaining gates:
+
+- production Admin MFA remains explicitly deferred. Restore and central plugin
+  rollout execution remain blocked until MFA enrollment is approved.
+- complete Cloudflare Security Status collection still requires the read scopes
+  documented above and remains subject to Free-plan Health Check availability.
+- real-site and multi-role acceptance remains gated on registering the first
+  managed site and test users.
