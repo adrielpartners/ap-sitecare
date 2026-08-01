@@ -34,7 +34,9 @@ export class AuthenticationService {
     private readonly outbox?: {
       enqueue(messageType: string, idempotencyKey: string, message: { recipientEmail: string, subject: string, textContent: string, htmlContent: string }): Promise<unknown>
     },
-    private readonly appBaseUrl = 'http://localhost:3000'
+    private readonly appBaseUrl = 'http://localhost:3000',
+    private readonly sessionDays = 30,
+    private readonly idleHours = 72
   ) {}
 
   async bootstrapAdministrator(email: string, displayName: string, password: string): Promise<ApplicationUser> {
@@ -81,6 +83,11 @@ export class AuthenticationService {
   }
 
   async login(email: string, password: string, context: LoginContext): Promise<CreatedSession> {
+    const user = await this.verifyCredentials(email, password, context)
+    return this.createLoginSession(user, context)
+  }
+
+  async verifyCredentials(email: string, password: string, context: LoginContext): Promise<ApplicationUser> {
     const normalizedEmail = normalizeEmail(email)
     const repository = new IdentityRepository(this.database)
     const since = new Date(Date.now() - 15 * 60_000).toISOString()
@@ -99,10 +106,16 @@ export class AuthenticationService {
       throw authError(401, genericLoginError)
     }
 
+    return user
+  }
+
+  async createLoginSession(user: ApplicationUser, context: LoginContext): Promise<CreatedSession> {
+    const repository = new IdentityRepository(this.database)
     const now = new Date().toISOString()
     await repository.updateUser({ ...user, lastLoginAt: now, updatedAt: now })
-    const session = await new SessionService(repository).create(user.id, context.ipHash, context.userAgent)
-    await this.recordEvent('login.succeeded', user.id, normalizedEmail, context, {
+    const session = await new SessionService(repository, this.sessionDays, this.idleHours)
+      .create(user.id, context.ipHash, context.userAgent)
+    await this.recordEvent('login.succeeded', user.id, user.email, context, {
       sessionId: session.session.id
     })
     return session
@@ -264,6 +277,8 @@ export class AuthenticationService {
       await repository.updatePassword(reset.userId, passwordHash, now)
       await repository.usePasswordReset(reset.id, now)
       await repository.revokeUserSessions(reset.userId, now, 'password-reset')
+      await repository.revokeUserTrustedDevices(reset.userId, now, 'password-reset')
+      await repository.invalidateUserMfaChallenges(reset.userId, now)
       const user = await repository.findUserById(reset.userId)
       await repository.recordAuthenticationEvent({
         id: randomUUID(),

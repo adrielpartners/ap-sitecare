@@ -6,6 +6,15 @@ export interface RuntimeSettings {
     secureCookies: boolean
     eventHashKey: string
     sessionDays: number
+    idleHours: number
+    trustedDeviceDays: number
+    mfaChallengeMinutes: number
+  }
+  sms: {
+    provider: 'disabled' | 'twilio'
+    twilioAccountSid: string
+    twilioAuthToken: string
+    twilioFromNumber: string
   }
   sitecareBaseUrl: string
   email: {
@@ -65,7 +74,16 @@ function runtimeSettingsFromEnvironment(): RuntimeSettings {
     auth: {
       secureCookies: process.env.NUXT_AUTH_SECURE_COOKIES === 'true',
       eventHashKey: process.env.NUXT_AUTH_EVENT_HASH_KEY || '',
-      sessionDays: numberSetting(process.env.NUXT_AUTH_SESSION_DAYS, 30)
+      sessionDays: numberSetting(process.env.NUXT_AUTH_SESSION_DAYS, 30),
+      idleHours: numberSetting(process.env.NUXT_AUTH_IDLE_HOURS, 72),
+      trustedDeviceDays: numberSetting(process.env.NUXT_AUTH_TRUSTED_DEVICE_DAYS, 30),
+      mfaChallengeMinutes: numberSetting(process.env.NUXT_AUTH_MFA_CHALLENGE_MINUTES, 10)
+    },
+    sms: {
+      provider: process.env.NUXT_SMS_PROVIDER === 'twilio' ? 'twilio' : 'disabled',
+      twilioAccountSid: process.env.NUXT_SMS_TWILIO_ACCOUNT_SID || '',
+      twilioAuthToken: process.env.NUXT_SMS_TWILIO_AUTH_TOKEN || '',
+      twilioFromNumber: process.env.NUXT_SMS_TWILIO_FROM_NUMBER || ''
     },
     sitecareBaseUrl: process.env.NUXT_SITECARE_BASE_URL || 'http://localhost:3000',
     email: {

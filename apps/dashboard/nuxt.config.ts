@@ -21,7 +21,16 @@ export default defineNuxtConfig({
     auth: {
       secureCookies: false,
       eventHashKey: '',
-      sessionDays: 30
+      sessionDays: 30,
+      idleHours: 72,
+      trustedDeviceDays: 30,
+      mfaChallengeMinutes: 10
+    },
+    sms: {
+      provider: 'disabled',
+      twilioAccountSid: '',
+      twilioAuthToken: '',
+      twilioFromNumber: ''
     },
     sitecareBaseUrl: 'http://localhost:3000',
     email: {

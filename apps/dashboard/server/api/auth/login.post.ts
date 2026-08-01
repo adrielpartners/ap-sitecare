@@ -1,28 +1,27 @@
-import { getLoginContext, setAuthenticationCookies } from '../../auth/http'
+import { getCookie } from 'h3'
+import { getLoginContext, setAuthenticationCookies, TRUSTED_DEVICE_COOKIE } from '../../auth/http'
 import { getAuthenticationService } from '../../utils/auth-services'
-import { IdentityRepository } from '../../repositories/identity-repository'
-import { MfaService } from '../../services/mfa-service'
-import { SessionService } from '../../services/session-service'
-import { getRuntimeSettings } from '../../utils/config'
+import { getMfaService } from '../../utils/mfa'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Record<string, unknown>>(event)
   if (typeof body.email !== 'string' || typeof body.password !== 'string') {
     throw createError({ statusCode: 400, statusMessage: 'Email and password are required.' })
   }
-  const session = await getAuthenticationService(event).login(body.email, body.password, getLoginContext(event))
-  const repository = new IdentityRepository()
-  const user = await repository.findUserById(session.session.userId)
-  if (user?.mfaRequired && user.mfaEnrolledAt) {
-    try {
-      if (typeof body.mfaCode !== 'string' || !body.mfaCode.trim()) throw new Error('Authenticator code is required.')
-      await new MfaService(getRuntimeSettings(event).credentialEncryptionKey).verifyStepUp(user.id, body.mfaCode)
-    } catch {
-      await new SessionService(repository).revoke(session.session.id, 'system:mfa-login-gate')
-      throw createError({ statusCode: 401, statusMessage: 'The email, password, or authenticator code is incorrect.' })
+  const context = getLoginContext(event)
+  const authentication = getAuthenticationService(event)
+  const user = await authentication.verifyCredentials(body.email, body.password, context)
+  const mfa = getMfaService(event)
+  if (user.mfaRequired && user.mfaEnrolledAt) {
+    const trusted = await mfa.verifyTrustedDevice(user.id, getCookie(event, TRUSTED_DEVICE_COOKIE))
+    if (!trusted) {
+      const challenge = await mfa.issueLoginChallenge(user.id, user.email, context)
+      setResponseHeader(event, 'cache-control', 'no-store')
+      return { ok: true, status: 'mfa-required' as const, data: challenge }
     }
   }
+  const session = await authentication.createLoginSession(user, context)
   setAuthenticationCookies(event, session)
   setResponseHeader(event, 'cache-control', 'no-store')
-  return { ok: true }
+  return { ok: true, status: 'authenticated' as const }
 })

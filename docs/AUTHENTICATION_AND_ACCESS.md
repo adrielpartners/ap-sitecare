@@ -1,6 +1,6 @@
 # SiteCare Authentication and Access
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 The SiteCare Dashboard owns human authentication. Cloudflare continues to
 provide proxying, TLS, WAF, rate limiting, and origin protection, but
@@ -32,6 +32,9 @@ NUXT_SITECARE_BASE_URL=https://sitecare.adrielpartners.com
 NUXT_AUTH_SECURE_COOKIES=true
 NUXT_AUTH_EVENT_HASH_KEY=<long random secret>
 NUXT_AUTH_SESSION_DAYS=30
+NUXT_AUTH_IDLE_HOURS=72
+NUXT_AUTH_TRUSTED_DEVICE_DAYS=30
+NUXT_AUTH_MFA_CHALLENGE_MINUTES=10
 NUXT_EMAIL_PROVIDER=brevo
 NUXT_EMAIL_BREVO_API_KEY=<Brevo API key>
 NUXT_EMAIL_FROM_ADDRESS=<verified sender>
@@ -72,14 +75,16 @@ Disabling an account immediately revokes its active sessions.
 - Passwords are hashed with salted scrypt using `N=131072`, `r=8`, and `p=1`.
 - Session and CSRF tokens contain 256 random bits and are stored only as
   SHA-256 hashes.
-- Sessions last 30 days and renew after active use while remaining immediately
-  revocable.
+- Sessions have a 30-day renewable absolute expiry and end after 72 hours of
+  inactivity. Active use refreshes the server-side activity timestamp at a
+  bounded interval, and every session remains immediately revocable.
 - Session cookies are HttpOnly, Secure in production, SameSite Strict, and
   never stored in browser local storage.
 - Unsafe API requests require the readable CSRF cookie value in the
   `X-SiteCare-CSRF` header and verify it against the server-side session.
 - Password reset links last one hour; invitation links last seven days.
-- Completing a password reset revokes all existing sessions.
+- Completing a password reset revokes all existing sessions, remembered
+  devices, and outstanding MFA challenges.
 - Five failed sign-ins within 15 minutes trigger a temporary rate limit by
   hashed email/network evidence. User-facing failures do not reveal whether an
   account exists.
@@ -89,18 +94,36 @@ Disabling an account immediately revokes its active sessions.
 
 ## MFA boundary
 
-MFA-required accounts enroll a standard six-digit TOTP authenticator from
-**Profile & sessions** and receive eight one-time recovery codes. Recovery-code
-hashes and the encrypted TOTP secret are stored in PostgreSQL; codes are shown
-once and consumed once. After enrollment, MFA-required users must provide an
-authenticator or recovery code at login. Central plugin rollout approval also
-requires a fresh Admin step-up and remains disabled before enrollment.
+MFA-required accounts enroll email verification from **Profile & sessions**.
+The Dashboard creates a six-digit, ten-minute, single-use challenge, stores
+only keyed hashes of the code and opaque challenge token, and queues delivery
+through the transactional Brevo email outbox. Five invalid attempts invalidate
+the challenge. New challenges also invalidate older unused challenges for the
+same purpose.
+
+After a successful email challenge, a user may remember that browser for 30
+days. The remembered-device token is opaque, HttpOnly, Secure in production,
+stored only as a server-side SHA-256 hash, and individually revocable from the
+profile. Remembering a device skips the email step only; it does not bypass the
+password and does not prevent the 72-hour inactive session logout. High-risk
+plugin rollout approval always requires a fresh email challenge even on a
+remembered device.
+
+Eight one-time recovery codes are still shown after enrollment for operational
+recovery, but routine sign-in and step-up use email. Legacy TOTP factors are
+disabled by migration 15.
 
 The first bootstrapped Admin may sign in before enrollment solely to complete
 setup. Enroll immediately and store the recovery codes in the password manager.
 There is intentionally no self-service MFA reset; recovery after losing every
-factor is an explicit database/administrator incident guided by the production
+email account and every recovery path is an explicit administrator incident guided by the production
 recovery runbook.
+
+The MFA channel model permits `email` and a future `sms` channel. A provider
+interface, disabled adapter, Twilio configuration shape, and schema fields are
+present, but SMS cannot send and must remain configured as
+`NUXT_SMS_PROVIDER=disabled` until a separate Twilio implementation and
+security review are approved.
 
 ## Deployment cutover
 
@@ -108,7 +131,8 @@ recovery runbook.
 2. Run PostgreSQL migrations through application startup.
 3. Bootstrap the first Admin.
 4. Start the Dashboard, `email-worker`, and `automation-worker`.
-5. Sign in and invite each Team Member through **Users**.
+5. Sign in, enroll email MFA, remember the current device if desired, and
+   invite each Team Member through **Users**.
 6. Create client accounts, assign sites, and only then invite Client users.
 7. Test invitation and reset delivery with the configured Brevo sender.
 8. Configure Brevo transactional webhooks to

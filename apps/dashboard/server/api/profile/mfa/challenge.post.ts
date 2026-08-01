@@ -8,7 +8,11 @@ export default defineEventHandler(async (event) => {
     const identity = requireAccessIdentity(event)
     return {
       ok: true,
-      data: await getMfaService(event).beginEnrollment(identity.userId, identity.email, getLoginContext(event))
+      data: await getMfaService(event).issueStepUpChallenge(
+        identity.userId,
+        identity.email,
+        getLoginContext(event)
+      )
     }
   } catch (error) {
     handleApiError(error)

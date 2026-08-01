@@ -118,7 +118,11 @@ export class PluginRolloutService {
     return this.get(id)
   }
 
-  async confirm(id: string, actor: { userId: string, email: string }, mfaCode: string) {
+  async confirm(
+    id: string,
+    actor: { userId: string, email: string },
+    verification: { challengeToken: string, code: string }
+  ) {
     const detail = await this.get(id)
     if (detail.rollout.status !== 'draft') throw new Error('The rollout is no longer awaiting confirmation.')
     const selected = detail.targets.filter(target => target.selected)
@@ -131,9 +135,10 @@ export class PluginRolloutService {
         throw new Error(`Recovery evidence expired for site ${target.siteId}. Rediscover targets after recording current evidence.`)
       }
     }
-    await new MfaService(this.settings.credentialEncryptionKey, this.database, this.audit).verifyStepUp(actor.userId, mfaCode)
+    await new MfaService(this.settings.credentialEncryptionKey, this.database, this.audit)
+      .verifyStepUp(actor.userId, verification.challengeToken, verification.code)
     if (!detail.rollout.actionRequestId) throw new Error('The rollout does not have an Action Request.')
-    await this.actionRequests().review(detail.rollout.actionRequestId, 'approved', actor.email, 'Approved with administrator MFA step-up for canary rollout.')
+    await this.actionRequests().review(detail.rollout.actionRequestId, 'approved', actor.email, 'Approved with administrator email MFA step-up for canary rollout.')
     const at = new Date().toISOString()
     const prepared = await this.repository.prepareBatches(id, detail.rollout.canarySize, at)
     await this.repository.approveRollout(id, actor.email, at)

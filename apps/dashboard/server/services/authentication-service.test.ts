@@ -50,7 +50,7 @@ after(async () => {
   await destroyTestDatabase(database)
 })
 
-test('bootstraps exactly one administrator and creates a revocable 30-day session', async () => {
+test('bootstraps one administrator and creates revocable sessions with a 72-hour idle limit', async () => {
   const admin = await service.bootstrapAdministrator('OWNER@EXAMPLE.COM', 'Owner', 'correct horse battery')
   assert.equal(admin.email, 'owner@example.com')
   assert.equal(admin.mfaRequired, true)
@@ -70,6 +70,15 @@ test('bootstraps exactly one administrator and creates a revocable 30-day sessio
   assert.equal(hasPermission(identity!, 'identity:manage'), true)
   assert.equal(verifyCsrfToken(created.csrfToken, created.csrfToken, created.session.csrfTokenHash), true)
   assert.equal(verifyCsrfToken(created.csrfToken, 'wrong', created.session.csrfTokenHash), false)
+
+  const idleSession = await service.login('owner@example.com', 'correct horse battery', {
+    ipHash: 'ip', userAgent: 'idle-browser'
+  })
+  await database.query(
+    'UPDATE auth_sessions SET last_seen_at = $2 WHERE id = $1',
+    [idleSession.session.id, new Date(Date.now() - 73 * 60 * 60_000).toISOString()]
+  )
+  assert.equal(await new SessionService(repository, 30, 72).resolve(idleSession.sessionToken), null)
 
   assert.equal(await new SessionService(repository).revoke(created.session.id, admin.id), true)
   assert.equal(await new SessionService(repository).resolve(created.sessionToken), null)

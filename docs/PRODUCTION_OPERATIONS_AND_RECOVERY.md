@@ -130,7 +130,7 @@ Never run `--clean` against the active production database.
 
 ## Emergency MFA recovery
 
-If a user loses both the authenticator and every recovery code, verify identity
+If a user loses access to the account email and every recovery path, verify identity
 out of band, create a PostgreSQL dump, and run the explicit recovery command:
 
 ```bash
@@ -139,7 +139,8 @@ export SITECARE_MFA_RESET_REASON='Identity verified by two administrators on YYY
 npm run reset-user-mfa
 ```
 
-This disables the factor, revokes every session, and writes an audit event. The
+This disables the factor, invalidates outstanding challenges, revokes every
+session and remembered device, and writes an audit event. The
 user signs in with the existing password and must enroll MFA again immediately.
 Never clear MFA with an ad hoc SQL update.
 
@@ -147,7 +148,7 @@ Never clear MFA with an ad hoc SQL update.
 
 `NUXT_CREDENTIAL_ENCRYPTION_KEY` is required to decrypt WordPress credentials,
 backup-source credentials, destination credentials, email provider secrets,
-and TOTP seeds. Loss of this key cannot be repaired from PostgreSQL. Keep an
+and MFA challenge hashes/future destinations. Loss of this key cannot be repaired from PostgreSQL. Keep an
 encrypted copy in two approved administrative locations.
 
 Rotate only after a successful PostgreSQL dump and while Dashboard/workers are

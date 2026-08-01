@@ -377,6 +377,22 @@ export class IdentityRepository {
     `, [userId, revokedAt, revokedBy])
   }
 
+  async revokeUserTrustedDevices(userId: string, revokedAt: string, revokedBy: string): Promise<void> {
+    await this.database.query(`
+      UPDATE mfa_trusted_devices
+      SET revoked_at = $2, revoked_by = $3
+      WHERE user_id = $1 AND revoked_at IS NULL
+    `, [userId, revokedAt, revokedBy])
+  }
+
+  async invalidateUserMfaChallenges(userId: string, invalidatedAt: string): Promise<void> {
+    await this.database.query(`
+      UPDATE mfa_challenges
+      SET invalidated_at = $2
+      WHERE user_id = $1 AND used_at IS NULL AND invalidated_at IS NULL
+    `, [userId, invalidatedAt])
+  }
+
   async createInvitation(invitation: StoredInvitation): Promise<Invitation> {
     await this.database.query(`
       INSERT INTO invitations (

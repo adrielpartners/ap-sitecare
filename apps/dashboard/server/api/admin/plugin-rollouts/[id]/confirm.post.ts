@@ -7,7 +7,16 @@ export default defineEventHandler(async (event) => {
     const id = getRouterParam(event, 'id')
     const identity = requireAccessIdentity(event)
     const body = await readBody<Record<string, unknown>>(event)
-    if (!id || typeof body.mfaCode !== 'string') throw new Error('Rollout ID and MFA code are required.')
-    return { ok: true, data: await getPluginRolloutService(event).confirm(id, { userId: identity.userId, email: identity.email }, body.mfaCode) }
+    if (!id || typeof body.challengeToken !== 'string' || typeof body.code !== 'string') {
+      throw new Error('Rollout ID, email challenge, and verification code are required.')
+    }
+    return {
+      ok: true,
+      data: await getPluginRolloutService(event).confirm(
+        id,
+        { userId: identity.userId, email: identity.email },
+        { challengeToken: body.challengeToken, code: body.code }
+      )
+    }
   } catch (error) { handleApiError(error) }
 })

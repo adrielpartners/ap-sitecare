@@ -1,9 +1,9 @@
 # AP_SITECARE_DECISIONS.md
 
-Version: 2.1
+Version: 2.2
 Project: AP SiteCare
 Repository: `ap-sitecare`
-Last Updated: 2026-07-31
+Last Updated: 2026-08-01
 
 ---
 
@@ -40,6 +40,8 @@ One decisions:
   exists.
 - Decision 037 does not grant execution access to agents or MCP; Decision 019
   remains in force.
+- Decision 047 supersedes the TOTP and 30-day-only session details in Decisions
+  030, 044, and 046 while preserving their MFA and high-risk approval gates.
 
 The active implementation sequence and current completion status are defined
 in `AP_SITECARE_IMPLEMENTATION_PLAN.md`.
@@ -251,6 +253,57 @@ leaving another operator or agent an exact checklist.
 ## Reversibility
 
 Low.
+
+---
+
+# Decision 047: Use email MFA, 30-day remembered devices, and a 72-hour inactivity limit
+
+## Decision
+
+Email is the operational MFA channel. MFA challenges use six-digit codes with
+a ten-minute expiry, five-attempt limit, one-time consumption, and hashed
+server-side storage. Login requires a password and, after enrollment, an email
+challenge unless the browser presents a valid remembered-device token.
+Remembered devices last 30 days, use opaque HttpOnly cookies with only token
+hashes stored in PostgreSQL, and are individually revocable.
+
+Dashboard sessions end after 72 hours without activity. Active sessions retain
+the existing renewable 30-day expiry. Remembering a device does not extend the
+session or bypass the password; it only skips routine email MFA during its
+validity. High-risk operations always require a fresh email challenge.
+
+The factor and delivery contracts include a future SMS channel. A disabled SMS
+provider and Twilio configuration boundary are present, but no SMS is sent and
+Twilio is not an operational dependency until separately approved.
+
+Migration 15 disables legacy TOTP factors and requires email re-enrollment.
+Password reset and emergency MFA reset revoke sessions, remembered devices,
+and outstanding challenges.
+
+## Rationale
+
+Email meets the preferred convenience and recovery model without recurring
+authenticator management. A long remembered-device window makes routine access
+fast, while server-side revocation, a 72-hour inactive-session boundary, and
+fresh step-up protect high-risk centralized operations.
+
+## Tradeoffs
+
+- Account-email availability and Brevo delivery become part of interactive
+  sign-in reliability.
+- A compromised email account can satisfy the second factor.
+- Remembered devices increase the importance of password security and device
+  control, although they remain revocable and cannot bypass the password.
+- SMS requires provider credentials, phone-number lifecycle design, abuse
+  controls, and a separate security review before activation.
+
+## Date Adopted
+
+2026-08-01
+
+## Reversibility
+
+Moderate.
 
 ---
 

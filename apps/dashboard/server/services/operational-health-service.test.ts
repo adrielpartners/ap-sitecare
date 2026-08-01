@@ -6,7 +6,13 @@ import { OperationalHealthService } from './operational-health-service'
 
 function settings(): RuntimeSettings {
   return {
-    auth: { secureCookies: true, eventHashKey: 'event-key', sessionDays: 30 },
+    auth: {
+      secureCookies: true, eventHashKey: 'event-key', sessionDays: 30,
+      idleHours: 72, trustedDeviceDays: 30, mfaChallengeMinutes: 10
+    },
+    sms: {
+      provider: 'disabled', twilioAccountSid: '', twilioAuthToken: '', twilioFromNumber: ''
+    },
     sitecareBaseUrl: 'https://sitecare.example.com',
     email: {
       provider: 'brevo', brevoApiKey: 'brevo-key', fromAddress: 'sitecare@example.com',

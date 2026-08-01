@@ -3,9 +3,11 @@ useHead({ title: 'Profile and sessions' })
 const api = useSiteCareApi()
 const { data: session, refresh: refreshSession } = await useFetch('/api/session')
 const { data: response, refresh } = await useFetch('/api/profile/sessions')
+const { data: trustedResponse, refresh: refreshTrusted } = await useFetch('/api/profile/trusted-devices')
 const sessions = computed(() => response.value?.data ?? [])
+const trustedDevices = computed(() => trustedResponse.value?.data ?? [])
 const busy = ref('')
-const enrollment = ref<{ secret: string, otpauthUri: string } | null>(null)
+const enrollment = ref<{ challengeToken: string, destinationHint: string, expiresAt: string } | null>(null)
 const verificationCode = ref('')
 const recoveryCodes = ref<string[]>([])
 const mfaError = ref('')
@@ -14,7 +16,7 @@ async function beginMfa(): Promise<void> {
   busy.value = 'mfa-enroll'
   mfaError.value = ''
   try {
-    const response = await api<{ data: { secret: string, otpauthUri: string } }>('/api/profile/mfa/enroll', { method: 'POST' })
+    const response = await api<{ data: { challengeToken: string, destinationHint: string, expiresAt: string } }>('/api/profile/mfa/enroll', { method: 'POST' })
     enrollment.value = response.data
   } catch (error) {
     mfaError.value = error instanceof Error ? error.message : 'MFA enrollment could not be started.'
@@ -25,14 +27,25 @@ async function verifyMfa(): Promise<void> {
   busy.value = 'mfa-verify'
   mfaError.value = ''
   try {
-    const response = await api<{ data: { recoveryCodes: string[] } }>('/api/profile/mfa/verify', { method: 'POST', body: { code: verificationCode.value } })
+    const response = await api<{ data: { recoveryCodes: string[] } }>('/api/profile/mfa/verify', {
+      method: 'POST',
+      body: { challengeToken: enrollment.value?.challengeToken, code: verificationCode.value, rememberDevice: true }
+    })
     recoveryCodes.value = response.data.recoveryCodes
     enrollment.value = null
     verificationCode.value = ''
     await refreshSession()
+    await refreshTrusted()
   } catch (error) {
     mfaError.value = error instanceof Error ? error.message : 'MFA verification failed.'
   } finally { busy.value = '' }
+}
+
+async function revokeTrusted(id: string): Promise<void> {
+  busy.value = `trusted-${id}`
+  await api(`/api/profile/trusted-devices/${id}`, { method: 'DELETE' })
+  await refreshTrusted()
+  busy.value = ''
 }
 
 async function revoke(id: string): Promise<void> {
@@ -58,17 +71,16 @@ async function revoke(id: string): Promise<void> {
           <AppCard muted><strong>{{ session?.user.role }}</strong><p class="text-meta">Application role</p></AppCard>
           <AppCard :tone="session?.user.mfaEnrolled ? 'success' : 'warning'">
             <strong>{{ session?.user.mfaEnrolled ? 'MFA enrolled' : 'MFA not enrolled' }}</strong>
-            <p class="text-meta">MFA enrollment is prepared; enforcement precedes high-risk update and restore execution.</p>
+            <p class="text-meta">Email verification protects sign-in and high-risk operations.</p>
           </AppCard>
         </div>
         <div v-if="!session?.user.mfaEnrolled" class="stack section-gap">
-          <AppButton v-if="!enrollment" :loading="busy === 'mfa-enroll'" @click="beginMfa">Set up authenticator</AppButton>
+          <AppButton v-if="!enrollment" :loading="busy === 'mfa-enroll'" @click="beginMfa">Set up email MFA</AppButton>
           <AppCard v-else muted>
-            <h3>Connect your authenticator</h3>
-            <p class="text-meta">Add this TOTP secret to 1Password, Authy, Google Authenticator, or another authenticator. Then enter its six-digit code.</p>
-            <p><code>{{ enrollment.secret }}</code></p>
+            <h3>Check your email</h3>
+            <p class="text-meta">We sent a six-digit verification code to {{ enrollment.destinationHint }}. It expires at {{ formatSiteCareDateTime(enrollment.expiresAt) }}.</p>
             <label class="field"><span>Verification code</span><input v-model="verificationCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
-            <AppButton :loading="busy === 'mfa-verify'" @click="verifyMfa">Verify and enable MFA</AppButton>
+            <AppButton :loading="busy === 'mfa-verify'" @click="verifyMfa">Verify email and enable MFA</AppButton>
           </AppCard>
           <p v-if="mfaError" class="text-danger" role="alert">{{ mfaError }}</p>
         </div>
@@ -78,7 +90,22 @@ async function revoke(id: string): Promise<void> {
           <pre>{{ recoveryCodes.join('\n') }}</pre>
         </AppCard>
       </AppPanel>
-      <AppPanel title="Active sessions" description="Sessions renew for 30 days while active and can be revoked immediately.">
+      <AppPanel title="Remembered devices" description="Remembered devices can skip email verification for 30 days. Password sign-in is still required after logout.">
+        <div class="stack">
+          <AppCard v-for="item in trustedDevices" :key="item.id" muted>
+            <div class="cluster cluster--between">
+              <div>
+                <strong>Remembered browser</strong>
+                <p class="text-meta">{{ item.userAgent || 'Unknown browser' }}</p>
+                <p class="text-meta">Expires {{ formatSiteCareDateTime(item.expiresAt) }}</p>
+              </div>
+              <AppButton variant="secondary" :loading="busy === `trusted-${item.id}`" @click="revokeTrusted(item.id)">Forget</AppButton>
+            </div>
+          </AppCard>
+          <AppEmptyState v-if="!trustedDevices.length" title="No remembered devices" description="A device can be remembered after email verification." />
+        </div>
+      </AppPanel>
+      <AppPanel title="Active sessions" description="Sessions end after 72 hours without activity and can be revoked immediately.">
         <div class="stack">
           <AppCard v-for="item in sessions" :key="item.id" muted>
             <div class="cluster cluster--between">

@@ -18,7 +18,8 @@ const columns = [
   { table: 'backup_destinations', id: 'id', column: 'credential_ciphertext' },
   { table: 'email_provider_configurations', id: 'provider', column: 'api_key_ciphertext' },
   { table: 'email_provider_configurations', id: 'provider', column: 'webhook_token_ciphertext' },
-  { table: 'user_mfa_factors', id: 'id', column: 'secret_ciphertext' }
+  { table: 'user_mfa_factors', id: 'id', column: 'secret_ciphertext' },
+  { table: 'user_mfa_factors', id: 'id', column: 'destination_ciphertext' }
 ] as const
 
 try {

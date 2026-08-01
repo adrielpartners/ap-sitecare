@@ -1,10 +1,10 @@
 # AP_SITECARE_ARCHITECTURE.md
 
-Version: 2.4
+Version: 2.5
 Project: AP SiteCare
 Repository: `ap-sitecare`
 System Type: Internal and Client Operations Platform + WordPress Site Connector
-Last Updated: 2026-07-31
+Last Updated: 2026-08-01
 
 ---
 
@@ -188,13 +188,13 @@ and controlled centralized plugin updates are now approved for later phases.
 ## Authentication
 
 - application-owned email/password accounts
-- revocable 30-day renewable sessions
+- revocable sessions with a 72-hour inactivity limit and 30-day renewable cap
 - Admin, Team Member, and Client roles
 - optional site restrictions for Team Members
 - client-account and site-level authorization
 - durable invitation and password recovery emails through Brevo
-- optional MFA foundation, with Admin MFA required before later high-risk
-  update or restore execution
+- email MFA with 30-day remembered devices and fresh Admin email step-up before
+  high-risk update or restore execution
 
 Plugin:
 
@@ -429,8 +429,9 @@ test. It is not used by the application runtime.
 
 The Dashboard authenticates humans with application-owned email/password
 accounts. Cloudflare identity headers are ignored. Random, meaningless session
-tokens are stored only as SHA-256 hashes, expire after 30 days, renew while
-active, and can be revoked per browser or per account. Unsafe API requests
+tokens are stored only as SHA-256 hashes, end after 72 hours without activity,
+have a renewable 30-day cap, and can be revoked per browser or per account.
+Unsafe API requests
 also require a CSRF token that matches the session record.
 
 Cloudflare continues proxying and protecting the domain without requiring a
@@ -1597,8 +1598,10 @@ Admin-only aggregate for schema version, failed and stale work, provider
 degradation, active incidents, and configuration presence without returning
 secret values.
 
-MFA-required accounts must provide TOTP or a one-time recovery code at login
-after enrollment. High-risk plugin approval always performs a fresh step-up.
+MFA-required accounts receive a short-lived email code at login after
+enrollment unless the browser has a valid 30-day remembered-device token.
+High-risk plugin approval always performs a fresh email step-up. SMS has only a
+disabled provider-neutral boundary and future Twilio configuration shape.
 Credential encryption covers connector, hosting, destination, email, and MFA
 secrets; the transactional rotation CLI re-encrypts all supported ciphertext
 columns and verifies each result before commit.

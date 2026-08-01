@@ -11,6 +11,7 @@ const busy = ref('')
 const errorMessage = ref('')
 const selectedRollout = ref<any>(null)
 const mfaCode = ref('')
+const mfaChallenge = ref<{ challengeToken: string, destinationHint: string, expiresAt: string } | null>(null)
 const evidence = reactive({ siteId: '', backupReference: '', backupCompletedAt: '', validUntil: '', notes: '' })
 
 async function upload(): Promise<void> {
@@ -57,9 +58,24 @@ async function saveSelection(): Promise<void> {
 async function confirmRollout(): Promise<void> {
   busy.value = 'confirm'; errorMessage.value = ''
   try {
-    selectedRollout.value = (await api<any>(`/api/admin/plugin-rollouts/${selectedRollout.value.rollout.id}/confirm`, { method: 'POST', body: { mfaCode: mfaCode.value } })).data
+    if (!mfaChallenge.value) throw new Error('Request an email verification code first.')
+    selectedRollout.value = (await api<any>(`/api/admin/plugin-rollouts/${selectedRollout.value.rollout.id}/confirm`, {
+      method: 'POST',
+      body: { challengeToken: mfaChallenge.value.challengeToken, code: mfaCode.value }
+    })).data
     mfaCode.value = ''
+    mfaChallenge.value = null
     await refreshRollouts()
+  } catch (error) { errorMessage.value = message(error) }
+  finally { busy.value = '' }
+}
+
+async function requestMfaCode(): Promise<void> {
+  busy.value = 'mfa-code'; errorMessage.value = ''
+  try {
+    mfaChallenge.value = (await api<{ data: { challengeToken: string, destinationHint: string, expiresAt: string } }>(
+      '/api/profile/mfa/challenge', { method: 'POST' }
+    )).data
   } catch (error) { errorMessage.value = message(error) }
   finally { busy.value = '' }
 }
@@ -142,8 +158,9 @@ function tone(status: string): 'success' | 'warning' | 'danger' | 'neutral' { re
         </tbody></table></div>
         <div v-if="selectedRollout.rollout.status === 'draft'" class="cluster section-gap">
           <AppButton variant="secondary" :loading="busy === 'selection'" @click="saveSelection">Save selection</AppButton>
-          <label class="field field--compact"><span>Administrator MFA code</span><input v-model="mfaCode" inputmode="numeric" autocomplete="one-time-code"></label>
-          <AppButton :loading="busy === 'confirm'" @click="confirmRollout">Confirm and run canary</AppButton>
+          <AppButton variant="secondary" :loading="busy === 'mfa-code'" @click="requestMfaCode">Email verification code</AppButton>
+          <label v-if="mfaChallenge" class="field field--compact"><span>Email or recovery code</span><input v-model="mfaCode" maxlength="32" autocomplete="one-time-code" :placeholder="`Sent to ${mfaChallenge.destinationHint}`"></label>
+          <AppButton :disabled="!mfaChallenge || mfaCode.length < 6" :loading="busy === 'confirm'" @click="confirmRollout">Confirm and run canary</AppButton>
         </div>
         <AppCard v-if="selectedRollout.rollout.status === 'draft' && selectedRollout.targets.some((target: any) => target.category === 'recovery-required')" muted class="section-gap">
           <h3>Record technician-confirmed Hostinger recovery evidence</h3>

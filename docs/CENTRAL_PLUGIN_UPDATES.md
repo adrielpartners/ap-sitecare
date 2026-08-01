@@ -24,7 +24,7 @@ version of the same plugin.
 - SiteCare Pro uses a verified SiteCare backup no older than 35 days. Core and
   Plus require technician-confirmed Hostinger backup evidence with an explicit
   validity date that cannot outlive Hostinger's 30-day retention window.
-- The Action Request and Admin TOTP step-up must both succeed before any job is
+- The Action Request and fresh Admin email-MFA step-up must both succeed before any job is
   queued.
 - The canary batch runs first. The failure threshold cannot exceed the canary
   size; reaching it pauses the rollout, and only failed targets can be retried.
@@ -36,7 +36,7 @@ version of the same plugin.
 
 1. Install AP SiteCare 0.5.0 manually on managed sites and let each site report
    contract version 4.
-2. Enroll an authenticator under **Profile & sessions**. Save the one-time
+2. Enroll email MFA under **Profile & sessions**. Save the one-time
    recovery codes in the password manager.
 3. Open **Central Updates** and upload the vendor ZIP with a provenance note.
 4. Select **Discover targets**. Review every category and dry-run message.
@@ -44,7 +44,7 @@ version of the same plugin.
    Hostinger backup and record its reference, completion time, validity, and
    notes. Rediscover targets.
 6. Deselect any site that should not participate, then save the selection.
-7. Enter the Admin authenticator code and confirm the canary.
+7. Request the Admin email verification code, enter it, and confirm the canary.
 8. Watch the rollout and Automation views. The remaining batch releases only
    after the canary succeeds below the configured halt threshold.
 9. Retry only a failed target after investigating it and confirming that its

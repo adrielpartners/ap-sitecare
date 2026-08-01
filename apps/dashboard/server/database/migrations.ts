@@ -1751,6 +1751,78 @@ const migrations: Migration[] = [
         ON plugin_package_download_tokens(expires_at ASC)
         WHERE used_at IS NULL;
     `
+  },
+  {
+    id: 15,
+    name: 'replace_totp_with_email_mfa_and_trusted_devices',
+    sql: `
+      ALTER TABLE user_mfa_factors
+        DROP CONSTRAINT user_mfa_factors_factor_type_check;
+      ALTER TABLE user_mfa_factors
+        ADD CONSTRAINT user_mfa_factors_factor_type_check
+        CHECK (factor_type IN ('totp', 'email', 'sms'));
+      ALTER TABLE user_mfa_factors
+        ALTER COLUMN secret_ciphertext DROP NOT NULL;
+      ALTER TABLE user_mfa_factors
+        ADD COLUMN destination_ciphertext TEXT;
+
+      UPDATE user_mfa_factors
+      SET disabled_at = COALESCE(disabled_at, CURRENT_TIMESTAMP)
+      WHERE factor_type = 'totp';
+
+      UPDATE users user_record
+      SET mfa_enrolled_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE mfa_enrolled_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM user_mfa_factors factor
+          WHERE factor.user_id = user_record.id
+            AND factor.factor_type = 'email'
+            AND factor.verified_at IS NOT NULL
+            AND factor.disabled_at IS NULL
+        );
+
+      CREATE TABLE mfa_challenges (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        purpose TEXT NOT NULL CHECK (purpose IN ('enrollment', 'login', 'step-up')),
+        channel TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
+        challenge_token_hash TEXT NOT NULL UNIQUE,
+        code_hash TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+        maximum_attempts INTEGER NOT NULL DEFAULT 5 CHECK (maximum_attempts BETWEEN 1 AND 20),
+        ip_hash TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        invalidated_at TIMESTAMPTZ,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX mfa_challenges_user_created
+        ON mfa_challenges(user_id, purpose, created_at DESC);
+      CREATE INDEX mfa_challenges_expiry
+        ON mfa_challenges(expires_at ASC)
+        WHERE used_at IS NULL AND invalidated_at IS NULL;
+
+      CREATE TABLE mfa_trusted_devices (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        last_used_at TIMESTAMPTZ NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        revoked_at TIMESTAMPTZ,
+        revoked_by TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX mfa_trusted_devices_user_active
+        ON mfa_trusted_devices(user_id, expires_at DESC)
+        WHERE revoked_at IS NULL;
+    `
   }
 ]
 

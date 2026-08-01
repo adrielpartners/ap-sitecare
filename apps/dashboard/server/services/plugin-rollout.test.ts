@@ -8,7 +8,7 @@ import { PluginUpdateRepository } from '../repositories/plugin-update-repository
 import { SiteRepository } from '../repositories/site-repository'
 import { createTestDatabase, destroyTestDatabase } from '../testing/postgres-test-database'
 import { AuditService } from './audit-service'
-import { generateTotp, MfaService, verifyTotp } from './mfa-service'
+import { MfaService } from './mfa-service'
 import { inspectPluginArchive, validateArchivePath } from './plugin-package-service'
 import { compareVersions } from './plugin-rollout-service'
 import { SiteService } from './site-service'
@@ -45,15 +45,6 @@ test('version comparison handles normal WordPress release sequences', () => {
   assert.equal(compareVersions('2.0.0', '2.0.0'), 0)
   assert.equal(compareVersions('2.0.1', '2.0.0'), 1)
   assert.equal(compareVersions('2.0.0-beta', '2.0.0'), -1)
-})
-
-test('TOTP verification permits the current window and rejects unrelated codes', () => {
-  const secret = 'JBSWY3DPEHPK3PXP'
-  const at = Date.UTC(2026, 6, 31, 12, 0, 0)
-  const code = generateTotp(secret, at)
-  assert.match(code, /^\d{6}$/)
-  assert.equal(verifyTotp(secret, code, at), true)
-  assert.equal(verifyTotp(secret, code === '000000' ? '111111' : '000000', at), false)
 })
 
 test('rollout persistence deduplicates packages, assigns a canary, and consumes download claims once', async () => {
@@ -109,12 +100,37 @@ test('rollout persistence deduplicates packages, assigns a canary, and consumes 
       status: 'active', mfaRequired: true, mfaEnrolledAt: null, lastLoginAt: null,
       createdAt: at, updatedAt: at, disabledAt: null
     }, 'test-password-hash')
-    const mfa = new MfaService('test-encryption-key', database, audit)
+    const sent: string[] = []
+    const outbox = {
+      async enqueue(_type: string, _key: string, message: { textContent: string }) {
+        sent.push(message.textContent)
+      }
+    }
+    const mfa = new MfaService('test-encryption-key', database, audit, 10, 30, outbox)
     const enrollment = await mfa.beginEnrollment(userId, 'rollout-admin@example.com')
-    const completed = await mfa.completeEnrollment(userId, generateTotp(enrollment.secret))
+    const enrollmentCode = sent.at(-1)?.match(/\b\d{6}\b/)?.[0]
+    assert.ok(enrollmentCode)
+    const completed = await mfa.completeEnrollment(userId, enrollment.challengeToken, enrollmentCode)
     assert.equal(completed.recoveryCodes.length, 8)
-    await mfa.verifyStepUp(userId, completed.recoveryCodes[0]!)
-    await assert.rejects(mfa.verifyStepUp(userId, completed.recoveryCodes[0]!), /already used|not valid/)
+    const stepUp = await mfa.issueStepUpChallenge(userId, 'rollout-admin@example.com', { ipHash: null, userAgent: 'test' })
+    const stepUpCode = sent.at(-1)?.match(/\b\d{6}\b/)?.[0]
+    assert.ok(stepUpCode)
+    await mfa.verifyStepUp(userId, stepUp.challengeToken, stepUpCode)
+    await assert.rejects(mfa.verifyStepUp(userId, stepUp.challengeToken, stepUpCode), /already used|invalid|expired/)
+
+    const recoveryChallenge = await mfa.issueLoginChallenge(
+      userId, 'rollout-admin@example.com', { ipHash: null, userAgent: 'recovery-test' }
+    )
+    assert.equal(await mfa.verifyLoginChallenge(recoveryChallenge.challengeToken, completed.recoveryCodes[0]!), userId)
+    const factor = await database.query<{ remaining: number }>(`
+      SELECT jsonb_array_length(recovery_codes_json) AS remaining
+      FROM user_mfa_factors WHERE user_id = $1 AND factor_type = 'email' AND disabled_at IS NULL
+    `, [userId])
+    assert.equal(factor.rows[0]?.remaining, 7)
+
+    const trusted = await mfa.createTrustedDevice(userId, 'test-browser')
+    assert.equal(await mfa.verifyTrustedDevice(userId, trusted.token), true)
+    assert.equal((await mfa.listTrustedDevices(userId)).length, 1)
   } finally {
     await destroyTestDatabase(database)
   }

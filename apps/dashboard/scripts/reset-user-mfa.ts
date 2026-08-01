@@ -18,13 +18,15 @@ try {
     await executor.query('UPDATE user_mfa_factors SET disabled_at=$2 WHERE user_id=$1 AND disabled_at IS NULL', [target.id, now])
     await executor.query('UPDATE users SET mfa_enrolled_at=NULL,updated_at=$2 WHERE id=$1', [target.id, now])
     await executor.query('UPDATE auth_sessions SET revoked_at=$2,revoked_by=$3 WHERE user_id=$1 AND revoked_at IS NULL', [target.id, now, 'system:mfa-recovery-cli'])
+    await executor.query('UPDATE mfa_trusted_devices SET revoked_at=$2,revoked_by=$3 WHERE user_id=$1 AND revoked_at IS NULL', [target.id, now, 'system:mfa-recovery-cli'])
+    await executor.query('UPDATE mfa_challenges SET invalidated_at=$2 WHERE user_id=$1 AND used_at IS NULL AND invalidated_at IS NULL', [target.id, now])
     await executor.query(`
       INSERT INTO audit_events (id,site_id,actor_type,actor_identifier,event_type,metadata_json,created_at)
       VALUES ($1,NULL,'system','mfa-recovery-cli','mfa.emergency-reset',$2::jsonb,$3)
     `, [randomUUID(), JSON.stringify({ userId: target.id, email: target.email, reason: reason.slice(0, 1_000) }), now])
     return target
   })
-  console.log(JSON.stringify({ ok: true, userId: user.id, email: user.email, sessionsRevoked: true }))
+  console.log(JSON.stringify({ ok: true, userId: user.id, email: user.email, sessionsRevoked: true, trustedDevicesRevoked: true }))
 } finally {
   await database.close()
 }

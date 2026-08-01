@@ -1,4 +1,4 @@
-# Security Review — 2026-07-31
+# Security Review — 2026-08-01
 
 The Phase 11 review covered authentication, authorization, sessions, MFA,
 uploads, HMAC requests, webhooks, secrets, client projections, dependency
@@ -8,10 +8,12 @@ Implemented controls:
 
 - salted scrypt passwords, persisted login throttling, generic login errors,
   invitation expiry, password-reset expiry, and session revocation
-- 30-day server sessions with `HttpOnly`, `Secure` in production,
-  `SameSite=Strict`, and per-session CSRF tokens
-- login MFA after enrollment for MFA-required users, plus mandatory TOTP or
-  one-time recovery-code step-up for central plugin rollout approval
+- server sessions with a 72-hour inactivity limit, renewable 30-day cap,
+  `HttpOnly`, `Secure` in production, `SameSite=Strict`, and per-session CSRF
+  tokens
+- email MFA after enrollment for MFA-required users, ten-minute single-use
+  challenges with bounded attempts, 30-day hashed remembered-device tokens,
+  and fresh email step-up for central plugin rollout approval
 - server-side Admin, Team Member, Client, permission, and site-scope checks
 - cross-site request rejection, origin-host validation, restrictive security
   headers, request IDs, and no-store responses for sensitive downloads
@@ -34,7 +36,8 @@ Accepted limitations:
 - Plugin packages receive bounded structural validation but no third-party
   malware scan. Administrators must obtain packages from trusted vendors and
   review provenance before approval.
-- TOTP enrollment presents a manual secret/URI rather than a rendered QR code.
+- SMS delivery is only a disabled provider boundary and Twilio configuration
+  foundation; email is the only operational MFA channel.
 - SiteCare does not automatically roll back a failed plugin update. Recovery is
   supervised from plan-appropriate backup evidence.
 - Cloudflare Health Check and notification capabilities on Free plans require

@@ -6,6 +6,7 @@ import { getRuntimeSettings } from '../utils/config'
 const PUBLIC_PATHS = new Set([
   '/api/health',
   '/api/auth/login',
+  '/api/auth/mfa/verify',
   '/api/auth/invitations/accept',
   '/api/auth/password-reset/request',
   '/api/auth/password-reset/complete',
@@ -34,7 +35,11 @@ export default defineEventHandler(async (event) => {
 
   const sessionToken = getCookie(event, SESSION_COOKIE)
   const identity = sessionToken
-    ? await new SessionService(undefined, getRuntimeSettings(event).auth.sessionDays).resolve(sessionToken)
+    ? await new SessionService(
+        undefined,
+        getRuntimeSettings(event).auth.sessionDays,
+        getRuntimeSettings(event).auth.idleHours
+      ).resolve(sessionToken)
     : null
 
   if (!identity) {

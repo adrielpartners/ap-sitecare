@@ -12,7 +12,8 @@ export interface CreatedSession {
 export class SessionService {
   constructor(
     private readonly repository = new IdentityRepository(),
-    private readonly sessionDays = 30
+    private readonly sessionDays = 30,
+    private readonly idleHours = 72
   ) {}
 
   async create(userId: string, ipHash: string | null, userAgent: string | null): Promise<CreatedSession> {
@@ -40,6 +41,11 @@ export class SessionService {
     const now = new Date()
     const session = await this.repository.findActiveSessionByTokenHash(hashToken(sessionToken), now.toISOString())
     if (!session) return null
+    const idleMilliseconds = now.getTime() - new Date(session.lastSeenAt).getTime()
+    if (idleMilliseconds >= this.idleHours * 60 * 60 * 1000) {
+      await this.repository.revokeSession(session.id, now.toISOString(), 'system:idle-timeout')
+      return null
+    }
     const user = await this.repository.findUserById(session.userId)
     if (!user || user.status !== 'active') return null
     const memberships = await this.repository.listMembershipsForUser(user.id)
@@ -47,8 +53,7 @@ export class SessionService {
 
     const primary = selectPrimaryMembership(memberships)
     const accessibleSiteIds = await this.resolveSiteScope(primary, memberships)
-    const idleMilliseconds = now.getTime() - new Date(session.lastSeenAt).getTime()
-    if (idleMilliseconds >= 24 * 60 * 60 * 1000) {
+    if (idleMilliseconds >= 15 * 60 * 1000) {
       const expiresAt = new Date(now.getTime() + this.sessionDays * 86_400_000).toISOString()
       await this.repository.touchSession(session.id, now.toISOString(), expiresAt)
       session.lastSeenAt = now.toISOString()

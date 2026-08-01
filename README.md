@@ -18,7 +18,8 @@ Version One is complete through Phase 11:
 - inspection-and-proposal MCP tools
 - application-owned email/password authentication
 - Admin, Team Member, and Client authorization
-- renewable, revocable 30-day sessions
+- revocable sessions with a 72-hour inactivity limit and 30-day renewable cap
+- email MFA with 30-day remembered devices and fresh high-risk step-up
 - invitation and password-recovery email outbox with Brevo delivery
 - client accounts, site ownership, and a safe Client Dashboard shell
 - immutable SiteCare Core, Plus, and Pro plans with centralized entitlements
