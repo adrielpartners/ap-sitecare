@@ -4,6 +4,7 @@ import { BackupService } from './backup-service'
 import { EntitlementService } from './entitlement-service'
 import { CredentialService } from './credential-service'
 import { WordPressUpdateService } from './wordpress-update-service'
+import { normalizePluginSiteHealthEvidence, type NormalizedPluginSiteHealthEvidence } from './sitehealth-plugin-evidence'
 
 interface UpdateMonitoringEntitlementGate {
   assertCapability(siteId: string, capability: 'wordpress-update-monitoring'): Promise<unknown>
@@ -19,6 +20,7 @@ interface PluginCheckInPayload {
   themeUpdateCount: number
   lastCronRunAt: string | null
   backupSource?: Record<string, unknown>
+  siteHealthEvidence?: NormalizedPluginSiteHealthEvidence
 }
 
 function optionalString(value: unknown, key: string): string | null {
@@ -34,7 +36,7 @@ function updateCount(value: unknown, key: string): number {
 
 function contractVersion(value: unknown): number {
   if (value === undefined || value === null) return 1
-  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 2) {
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 3) {
     throw new Error('contractVersion must be a supported positive integer.')
   }
   return value as number
@@ -61,6 +63,9 @@ export class PluginReportingService {
       : null
     const updateReport = updateService?.normalize(payload, reportedContractVersion) ?? null
     const detectedBackupSource = this.normalizeBackupSource(payload.backupSource)
+    const siteHealthEvidence = reportedContractVersion >= 3
+      ? normalizePluginSiteHealthEvidence(payload.siteHealthEvidence)
+      : null
     let backupSourceError: string | null = null
     if (detectedBackupSource && this.backupService) {
       try {
@@ -94,7 +99,8 @@ export class PluginReportingService {
           activityCount: updateReport.activities.length
         }
       } : {}),
-      ...(detectedBackupSource ? { backupSource: { ...this.redactBackupSource(detectedBackupSource), saveError: backupSourceError } } : {})
+      ...(detectedBackupSource ? { backupSource: { ...this.redactBackupSource(detectedBackupSource), saveError: backupSourceError } } : {}),
+      ...(siteHealthEvidence ? { siteHealthEvidence } : {})
     } as PluginCheckInPayload
 
     const health = await this.healthService.recordCheckIn({

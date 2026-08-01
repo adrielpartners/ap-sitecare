@@ -31,6 +31,8 @@ export interface RuntimeSettings {
     dropboxBackupRoot: string
     hostingerApiBaseUrl: string
     hostingerApiToken: string
+    pageSpeedApiKey: string
+    pageSpeedApiBaseUrl: string
   }
   backups: {
     allowedLocalBaseDirectories: string
@@ -84,7 +86,9 @@ function runtimeSettingsFromEnvironment(): RuntimeSettings {
       dropboxRedirectUri: process.env.NUXT_INTEGRATIONS_DROPBOX_REDIRECT_URI || '',
       dropboxBackupRoot: process.env.NUXT_INTEGRATIONS_DROPBOX_BACKUP_ROOT || '',
       hostingerApiBaseUrl: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_BASE_URL || 'https://developers.hostinger.com',
-      hostingerApiToken: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN || ''
+      hostingerApiToken: process.env.NUXT_INTEGRATIONS_HOSTINGER_API_TOKEN || '',
+      pageSpeedApiKey: process.env.NUXT_INTEGRATIONS_PAGESPEED_API_KEY || '',
+      pageSpeedApiBaseUrl: process.env.NUXT_INTEGRATIONS_PAGESPEED_API_BASE_URL || 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
     },
     backups: {
       allowedLocalBaseDirectories: process.env.NUXT_BACKUPS_ALLOWED_LOCAL_BASE_DIRECTORIES || '',

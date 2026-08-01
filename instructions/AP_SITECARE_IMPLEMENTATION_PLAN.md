@@ -1,6 +1,6 @@
 # AP SiteCare Implementation Plan
 
-Version: 2.3
+Version: 2.4
 
 Project: AP SiteCare
 
@@ -8,9 +8,10 @@ Repository: `ap-sitecare`
 
 Last Updated: 2026-07-31
 
-Roadmap Status: Phase 1 through Phase 7 implementation complete. The production
-database/application-authentication deployment cutover remains gated and may
-be completed independently before production release.
+Roadmap Status: Phase 1 through Phase 8 implementation complete. Phase 7's live
+Hostinger source and backup/restore acceptance proof remains intentionally
+deferred. Phase 8 production acceptance requires the WordPress plugin rollout
+and one live Checkup/Review/email proof.
 
 ---
 
@@ -1583,7 +1584,7 @@ Recommended next assignment:
 
 ## Phase 8 — SiteHealth Checkups and SiteHealth Reviews
 
-Status: `not-started`
+Status: `implementation-complete — 2026-07-31`
 
 ### Goal
 
@@ -1666,6 +1667,86 @@ client approval before cleanup.
 - Reviews are generated and emailed only from the Dashboard
 - technicians can review and revise all recommendations
 - no cleanup occurs without separately recorded approval
+
+### Phase 8 Handoff — 2026-07-31
+
+Completed work:
+
+- migration 13 adds durable Checkups, annual policies, evidence, findings,
+  recommendations, immutable Review versions, external approvals, and cleanup
+  proposals
+- manual Checkups are available for any authorized site regardless of plan;
+  Plus/Pro annual policy synchronization uses the central entitlement service,
+  makes the first run due after 30 days, advances from completed annual work,
+  and prevents duplicate cycles
+- collection runs through the general automation worker and composes Google
+  PageSpeed, privacy-minimized WordPress plugin evidence, update inventory,
+  Hostinger optional backup evidence, SiteCare long-term backup evidence,
+  Cloudflare Universal SSL evidence, and an optional bounded same-origin link
+  check
+- AP SiteCare plugin `0.4.0` introduces check-in contract version 3 for bounded
+  pages, media, user-role, environment, storage, and database evidence without
+  user emails, content bodies, authentication material, or invented user
+  inactivity
+- the technician workspace supports evidence review, finding and
+  recommendation amendments, draft editing, immutable publication, Dashboard
+  email delivery, external approval recording, and technician initiation of
+  approved cleanup proposals
+- client routes expose published Review projections only and remove raw
+  evidence values, technician identities, and internal notes
+- Review email fans out through the transactional outbox to enabled per-site
+  `sitehealth` recipients; zero-recipient delivery is rejected without marking
+  a Review sent
+- no cleanup executor, automatic email-reply interpretation, WordPress
+  mutation, or Service Time behavior was added
+
+Verification:
+
+- `npm run typecheck` passes
+- the focused Phase 8 suite passes 6 tests
+- the complete suite passes 78 tests with zero failures
+- every plugin PHP file passes `php -l`
+- `npm run build` passes and emits every SiteHealth page and API route
+- `git diff --check` passes
+
+Schema and configuration:
+
+- deploy migration 13, Dashboard, automation worker, and email worker together
+- optional PageSpeed settings are documented in `.env.example`; a blank API key
+  is supported initially
+- deploy plugin `0.4.0` to each managed WordPress site to enable contract 3;
+  older plugin check-ins remain accepted but their SiteHealth evidence is
+  displayed as unavailable
+- configure one or more enabled `sitehealth` notification recipients per site
+  before Review delivery
+
+Known limitations and acceptance gates:
+
+- Google may omit field Core Web Vitals; the Review marks that evidence
+  unavailable rather than estimating it
+- Hostinger daily-backup timing remains optional on shared hosting
+- content consolidation, abandoned-software status, licenses, unattached media,
+  permissions, and user inactivity still require technician judgment
+- optional link checking is intentionally limited to 25 same-origin links from
+  the homepage and does not claim to be a full crawler
+- a live production proof still needs plugin `0.4.0`, one manual Checkup, one
+  published Review, one Brevo recipient delivery, a client-safe read, and an
+  approval record confirming that no cleanup executes
+- the required `MODE_NUXT_APP.md` instruction file referenced by project rules
+  remains absent; the architecture, coding, project, and visual rules were
+  followed
+
+Deployment and operations:
+
+- use `docs/SITEHEALTH_CHECKUPS_AND_REVIEWS.md` for configuration, plugin
+  rollout, API, workflow, and production acceptance
+- annual evaluation begins from the automation worker's global daily schedule;
+  Plus/Pro sites are not queued until their calculated due date
+
+Recommended next assignment:
+
+- complete the Phase 8 live acceptance checklist, then begin Phase 9 —
+  Centralized Manual Plugin Updates
 
 ---
 

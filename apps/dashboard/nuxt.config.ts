@@ -46,7 +46,9 @@ export default defineNuxtConfig({
       dropboxRedirectUri: '',
       dropboxBackupRoot: '',
       hostingerApiBaseUrl: 'https://developers.hostinger.com',
-      hostingerApiToken: ''
+      hostingerApiToken: '',
+      pageSpeedApiKey: '',
+      pageSpeedApiBaseUrl: 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
     },
     backups: {
       allowedLocalBaseDirectories: '',

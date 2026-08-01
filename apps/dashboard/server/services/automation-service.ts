@@ -30,6 +30,7 @@ import { BackupService } from './backup-service'
 import { BackupRepository } from '../repositories/backup-repository'
 import { SiteRepository } from '../repositories/site-repository'
 import { SiteService } from './site-service'
+import { SiteHealthService } from './sitehealth-service'
 
 const sensitiveKey = /(password|secret|token|credential|authorization|api[-_]?key)/i
 
@@ -347,6 +348,25 @@ export class SchedulerService {
     return created
   }
 
+  async ensurePhaseEightSchedules(at = new Date()): Promise<number> {
+    const repository = new AutomationRepository(this.database)
+    const id = 'system:sitehealth-annual'
+    if (await repository.findSchedule(id)) return 0
+    await this.save({
+      id,
+      siteId: null,
+      name: 'Evaluate annual SiteHealth Checkup eligibility',
+      jobType: 'sitehealth.annual.schedule',
+      operationKey: 'sitehealth-annual-schedule',
+      intervalSeconds: 86_400,
+      maxAttempts: 3,
+      enabled: true,
+      nextRunAt: at.toISOString(),
+      actorIdentifier: 'system:scheduler'
+    })
+    return 1
+  }
+
   async tick(at = new Date(), limit = 100): Promise<number> {
     const now = at.toISOString()
     return this.withTransaction(async executor => {
@@ -614,6 +634,7 @@ export function createCoreAutomationHandlers(
     }
   )
   const audit = new AuditService(new AuditRepository(database))
+  const sitehealth = new SiteHealthService(database)
   const backups = new BackupService({
     credentialEncryptionKey: settings.credentialEncryptionKey,
     dropboxAccessToken: settings.dropboxAccessToken,
@@ -713,6 +734,19 @@ export function createCoreAutomationHandlers(
     ['sitecare.backup.retention-dry-run', {
       async execute(job) {
         return backups.runRetentionDryRun(job.requestedBy)
+      }
+    }],
+    ['sitehealth.annual.schedule', {
+      async execute() {
+        const result = await sitehealth.planDueAnnualCheckups()
+        return { queuedCheckupIds: result.queued, skipped: result.skipped }
+      }
+    }],
+    ['sitehealth.checkup.collect', {
+      async execute(job) {
+        const checkupId = typeof job.payload.checkupId === 'string' ? job.payload.checkupId : ''
+        if (!checkupId) throw new AutomationPermanentError('SiteHealth collection requires a Checkup ID.', 'checkup-required')
+        return sitehealth.runCheckup(checkupId)
       }
     }]
   ])

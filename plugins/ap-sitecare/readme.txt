@@ -2,7 +2,7 @@
 Contributors: adrielpartners
 Requires at least: 6.0
 Requires PHP: 8.0
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 
 Securely reports WordPress operational health and provides a client-facing care summary inside WordPress Admin.
 
@@ -34,3 +34,8 @@ The AP SiteCare screen and WordPress Dashboard widget combine immediate local
 WordPress update information with the latest cached, client-safe summary from
 the AP SiteCare dashboard. Unavailable metrics remain clearly marked as not
 available.
+
+Version 0.4 adds privacy-conscious SiteHealth evidence for content, media,
+users, the WordPress/PHP environment, storage, and database health. Candidate
+items remain review-only: the plugin never performs cleanup and does not send
+client reports or email.

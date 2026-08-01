@@ -1,9 +1,9 @@
 # AP_SITECARE_DECISIONS.md
 
-Version: 2.0
+Version: 2.1
 Project: AP SiteCare
 Repository: `ap-sitecare`
-Last Updated: 2026-07-30
+Last Updated: 2026-07-31
 
 ---
 
@@ -155,8 +155,6 @@ Operational safety is more important than maximum automation.
 ## Reversibility
 
 Moderate.
-
----
 
 # Decision 027: Auto-detect backup source details through signed plugin check-ins
 
@@ -1527,6 +1525,53 @@ restoration to SiteCare or Hostinger.
 - Automatic remote deletion remains unavailable until a production dry-run is
   approved.
 - Google Drive and S3-compatible adapters remain future work.
+
+## Date Adopted
+
+2026-07-31
+
+## Reversibility
+
+Moderate.
+
+---
+
+# Decision 043: Preserve SiteHealth evidence while exposing client-safe Review projections
+
+## Decision
+
+SiteHealth Checkups run as durable Dashboard jobs. A technician may request one
+for any site, while SiteCare Plus and Pro receive annual scheduling from the
+central entitlement service. The first annual run is due 30 days after
+eligibility and later runs are due one year after the preceding completion.
+
+The WordPress plugin contract version 3 collects bounded, privacy-minimized
+local evidence but never generates or emails a Review. The Dashboard composes
+that evidence with PageSpeed, update, backup, and other available provider
+facts. Missing facts remain explicitly unavailable. Full evidence and editing
+history are preserved for authorized staff; client APIs strip raw evidence
+values, technician identities, and internal notes from published projections.
+
+Publishing creates immutable Review versions. Delivery uses the transactional
+Dashboard email outbox and per-site `sitehealth` recipients. External approval
+is recorded manually. Approval may create cleanup proposals, but Phase 8 has no
+cleanup executor and a technician must separately initiate any approved work.
+
+## Rationale
+
+This maximizes automatic evidence gathering without presenting guesses as
+facts, keeps professional judgment in the workflow, minimizes exposed client
+and WordPress data, and prevents a report or email response from silently
+triggering maintenance.
+
+## Tradeoffs
+
+- WordPress sites must receive plugin contract version 3 before the richest
+  evidence becomes available.
+- PageSpeed field data and Hostinger routine-backup timing can remain
+  unavailable even when collection succeeds.
+- Client approval remains a technician-recorded external event.
+- Cleanup is tracked as approved intent but still performed outside Phase 8.
 
 ## Date Adopted
 

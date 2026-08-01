@@ -15,6 +15,7 @@ const operationalItems = [
 const items = computed(() => {
   if (props.role === 'client') return [
     { label: 'My SiteCare', to: '/portal' },
+    { label: 'SiteHealth Reviews', to: '/reports' },
     { label: 'Profile & sessions', to: '/profile' }
   ]
   const adminItems = props.role === 'admin'

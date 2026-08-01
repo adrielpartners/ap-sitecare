@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AP SiteCare
  * Description: Reports WordPress operational health and provides client care visibility.
- * Version: 0.3.0
+ * Version: 0.4.0
  * Author: Adriel Partners
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -12,7 +12,7 @@ defined('ABSPATH') || exit;
 
 define('APSC_PLUGIN_FILE', __FILE__);
 define('APSC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('APSC_PLUGIN_VERSION', '0.3.0');
+define('APSC_PLUGIN_VERSION', '0.4.0');
 
 require_once APSC_PLUGIN_DIR . 'src/SettingsRepository.php';
 require_once APSC_PLUGIN_DIR . 'src/UpdateMonitorService.php';

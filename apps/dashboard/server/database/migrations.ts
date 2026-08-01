@@ -1437,6 +1437,196 @@ const migrations: Migration[] = [
         ADD COLUMN completed_by TEXT,
         ADD COLUMN outcome TEXT;
     `
+  },
+  {
+    id: 13,
+    name: 'add_sitehealth_checkups_reviews_and_approval_boundary',
+    sql: `
+      CREATE TABLE sitehealth_checkups (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        trigger_type TEXT NOT NULL CHECK (trigger_type IN ('manual', 'annual')),
+        annual_cycle_date DATE,
+        status TEXT NOT NULL
+          CHECK (status IN ('queued', 'running', 'draft-ready', 'failed', 'cancelled')),
+        include_broken_links BOOLEAN NOT NULL DEFAULT FALSE,
+        requested_by_type TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        automation_job_id TEXT,
+        evidence_check_in_id TEXT,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (automation_job_id) REFERENCES automation_jobs(id) ON DELETE SET NULL,
+        FOREIGN KEY (evidence_check_in_id) REFERENCES site_check_ins(id) ON DELETE SET NULL,
+        CHECK (
+          (trigger_type = 'annual' AND annual_cycle_date IS NOT NULL)
+          OR (trigger_type = 'manual' AND annual_cycle_date IS NULL)
+        )
+      );
+
+      CREATE UNIQUE INDEX sitehealth_checkups_one_annual_cycle
+        ON sitehealth_checkups(site_id, annual_cycle_date)
+        WHERE trigger_type = 'annual';
+
+      CREATE INDEX sitehealth_checkups_site_created
+        ON sitehealth_checkups(site_id, created_at DESC);
+
+      CREATE INDEX sitehealth_checkups_work_queue
+        ON sitehealth_checkups(status, created_at ASC)
+        WHERE status IN ('queued', 'running');
+
+      CREATE TABLE sitehealth_annual_policies (
+        site_id TEXT PRIMARY KEY,
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        eligible_at TIMESTAMPTZ,
+        next_due_at TIMESTAMPTZ,
+        last_completed_at TIMESTAMPTZ,
+        last_checkup_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (last_checkup_id) REFERENCES sitehealth_checkups(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX sitehealth_annual_policies_due
+        ON sitehealth_annual_policies(next_due_at ASC)
+        WHERE enabled = TRUE AND next_due_at IS NOT NULL;
+
+      CREATE TABLE sitehealth_evidence (
+        id TEXT PRIMARY KEY,
+        checkup_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        area TEXT NOT NULL
+          CHECK (area IN ('performance', 'content', 'media', 'users', 'plugins-themes', 'environment', 'database', 'backups', 'updates')),
+        metric_key TEXT NOT NULL,
+        source TEXT NOT NULL,
+        availability TEXT NOT NULL CHECK (availability IN ('available', 'unavailable', 'error')),
+        summary TEXT NOT NULL,
+        value_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        observed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (checkup_id) REFERENCES sitehealth_checkups(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        UNIQUE (checkup_id, metric_key)
+      );
+
+      CREATE INDEX sitehealth_evidence_checkup_area
+        ON sitehealth_evidence(checkup_id, area, metric_key);
+
+      CREATE TABLE sitehealth_findings (
+        id TEXT PRIMARY KEY,
+        checkup_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        evidence_id TEXT,
+        area TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK (severity IN ('info', 'low', 'medium', 'high')),
+        origin TEXT NOT NULL CHECK (origin IN ('automated', 'technician')),
+        status TEXT NOT NULL CHECK (status IN ('active', 'dismissed')),
+        technician_notes TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (checkup_id) REFERENCES sitehealth_checkups(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (evidence_id) REFERENCES sitehealth_evidence(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX sitehealth_findings_checkup_status
+        ON sitehealth_findings(checkup_id, status, sort_order, created_at);
+
+      CREATE TABLE sitehealth_recommendations (
+        id TEXT PRIMARY KEY,
+        checkup_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        area TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high')),
+        status TEXT NOT NULL CHECK (status IN ('proposed', 'dismissed')),
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (checkup_id) REFERENCES sitehealth_checkups(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX sitehealth_recommendations_checkup_status
+        ON sitehealth_recommendations(checkup_id, status, priority, created_at);
+
+      CREATE TABLE sitehealth_reviews (
+        id TEXT PRIMARY KEY,
+        checkup_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        version INTEGER NOT NULL CHECK (version > 0),
+        status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'sent', 'superseded')),
+        title TEXT NOT NULL,
+        executive_summary TEXT NOT NULL,
+        content_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by TEXT NOT NULL,
+        published_by TEXT,
+        published_at TIMESTAMPTZ,
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (checkup_id) REFERENCES sitehealth_checkups(id) ON DELETE CASCADE,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        UNIQUE (checkup_id, version)
+      );
+
+      CREATE INDEX sitehealth_reviews_site_created
+        ON sitehealth_reviews(site_id, created_at DESC);
+
+      CREATE TABLE sitehealth_approvals (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('approved-all', 'declined', 'partial')),
+        source TEXT NOT NULL CHECK (source IN ('external-email', 'phone', 'other')),
+        notes TEXT NOT NULL,
+        recorded_by TEXT NOT NULL,
+        recorded_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (review_id) REFERENCES sitehealth_reviews(id) ON DELETE RESTRICT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX sitehealth_approvals_review_recorded
+        ON sitehealth_approvals(review_id, recorded_at DESC);
+
+      CREATE TABLE sitehealth_cleanup_proposals (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        recommendation_id TEXT NOT NULL,
+        site_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        status TEXT NOT NULL
+          CHECK (status IN ('proposed', 'approved', 'initiated', 'completed', 'cancelled')),
+        approval_id TEXT,
+        technician_notes TEXT,
+        initiated_by TEXT,
+        initiated_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL,
+        FOREIGN KEY (review_id) REFERENCES sitehealth_reviews(id) ON DELETE RESTRICT,
+        FOREIGN KEY (recommendation_id) REFERENCES sitehealth_recommendations(id) ON DELETE RESTRICT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (approval_id) REFERENCES sitehealth_approvals(id) ON DELETE RESTRICT,
+        UNIQUE (review_id, recommendation_id),
+        CHECK (status = 'proposed' OR approval_id IS NOT NULL),
+        CHECK (status <> 'initiated' OR (initiated_by IS NOT NULL AND initiated_at IS NOT NULL))
+      );
+
+      CREATE INDEX sitehealth_cleanup_proposals_site_status
+        ON sitehealth_cleanup_proposals(site_id, status, created_at DESC);
+    `
   }
 ]
 

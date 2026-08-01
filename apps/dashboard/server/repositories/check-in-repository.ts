@@ -72,6 +72,16 @@ export class CheckInRepository {
     return result.rows.map(mapCheckIn)
   }
 
+  async findLatestCheckIn(siteId: string): Promise<SiteCheckIn | null> {
+    const result = await this.database.query<CheckInRow>(`
+      SELECT * FROM site_check_ins
+      WHERE site_id = $1
+      ORDER BY received_at DESC
+      LIMIT 1
+    `, [siteId])
+    return result.rows[0] ? mapCheckIn(result.rows[0]) : null
+  }
+
   async createSnapshot(snapshot: SiteHealthSnapshot): Promise<SiteHealthSnapshot> {
     await this.database.query(`
       INSERT INTO site_health_snapshots (

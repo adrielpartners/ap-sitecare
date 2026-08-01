@@ -1,6 +1,6 @@
 # AP_SITECARE_PROJECT_RULES.md
 
-Version: 2.1
+Version: 2.2
 Project: AP SiteCare
 Repository: `ap-sitecare`
 System Type: Hybrid Internal Operations Platform
@@ -675,3 +675,32 @@ Do not add a second package manager.
   adapters are explicitly assigned and verified.
 - Admin job retry, cancellation, provider configuration, and suppression-lift
   actions must produce audit history.
+
+---
+
+# 29. SiteHealth Checkup and Review Rules
+
+- A SiteHealth Checkup collects evidence; a SiteHealth Review is the
+  Dashboard-generated, versioned report artifact.
+- Manual Checkups are available to authorized staff for every site regardless
+  of plan. Automated annual Checkups must resolve Plus/Pro entitlement through
+  `EntitlementService` at planning and execution time.
+- Checkups must execute as durable automation jobs, never inside a Dashboard
+  request.
+- The WordPress plugin may collect only bounded, necessary SiteHealth evidence.
+  It must not collect user emails, authentication material, content bodies, or
+  claim user inactivity without a reliable source.
+- Every evidence item must retain provenance and availability. Missing evidence
+  must remain unavailable and must never be converted into a successful fact.
+- Technician edits must preserve original automated evidence and audit the
+  actor and action.
+- Published Reviews are immutable versions. The Dashboard alone generates and
+  emails them through the transactional outbox and per-site `sitehealth`
+  recipients.
+- Client Review APIs must strip raw evidence values, technician identities, and
+  internal notes, and must enforce client/site ownership.
+- External approval must be recorded explicitly. Email replies must not be
+  interpreted as approval automatically.
+- Approval may create cleanup proposals only. Phase 8 must not contain a
+  cleanup executor or Service Time tracking, and technician initiation remains
+  a distinct audited step.

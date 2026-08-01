@@ -1,6 +1,6 @@
 # AP_SITECARE_ARCHITECTURE.md
 
-Version: 2.3
+Version: 2.4
 Project: AP SiteCare
 Repository: `ap-sitecare`
 System Type: Internal and Client Operations Platform + WordPress Site Connector
@@ -35,8 +35,8 @@ foundation records, a provider-neutral authentication email outbox, immutable
 SiteCare plans, centralized entitlements, plan lifecycle records,
 administrative overrides, service-activation intents, general automation and
 email workers, WordPress/Hostinger visibility, Cloudflare-backed uptime
-incidents, and Cloudflare Security Status evidence. It does not yet have
-SiteHealth Review models.
+incidents, Cloudflare Security Status evidence, and Dashboard-owned SiteHealth
+Checkup and versioned SiteHealth Review models.
 
 The approved roadmap changes the target architecture to:
 
@@ -53,10 +53,11 @@ The approved roadmap changes the target architecture to:
 - SiteCare-owned long-term SiteCare Pro backups
 
 PostgreSQL, application authentication, client ownership, central
-entitlements, durable automation/email, WordPress/Hostinger visibility, and
-Cloudflare uptime/security evidence are implemented. The remaining items are
-approved targets, not claims about current implementation. The active sequence
-is defined in `AP_SITECARE_IMPLEMENTATION_PLAN.md`.
+entitlements, durable automation/email, WordPress/Hostinger visibility,
+Cloudflare uptime/security evidence, SiteCare Pro backup execution, and
+SiteHealth Checkups/Reviews are implemented. The remaining items are approved
+targets, not claims about current implementation. The active sequence is
+defined in `AP_SITECARE_IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -459,6 +460,8 @@ NUXT_EMAIL_FROM_ADDRESS
 NUXT_EMAIL_FROM_NAME
 NUXT_EMAIL_REPLY_TO
 NUXT_CREDENTIAL_ENCRYPTION_KEY
+NUXT_INTEGRATIONS_PAGESPEED_API_KEY
+NUXT_INTEGRATIONS_PAGESPEED_API_BASE_URL
 ```
 
 No local or production authentication-bypass variable is supported.
@@ -733,6 +736,12 @@ missing active credentials, and invalid signatures are rejected.
 - Plugin update count
 - Theme update count
 - Last WP-Cron reporter run
+
+Plugin contract version 3 additionally reports bounded, privacy-minimized
+SiteHealth evidence for published pages, media candidates, user roles and
+registration dates, the WordPress/PHP/storage environment, and WordPress-owned
+database metrics. It does not report user email addresses, authentication
+data, content bodies, private media, or claimed user last-activity data.
 
 ---
 
@@ -1470,3 +1479,75 @@ Security page projects portfolio status and links back to each checklist.
 
 The deployment and operations contract is documented in
 `docs/CLOUDFLARE_UPTIME_AND_SECURITY.md`.
+
+---
+
+# 28. SiteHealth Checkups and SiteHealth Reviews
+
+## Lifecycle and Entitlement
+
+A SiteHealth Checkup is the evidence-gathering run. A SiteHealth Review is the
+versioned Dashboard artifact produced from a completed Checkup. An Admin or
+Team Member may queue a manual Checkup for any authorized site regardless of
+plan. SiteCare Plus and SiteCare Pro receive one automated annual Checkup;
+the first becomes due 30 days after eligibility and each later due date is one
+year after the preceding Checkup completes. An annual-cycle uniqueness
+constraint and durable job idempotency prevent duplicate runs.
+
+The general automation worker owns `sitehealth.checkup.collect` and the daily
+`sitehealth.annual.schedule` evaluation. Collection never runs inside the
+Dashboard request. Annual planning and execution both resolve current central
+entitlements.
+
+## Evidence Boundary
+
+`SiteHealthEvidenceCollector` composes only attributable evidence:
+
+- Google PageSpeed Insights desktop and mobile performance, lab metrics, and
+  field Core Web Vitals when the provider returns them;
+- WordPress plugin contract version 3 SiteHealth evidence;
+- WordPress core, plugin, theme, and update-activity evidence already stored by
+  the Dashboard;
+- Hostinger routine-backup evidence when available, otherwise an explicit
+  unavailable record;
+- SiteCare long-term-backup evidence; and
+- an optional bounded, same-origin homepage link check with private-network
+  destinations rejected.
+
+Evidence records retain source, observation time, availability, summary, and
+the bounded normalized value used to derive the draft. Missing provider or
+plugin evidence is never inferred. The Dashboard owns evidence history,
+findings, recommendations, Review assembly, delivery, and approval records;
+the plugin collects and reports local facts only.
+
+## Review, Delivery, and Cleanup Boundary
+
+Completed collection produces a technician workspace. Staff may amend,
+dismiss, or add findings and recommendations while the original evidence
+remains immutable. Publishing creates a new immutable Review version and
+supersedes the prior published version. The Dashboard emails the Review
+through the transactional outbox to every enabled per-site `sitehealth`
+recipient.
+
+Client APIs expose only published Review projections. Raw evidence values,
+technician identities, and internal technician notes are stripped at this
+boundary. Clients are instructed to email Adriel Partners to approve the
+recommendations; the application does not interpret replies automatically.
+A technician records the external response. Only an `approved-all` record may
+create approved cleanup proposals, and a separate technician action may mark a
+proposal initiated. Phase 8 contains no cleanup executor and no Service Time
+tracking.
+
+Migration 13 adds:
+
+- `sitehealth_checkups`
+- `sitehealth_annual_policies`
+- `sitehealth_evidence`
+- `sitehealth_findings`
+- `sitehealth_recommendations`
+- `sitehealth_reviews`
+- `sitehealth_approvals`
+- `sitehealth_cleanup_proposals`
+
+The operational contract is documented in
+`docs/SITEHEALTH_CHECKUPS_AND_REVIEWS.md`.

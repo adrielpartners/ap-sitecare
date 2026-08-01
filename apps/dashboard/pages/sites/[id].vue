@@ -3,6 +3,7 @@ const route = useRoute()
 const api = useSiteCareApi()
 const { data: sessionResponse } = await useFetch<any>('/api/session')
 const isAdmin = computed(() => sessionResponse.value?.user?.role === 'admin')
+const isClient = computed(() => sessionResponse.value?.user?.role === 'client')
 const siteId = computed(() => String(route.params.id))
 const { data: response, refresh } = await useFetch(() => `/api/sites/${siteId.value}`)
 const { data: auditResponse } = await useFetch(() => `/api/sites/${siteId.value}/audit`)
@@ -35,7 +36,10 @@ const allTabs = [
   { id: 'audit', label: 'Audit Log' }
 ] as const
 type SiteTabId = typeof allTabs[number]['id']
-const tabs = computed(() => allTabs.filter((tab: typeof allTabs[number]) => !['service', 'notifications'].includes(tab.id) || isAdmin.value))
+const tabs = computed(() => allTabs.filter((tab: typeof allTabs[number]) =>
+  (!['service', 'notifications'].includes(tab.id) || isAdmin.value)
+  && (tab.id !== 'reports' || !isClient.value)
+))
 const requestedTab = String(route.query.tab ?? 'overview') as SiteTabId
 const activeTab = ref<SiteTabId>(tabs.value.some((tab: typeof allTabs[number]) => tab.id === requestedTab) ? requestedTab : 'overview')
 
@@ -263,22 +267,12 @@ async function runAction(action: () => Promise<void>) {
         role="tabpanel"
         aria-labelledby="site-tab-reports"
       >
-        <AppPanel
-          title="Latest WordPress report"
-          description="Operational data reported by the AP SiteCare WordPress agent."
-        >
-          <div v-if="detail.health.latest" class="grid">
-            <AppCard muted><p class="text-meta">WordPress</p><h2>{{ detail.health.latest.wordpressVersion ?? 'Unknown' }}</h2></AppCard>
-            <AppCard muted><p class="text-meta">PHP</p><h2>{{ detail.health.latest.phpVersion ?? 'Unknown' }}</h2></AppCard>
-            <AppCard muted><p class="text-meta">Plugin updates</p><h2>{{ detail.health.latest.pluginUpdateCount }}</h2></AppCard>
-            <AppCard muted><p class="text-meta">Theme updates</p><h2>{{ detail.health.latest.themeUpdateCount }}</h2></AppCard>
-          </div>
-          <AppEmptyState
-            v-else
-            title="Awaiting the first report"
-            description="Configure the WordPress reporter plugin and send a manual check-in."
-          />
-        </AppPanel>
+        <header class="section-heading">
+          <p class="eyebrow">Annual and on-demand review</p>
+          <h2>SiteHealth Checkups and Reviews</h2>
+          <p>Collect evidence, revise findings and recommendations, publish the client Review, and record approval before cleanup.</p>
+        </header>
+        <SiteHealthSection :site-id="siteId" />
       </section>
 
       <section
